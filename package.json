@@ -1,0 +1,32 @@
+{
+  "name": "room-check",
+  "version": "1.0.0",
+  "description": "A self-hosted live QR audience poll with a big-screen reveal.",
+  "private": true,
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.mjs",
+    "dev": "node --watch --env-file-if-exists=.env server.mjs",
+    "share": "node --env-file-if-exists=.env scripts/share.mjs",
+    "reset-password": "node --env-file-if-exists=.env scripts/reset-password.mjs",
+    "check": "node --check server.mjs && node --check scripts/share.mjs && node --check scripts/reset-password.mjs && node --check public/player.js && node --check public/host.js && node --check public/common.js"
+  },
+  "engines": {
+    "node": ">=22.9"
+  },
+  "keywords": [
+    "poll",
+    "presentation",
+    "qr",
+    "live"
+  ],
+  "author": "Muhammad Rashid K",
+  "license": "MIT",
+  "dependencies": {
+    "cloudflared": "^0.7.3",
+    "express": "^5.3.0",
+    "qrcode": "^1.5.4",
+    "ws": "^8.22.0"
+  }
+}

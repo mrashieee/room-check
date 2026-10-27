@@ -1,0 +1,517 @@
+# Room Check
+
+**Created by [Muhammad Rashid K](https://github.com/mrashieee)** · MIT licensed
+
+A self-hosted, real-time audience poll for presentations. Show a QR code on the big screen, let everyone vote from their phone, then reveal the results on your laptop when you press **Done** or when the timer runs out.
+
+<p align="center">
+  <img src="./docs/host-stage.png" alt="Room Check host screen with a QR code and live vote counter" width="720" />
+  &nbsp;
+  <img src="./docs/player-mobile.png" alt="Room Check voting page on a phone" width="220" />
+</p>
+
+## Features
+
+- Password-protected host console, configured on first launch
+- Large QR code and live vote counter for the projector
+- Mobile-first voting page
+- Results hidden until the reveal
+- Automatic timer reveal or manual reveal
+- Animated, projector-friendly results
+- Works on a local network or through a public HTTPS tunnel
+- One Node.js process, no database and no build step
+- All fonts and assets are served locally
+- Optional systemd service for permanent self-hosting
+
+## Contents
+
+- [Quick start](#quick-start)
+- [Which setup should I use?](#which-setup-should-i-use)
+- [Requirements](#requirements)
+- [1. Download the project](#1-download-the-project)
+- [2. Install](#2-install)
+- [3. Start and secure the host console](#3-start-and-secure-the-host-console)
+- [4. Connect the audience](#4-connect-the-audience)
+- [5. Run a poll](#5-run-a-poll)
+- [Configuration](#configuration)
+- [Data, backups, and password resets](#data-backups-and-password-resets)
+- [Permanent hosting and HTTPS](#permanent-hosting-and-https)
+- [Troubleshooting](#troubleshooting)
+- [Updating](#updating)
+- [Presentation-day checklist](#presentation-day-checklist)
+- [Security](#security)
+- [Development](#development)
+- [Project layout](#project-layout)
+- [License](#license)
+
+## Quick start
+
+Requirements: **Node.js 22.9 or newer** and npm.
+
+```bash
+npm install
+npm start
+```
+
+Open the host console at [http://localhost:3000/host](http://localhost:3000/host). The terminal prints a one-time setup code. Enter it, create a password, and the host console unlocks.
+
+The audience link is printed in the terminal. If the audience is not on the same Wi-Fi, stop the server and use:
+
+```bash
+npm run share
+```
+
+Wait for **Public link verified and ready**, then use the printed HTTPS link. The QR code automatically uses it.
+
+## Which setup should I use?
+
+| Goal | Recommended setup |
+| --- | --- |
+| Try it on one computer | `npm start`, open the host console |
+| Audience on the same Wi-Fi | `npm start`, use the LAN audience link |
+| Audience on cellular or another network | `npm run share` |
+| Permanent domain and HTTPS | Node.js behind a reverse proxy, with `PUBLIC_URL` set |
+
+`npm start` and `npm run share` both serve the app on port 3000. Run only one of them at a time.
+
+## Requirements
+
+- **Node.js 22.9+** — check with `node --version`
+- **npm** — included with Node.js
+- Bash, PowerShell, or another terminal
+- Internet access for the initial install and for public tunnels
+
+If Node.js is not installed, download the current LTS release from [nodejs.org](https://nodejs.org/). On Linux or macOS, a version manager such as `nvm` also works.
+
+## 1. Download the project
+
+Clone this repository:
+
+```bash
+git clone https://github.com/mrashieee/room-check.git
+cd room-check
+```
+
+If you do not use Git, open the repository on GitHub, choose **Code → Download ZIP**, extract it, and open a terminal in the extracted folder.
+
+On Windows, use PowerShell. Most commands are identical; replace Unix-only commands such as `cp` with their PowerShell equivalent.
+
+## 2. Install
+
+```bash
+npm install
+```
+
+No build step is needed.
+
+Optional configuration:
+
+```bash
+cp .env.example .env
+```
+
+On Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+The defaults work for a local trial. See [Configuration](#configuration) before exposing the app publicly.
+
+> `npm install` may warn that the optional Cloudflare tunnel helper skipped an install script. This is harmless. The helper is downloaded automatically the first time you run `npm run share`.
+
+## 3. Start and secure the host console
+
+Start Room Check:
+
+```bash
+npm start
+```
+
+The terminal prints something like:
+
+```text
+ROOM CHECK
+──────────────────────────────────────────────────────────
+Audience     http://192.168.1.42:3000
+Host console http://localhost:3000/host
+Host auth    First-run setup needed
+──────────────────────────────────────────────────────────
+FIRST-RUN SETUP CODE: ABCD-EFGH
+Open the host console and create your password.
+```
+
+Open the host console:
+
+```text
+http://localhost:3000/host
+```
+
+On the first launch:
+
+1. Enter the one-time setup code from the terminal.
+2. Create a host password. It must be at least 8 characters.
+3. Confirm the password.
+
+The password is stored as an `scrypt` hash in `.data/auth.json`. The setup code is only required once. After that, the same password is used to unlock the host console.
+
+Important:
+
+- **Keep the terminal open.** It is the app log and can show errors or the setup code.
+- The setup code is only printed while no password has been configured. If you miss it, restart the process to generate a new one.
+- Host sessions last 12 hours.
+- If Room Check is running on a remote server with no browser, open `https://your-domain/host` or use an SSH tunnel:
+
+```bash
+ssh -L 3000:localhost:3000 user@your-server
+```
+
+Then open `http://localhost:3000/host` locally.
+
+### Stop and restart
+
+Press `Ctrl+C` in the terminal to stop the server.
+
+To start it again later:
+
+```bash
+npm start
+```
+
+The host password and the current poll are kept in `.data/`. The setup code will not be shown again.
+
+## 4. Connect the audience
+
+### Same Wi-Fi
+
+With `npm start` running, use the **Audience** URL printed in the terminal, for example `http://192.168.1.42:3000`. Phones must be on the same Wi-Fi network.
+
+If phones cannot connect:
+
+- Make sure the phone is not on a guest or isolated network.
+- Allow inbound TCP port 3000 through the host firewall.
+- Use `npm run share` if the venue isolates devices from each other.
+
+### Public link
+
+For phones on cellular or another network, stop `npm start` and run:
+
+```bash
+npm run share
+```
+
+This creates a temporary Cloudflare quick tunnel and prints an HTTPS address. The QR code and the **Audience** URL use that address automatically.
+
+The first run downloads a small tunnel helper. Cloudflare can take a minute or two to propagate a new hostname; wait for **Public link verified and ready** in the terminal before sharing the QR.
+
+Keep the process running for the whole event. The public URL is temporary and generally changes every time you restart `npm run share`.
+
+Do not run `npm start` and `npm run share` at the same time — both use port 3000.
+
+### Custom domain or permanent URL
+
+For a stable URL, run Room Check behind a reverse proxy with HTTPS and set `PUBLIC_URL`. See [Permanent hosting and HTTPS](#permanent-hosting-and-https).
+
+## 5. Run a poll
+
+1. In the host console, enter a game title, a question, and 2–6 answers.
+2. Choose a voting window: 30, 60, 90, or 120 seconds, or **Manual**.
+3. Check the audience link under the QR preview. Scan it with a phone to test the audience view.
+4. Press **Open the room**.
+5. Project the screen and let everyone scan the QR code.
+6. Press **Done — reveal results** at any time, or let the timer reveal them automatically.
+7. Choose **Play it again** to reuse the same question, or **New question** to go back to setup.
+
+Host shortcuts:
+
+| Key | Action |
+| --- | --- |
+| `R` | Reveal results |
+| `F` | Toggle full screen |
+
+Each browser can cast one vote per round. A vote cannot be changed after it is locked in. Results are withheld from the audience until the reveal.
+
+The audience sees a waiting screen before a round starts and automatically switches to the voting screen when the host opens the room.
+
+## Configuration
+
+Configuration is optional and read from `.env` when using `npm start` or `npm run share`.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PORT` | `3000` | HTTP port |
+| `BIND_ADDRESS` | `0.0.0.0` | Network address the server binds to |
+| `PUBLIC_URL` | automatic | Public base URL used by the audience QR code |
+| `DATA_DIR` | `./.data` | Directory for the password, session secret, and poll state |
+| `SESSION_SECRET` | generated | Optional signing secret for host sessions |
+
+Example `.env`:
+
+```dotenv
+PORT=3000
+PUBLIC_URL=https://poll.example.com
+# BIND_ADDRESS=0.0.0.0
+# SESSION_SECRET=replace-with-a-long-random-string
+```
+
+### `PUBLIC_URL`
+
+This is the address that phones will use. It affects the QR code and the audience link shown in the host console, not the port the server listens on.
+
+- Same Wi-Fi: usually left unset; it falls back to the machine's LAN address.
+- Reverse proxy or custom domain: set it to the full HTTPS origin, such as `https://poll.example.com`.
+
+Do not include a path after the origin.
+
+### Data directory
+
+The default data directory is:
+
+```text
+.data/
+├── auth.json          # password hash and session identifier
+├── session-secret     # generated session signing secret
+└── state.json         # current round, votes, and results
+```
+
+The server restricts these files to the owner where the filesystem supports permissions. Do not serve `.data/` from a web server.
+
+## Data, backups, and password resets
+
+### Back up
+
+Stop the app first for a consistent snapshot, then copy the whole `.data` directory:
+
+```bash
+tar czf room-check-data-backup.tgz .data
+```
+
+### Restore
+
+Stop the app, replace `.data` with the backup contents, and restart.
+
+### Reset the host password
+
+Stop the server and run:
+
+```bash
+npm run reset-password
+npm start
+```
+
+Restarting prints a new first-run setup code. The poll data is preserved. Old host sessions are invalidated once the new password is set.
+
+### Delete all data
+
+```bash
+rm -rf .data
+```
+
+This removes the password, session secret, and current poll. It cannot be undone.
+
+## Permanent hosting and HTTPS
+
+For a permanent public deployment, use HTTPS. The host password is sent to the server during login and must not travel over plain HTTP.
+
+### Run with systemd
+
+Create a service user and install the app in `/opt/room-check`:
+
+```bash
+sudo useradd --system --create-home --shell /usr/sbin/nologin roomcheck
+sudo mkdir -p /opt/room-check
+sudo chown roomcheck:roomcheck /opt/room-check
+
+sudo -u roomcheck git clone https://github.com/mrashieee/room-check.git /opt/room-check
+cd /opt/room-check
+sudo -u roomcheck npm install
+sudo -u roomcheck cp .env.example .env
+```
+
+Edit `/opt/room-check/.env`:
+
+```dotenv
+PORT=3000
+PUBLIC_URL=https://poll.example.com
+```
+
+Create `/etc/systemd/system/room-check.service`:
+
+```ini
+[Unit]
+Description=Room Check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=roomcheck
+Group=roomcheck
+WorkingDirectory=/opt/room-check
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/env npm start
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable it:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now room-check
+sudo journalctl -u room-check -f
+```
+
+The setup code appears in the journal. If `node` or `npm` is installed outside systemd’s default PATH, use the absolute path in `ExecStart`.
+
+### Caddy + HTTPS
+
+Install Caddy and use `/etc/caddy/Caddyfile`:
+
+```caddyfile
+poll.example.com {
+    reverse_proxy 127.0.0.1:3000
+}
+```
+
+Reload Caddy:
+
+```bash
+sudo systemctl reload caddy
+```
+
+Caddy handles HTTPS and WebSockets automatically.
+
+### Nginx
+
+If you use Nginx, enable WebSocket upgrades and forwarded headers:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+### Deployment requirements
+
+- Node.js 22.9+
+- A persistent disk or volume for `.data`
+- WebSocket support
+- HTTPS in front of the app
+- **One instance only** — the live poll is stored in memory and mirrored to disk, so do not scale to multiple replicas
+- `PUBLIC_URL` set if the public URL differs from the address used to open the host console
+
+Render, Railway, Fly.io, and VPS providers can all run the app. On free tiers, check whether the service sleeps or uses an ephemeral filesystem; either can interrupt a live poll or lose the host password.
+
+## Troubleshooting
+
+| Problem | Fix |
+| --- | --- |
+| `EADDRINUSE` or “port already in use” | Another server is using port 3000. Stop it or set a different `PORT`. |
+| Setup code is missing | Restart the app. If no password has been set, a new code appears in the terminal. |
+| Forgot the host password | Stop the app, run `npm run reset-password`, start it again, and use the new setup code. |
+| “That setup code is not right” | Copy the current code exactly. If the server restarted, the code changed. Use the one from the latest startup. |
+| Host page does not load | Make sure the terminal process is still running. Check `http://localhost:3000/healthz`. |
+| Phones on the same Wi-Fi cannot connect | Confirm both devices are on the same non-guest network, allow port 3000 through the firewall, or use `npm run share`. |
+| QR code points to `localhost` or the wrong address | Set `PUBLIC_URL`, or paste the correct address into the **Audience link** field before opening a round. |
+| Public link shows a Cloudflare 530 error right after startup | Wait for **Public link verified and ready**. If it persists, restart `npm run share`. |
+| Public link stopped working | The `npm run share` process was stopped or lost connectivity. Run it again; the URL will change. |
+| Votes or results do not update | A proxy may be blocking WebSockets. The app falls back to polling every 3 seconds; check the reverse proxy’s WebSocket support. |
+| Host login expired | Host sessions last 12 hours. Log in again. |
+| `npm run share` cannot download the tunnel helper | The network blocks GitHub or Cloudflare. Use the LAN mode or deploy behind a domain. |
+| The tunnel helper install warning appears during `npm install` | It is safe to ignore; the helper downloads automatically when needed. |
+
+## Updating
+
+Back up `.data` first.
+
+```bash
+git pull
+npm install
+```
+
+Then stop and restart the server. The data format is versioned; no manual migration is required.
+
+## Presentation-day checklist
+
+1. Start Room Check before the audience arrives.
+2. If using `npm run share`, wait for the verified public link and test it on a phone using cellular data.
+3. Log in to the host console and create the poll.
+4. Keep the laptop awake, connected, and plugged in.
+5. Increase screen brightness so the QR code scans easily.
+6. Keep the terminal window open.
+7. Open the room only when the QR is on screen.
+8. Press **Done** or let the timer reveal the results.
+
+## Security
+
+- The host password is hashed with `scrypt`; plaintext passwords are never stored.
+- The first-run setup code prevents someone from claiming a freshly exposed instance.
+- Login and setup attempts are rate-limited.
+- Host sessions are signed HttpOnly, SameSite cookies and expire after 12 hours.
+- Results are not included in the audience state until the host or timer reveals them.
+- Use HTTPS for any deployment reachable over the internet.
+- Keep `.env`, `.data/`, and backups private. They contain the host auth material and poll data.
+- Run a single app instance. Do not put the local data directory on a shared network filesystem.
+
+## Development
+
+```bash
+npm run dev
+npm run check
+```
+
+`npm run dev` restarts the server when server-side files change. Browser assets are served directly, so no build step is required.
+
+Useful commands:
+
+```bash
+npm start             # run the server with .env
+npm run share         # run with a temporary public Cloudflare tunnel
+npm run reset-password
+npm run check         # syntax checks
+```
+
+## Project layout
+
+```text
+server.mjs                 HTTP server, polling state, password auth, WebSockets
+public/
+├── player.html             audience page
+├── host.html               host console
+├── player.js               audience behavior
+├── host.js                 host behavior
+├── common.js               shared client helpers
+├── styles.css              all styles
+└── fonts/                  local fonts
+scripts/
+├── share.mjs               temporary Cloudflare tunnel
+└── reset-password.mjs      password reset helper
+docs/                       README screenshots
+.env.example
+LICENSE
+```
+
+Stack: Node.js, Express, `ws`, `qrcode`, and vanilla browser JavaScript.
+
+## License
+
+MIT License
+
+Copyright (c) 2026 Muhammad Rashid K
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+See [LICENSE](./LICENSE).

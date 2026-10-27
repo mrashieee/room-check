@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0d0c" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="A live audience poll. One question. One room. One answer." />
+    <meta name="author" content="Muhammad Rashid K" />
+    <meta name="copyright" content="Copyright (c) 2026 Muhammad Rashid K" />
+    <title>Room Check — Live audience poll</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/dm-sans.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/player.js"></script>
+  </head>
+  <body class="player-page">
+    <a class="skip-link" href="#main">Skip to the poll</a>
+
+    <div class="atmosphere" aria-hidden="true">
+      <span class="atmosphere-orb atmosphere-orb--lime"></span>
+      <span class="atmosphere-orb atmosphere-orb--coral"></span>
+      <span class="atmosphere-grid"></span>
+      <span class="atmosphere-grain"></span>
+    </div>
+
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Room Check home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" role="img">
+            <rect width="32" height="32" rx="9" fill="currentColor"></rect>
+            <path d="M9.5 12.5v7M16 9v14M22.5 13.5v5" fill="none" stroke="#101210" stroke-width="3" stroke-linecap="round"></path>
+          </svg>
+        </span>
+        <span class="brand-word">Room Check</span>
+      </a>
+      <div class="connection-pill" id="connection-pill" data-status="connecting" role="status" aria-live="polite">
+        <span class="connection-dot" aria-hidden="true"></span>
+        <span id="connection-label">Connecting</span>
+      </div>
+    </header>
+
+    <main class="player-main" id="main">
+      <section class="player-screen player-screen--connecting" id="screen-connecting" aria-labelledby="connecting-title">
+        <div class="connecting-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+        <p class="eyebrow">Room Check</p>
+        <h1 id="connecting-title">Finding the room<span class="dot-pulse">…</span></h1>
+      </section>
+
+      <section class="player-screen player-screen--waiting" id="screen-waiting" aria-labelledby="waiting-title" hidden>
+        <div class="waiting-visual" aria-hidden="true">
+          <span class="waiting-ring waiting-ring--one"></span>
+          <span class="waiting-ring waiting-ring--two"></span>
+          <span class="waiting-core"></span>
+        </div>
+        <p class="eyebrow">You’re on the list</p>
+        <h1 id="waiting-title">Standing by.</h1>
+        <p class="lede">Keep this tab open. The room check will appear here when the host opens it.</p>
+        <div class="screen-note">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>Connected — eyes up front</span>
+        </div>
+      </section>
+
+      <section class="player-screen player-screen--vote" id="screen-vote" aria-labelledby="vote-question" hidden>
+        <div class="vote-topline">
+          <p class="eyebrow" id="vote-eyebrow">The room wants to know</p>
+          <div class="vote-clock" id="vote-clock" aria-live="off">
+            <span class="vote-clock-label">Closes in</span>
+            <span id="vote-clock-value">—</span>
+          </div>
+        </div>
+
+        <h1 class="vote-question" id="vote-question"></h1>
+        <p class="vote-subhead" id="vote-subhead">Pick the answer that feels right.</p>
+
+        <form id="vote-form" novalidate>
+          <fieldset class="vote-options" id="vote-options">
+            <legend class="sr-only">Choose one answer</legend>
+          </fieldset>
+          <div class="vote-actions">
+            <p class="microcopy" id="vote-help">Choose one. You can’t change it after you lock it in.</p>
+            <button class="button button--primary button--wide" id="vote-submit" type="submit" disabled>
+              <span>Lock in my answer</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section class="player-screen player-screen--voted" id="screen-voted" aria-labelledby="voted-title" hidden>
+        <div class="success-seal" aria-hidden="true">
+          <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30"></circle><path d="M19 33l9 9 18-20"></path></svg>
+        </div>
+        <p class="eyebrow">Vote locked</p>
+        <h1 id="voted-title">You’re in.</h1>
+        <p class="lede">That’s your answer. The room’s answer stays under wraps until the reveal.</p>
+
+        <div class="your-pick">
+          <span class="your-pick-label">You picked</span>
+          <strong id="voted-option"></strong>
+        </div>
+
+        <div class="vote-meter">
+          <div class="vote-meter-number"><strong id="voted-count">0</strong> <span id="voted-count-label">votes in</span></div>
+          <div class="vote-meter-track"><span id="voted-progress"></span></div>
+          <p class="microcopy" id="voted-waiting">Waiting for the room…</p>
+        </div>
+
+        <div class="screen-note screen-note--big">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>Eyes on the big screen</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </div>
+      </section>
+
+      <section class="player-screen player-screen--results" id="screen-results" aria-labelledby="results-title" hidden>
+        <p class="eyebrow" id="results-eyebrow">The room has spoken</p>
+        <h1 class="results-title" id="results-title"></h1>
+        <div class="outcome-banner" id="results-outcome">
+          <span class="outcome-kicker">The winner</span>
+          <strong id="results-winner">—</strong>
+          <span id="results-total" class="outcome-total">0 votes</span>
+        </div>
+
+        <div class="result-bars" id="results-bars" aria-label="Final results"></div>
+
+        <div class="personal-result" id="personal-result">
+          <span class="personal-result-icon" aria-hidden="true">✦</span>
+          <p id="personal-result-text">That’s the room’s answer.</p>
+        </div>
+
+        <p class="screen-note screen-note--quiet">Look up — the big screen has the full picture.</p>
+      </section>
+
+      <section class="player-screen player-screen--error" id="screen-error" aria-labelledby="error-title" hidden>
+        <p class="eyebrow">Connection lost</p>
+        <h1 id="error-title">We lost the room.</h1>
+        <p class="lede">Check your internet and keep this page open. We’ll reconnect automatically.</p>
+        <button class="button button--secondary" id="retry-button" type="button">Try now</button>
+      </section>
+    </main>
+
+    <footer class="player-footer">
+      <span>One question. One room. One answer.</span>
+      <span class="footer-mark">© 2026 Muhammad Rashid K</span>
+    </footer>
+
+    <div class="sr-only" id="live-announcer" role="status" aria-live="polite"></div>
+
+    <noscript>
+      <div class="noscript">Room Check needs JavaScript to receive the live poll.</div>
+    </noscript>
+  </body>
+</html>

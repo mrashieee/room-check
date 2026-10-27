@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0d0c" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="Host console for Room Check." />
+    <meta name="author" content="Muhammad Rashid K" />
+    <meta name="copyright" content="Copyright (c) 2026 Muhammad Rashid K" />
+    <title>Room Check — Host console</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/dm-sans.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/host.js"></script>
+  </head>
+  <body class="host-page">
+    <a class="skip-link" href="#host-main">Skip to the host console</a>
+
+    <div class="atmosphere atmosphere--host" aria-hidden="true">
+      <span class="atmosphere-orb atmosphere-orb--lime"></span>
+      <span class="atmosphere-orb atmosphere-orb--coral"></span>
+      <span class="atmosphere-grid"></span>
+      <span class="atmosphere-grain"></span>
+    </div>
+
+    <section class="login-view" id="login-view" aria-labelledby="login-title" hidden>
+      <div class="login-card">
+        <div class="login-intro">
+          <a class="brand" href="/" aria-label="Room Check audience view">
+            <span class="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 32 32">
+                <rect width="32" height="32" rx="9" fill="currentColor"></rect>
+                <path d="M9.5 12.5v7M16 9v14M22.5 13.5v5" fill="none" stroke="#101210" stroke-width="3" stroke-linecap="round"></path>
+              </svg>
+            </span>
+            <span class="brand-word">Room Check</span>
+          </a>
+          <p class="eyebrow" id="auth-eyebrow">Host console</p>
+          <h1 id="auth-title">Take the stage.</h1>
+          <p class="lede" id="auth-lede">Enter the host password to open the control room.</p>
+        </div>
+
+        <form class="login-form" id="login-form" novalidate hidden>
+          <label class="field-label" for="password-input">Host password</label>
+          <input
+            class="auth-input"
+            id="password-input"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Your password"
+            required
+          />
+          <p class="form-error" id="login-error" role="alert" hidden></p>
+          <button class="button button--primary button--wide" id="login-submit" type="submit">Enter the control room</button>
+        </form>
+
+        <form class="login-form" id="auth-setup-form" novalidate hidden>
+          <p class="setup-hint">
+            This is a fresh install. Find the one-time setup code in the terminal where Room Check is running.
+          </p>
+
+          <div class="auth-field">
+            <label class="field-label" for="setup-code">Setup code</label>
+            <input
+              class="auth-input auth-input--code"
+              id="setup-code"
+              name="setupCode"
+              type="text"
+              inputmode="text"
+              autocomplete="one-time-code"
+              autocapitalize="characters"
+              spellcheck="false"
+              maxlength="9"
+              placeholder="ABCD-EFGH"
+              required
+            />
+          </div>
+
+          <div class="auth-field">
+            <label class="field-label" for="new-password">Create a password</label>
+            <input
+              class="auth-input"
+              id="new-password"
+              name="newPassword"
+              type="password"
+              autocomplete="new-password"
+              minlength="8"
+              maxlength="200"
+              placeholder="At least 8 characters"
+              required
+            />
+          </div>
+
+          <div class="auth-field">
+            <label class="field-label" for="confirm-password">Confirm password</label>
+            <input
+              class="auth-input"
+              id="confirm-password"
+              name="confirmPassword"
+              type="password"
+              autocomplete="new-password"
+              minlength="8"
+              maxlength="200"
+              placeholder="Type it again"
+              required
+            />
+          </div>
+
+          <p class="field-hint">This password protects the host console on this device.</p>
+          <p class="form-error" id="setup-error" role="alert" hidden></p>
+          <button class="button button--primary button--wide" id="setup-submit" type="submit">Create password &amp; enter</button>
+        </form>
+
+        <p class="login-footnote" id="auth-footnote">Keep this page on your laptop and never share the password.</p>
+        <p class="login-credit">© 2026 Muhammad Rashid K · MIT License</p>
+      </div>
+      <div class="login-decoration" aria-hidden="true">
+        <span class="login-cross login-cross--one"></span>
+        <span class="login-cross login-cross--two"></span>
+        <span class="login-sticker">HOST<br />ONLY</span>
+      </div>
+    </section>
+
+    <div class="host-app" id="host-app" hidden>
+      <header class="host-header">
+        <a class="brand brand--host" href="/host" aria-label="Room Check host console">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32">
+              <rect width="32" height="32" rx="9" fill="currentColor"></rect>
+              <path d="M9.5 12.5v7M16 9v14M22.5 13.5v5" fill="none" stroke="#101210" stroke-width="3" stroke-linecap="round"></path>
+            </svg>
+          </span>
+          <span class="brand-word">Room Check</span>
+          <span class="brand-tag">Host</span>
+        </a>
+
+        <div class="host-header-actions">
+          <div class="connection-pill" id="host-connection" data-status="connecting" role="status" aria-live="polite">
+            <span class="connection-dot" aria-hidden="true"></span>
+            <span id="host-connection-label">Connecting</span>
+          </div>
+          <button class="icon-button" id="fullscreen-button" type="button" aria-label="Toggle full screen" title="Full screen (F)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
+          <button class="text-button" id="lock-button" type="button">Lock</button>
+        </div>
+      </header>
+
+      <main class="host-main" id="host-main">
+        <section class="setup-view" id="setup-view" aria-labelledby="setup-title" hidden>
+          <div class="setup-heading">
+            <div>
+              <p class="eyebrow">Host setup / 01</p>
+              <h1 id="setup-title">Warm up the room.</h1>
+              <p class="lede">One question. A few answers. Let the room decide.</p>
+            </div>
+            <div class="setup-steps" aria-label="How it works">
+              <span><b>1</b> Write</span>
+              <span><b>2</b> Project</span>
+              <span><b>3</b> Reveal</span>
+            </div>
+          </div>
+
+          <div class="setup-grid">
+            <form class="setup-form paper-panel" id="setup-form" novalidate>
+              <div class="field">
+                <label class="field-label" for="game-title">Game title</label>
+                <input class="text-input" id="game-title" name="title" type="text" maxlength="52" value="Room Check" autocomplete="off" />
+              </div>
+
+              <div class="field">
+                <div class="field-label-row">
+                  <label class="field-label" for="question-input">The question</label>
+                  <span class="char-count" id="question-count">0 / 160</span>
+                </div>
+                <textarea class="text-input question-input" id="question-input" name="question" maxlength="160" rows="3" placeholder="What does the room think?" required>How’s the energy in the room right now?</textarea>
+              </div>
+
+              <fieldset class="field field--options">
+                <div class="field-label-row">
+                  <legend class="field-label">The answers</legend>
+                  <span class="field-hint">2–6 answers</span>
+                </div>
+                <div class="option-editor" id="option-editor"></div>
+                <button class="add-option" id="add-option" type="button">
+                  <span aria-hidden="true">+</span> Add another answer
+                </button>
+              </fieldset>
+
+              <fieldset class="field field--timer">
+                <legend class="field-label">Voting window</legend>
+                <div class="timer-choices" id="timer-choices">
+                  <label class="timer-choice"><input type="radio" name="duration" value="30" /><span>30 sec</span></label>
+                  <label class="timer-choice"><input type="radio" name="duration" value="60" checked /><span>60 sec</span></label>
+                  <label class="timer-choice"><input type="radio" name="duration" value="90" /><span>90 sec</span></label>
+                  <label class="timer-choice"><input type="radio" name="duration" value="120" /><span>2 min</span></label>
+                  <label class="timer-choice"><input type="radio" name="duration" value="0" /><span>Manual</span></label>
+                </div>
+                <p class="field-hint">Results reveal automatically when time runs out — or whenever you hit Done.</p>
+              </fieldset>
+
+              <div class="field">
+                <label class="field-label" for="join-url-input">Audience link</label>
+                <input class="text-input" id="join-url-input" name="joinUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" />
+                <p class="field-hint" id="join-url-hint">Phones must be on the same Wi-Fi as this laptop. Use <code>npm run share</code> for a public link.</p>
+              </div>
+
+              <div class="setup-submit-row">
+                <button class="button button--primary button--large" id="start-button" type="submit">
+                  <span>Open the room</span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                </button>
+                <p class="microcopy">The QR code goes live instantly.<br />Keep this tab projected.</p>
+              </div>
+            </form>
+
+            <aside class="qr-preview" aria-label="Audience QR code preview">
+              <div class="qr-preview-topline">
+                <span class="eyebrow">Scan test</span>
+                <span class="live-chip live-chip--warm">Ready</span>
+              </div>
+              <div class="qr-frame qr-frame--preview">
+                <img id="setup-qr" alt="QR code for the audience to join the poll" width="320" height="320" />
+                <span class="qr-corner qr-corner--tl" aria-hidden="true"></span>
+                <span class="qr-corner qr-corner--tr" aria-hidden="true"></span>
+                <span class="qr-corner qr-corner--bl" aria-hidden="true"></span>
+                <span class="qr-corner qr-corner--br" aria-hidden="true"></span>
+              </div>
+              <p class="qr-instruction">Scan it now to test the audience view.</p>
+              <div class="qr-link-row">
+                <span class="qr-link" id="setup-url">—</span>
+                <button class="icon-button icon-button--light" id="copy-link-button" type="button" aria-label="Copy audience link" title="Copy link">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="1.8"></path></svg>
+                </button>
+              </div>
+              <p class="qr-note" id="qr-mode-note">Best for a room on the same Wi-Fi.</p>
+            </aside>
+          </div>
+        </section>
+
+        <section class="open-stage" id="open-stage" aria-labelledby="stage-question" hidden>
+          <div class="stage-copy">
+            <div class="stage-topline">
+              <span class="live-chip"><span class="live-dot" aria-hidden="true"></span> Voting live</span>
+              <span class="stage-meta" id="stage-title">Room Check</span>
+            </div>
+
+            <h1 class="stage-question" id="stage-question"></h1>
+            <p class="stage-lede">Scan the code. Pick an answer. <span>No overthinking.</span></p>
+
+            <div class="stage-stats">
+              <div class="vote-total">
+                <span class="stat-number" id="stage-vote-count">0</span>
+                <span class="stat-label">votes in</span>
+              </div>
+              <span class="stat-divider" aria-hidden="true"></span>
+              <div class="stat-detail">
+                <span id="stage-choice-count">4 answers</span>
+                <span>on every phone</span>
+              </div>
+            </div>
+
+            <div class="stage-controls">
+              <button class="button button--primary button--large" id="reveal-button" type="button">
+                <span>Done — reveal results</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"></path><circle cx="12" cy="12" r="2.6" fill="currentColor"></circle></svg>
+              </button>
+              <button class="text-button text-button--muted" id="cancel-round-button" type="button">Start over</button>
+            </div>
+
+            <div class="keyboard-hint">
+              <span><kbd>R</kbd> reveal</span>
+              <span><kbd>F</kbd> full screen</span>
+            </div>
+          </div>
+
+          <aside class="stage-qr-panel">
+            <div class="stage-qr-top">
+              <span class="eyebrow">Join the room</span>
+              <span class="live-chip live-chip--warm"><span class="scan-pulse" aria-hidden="true"></span> Scan me</span>
+            </div>
+            <div class="qr-frame qr-frame--stage">
+              <img id="stage-qr" alt="QR code to join the live poll" width="440" height="440" />
+              <span class="qr-corner qr-corner--tl" aria-hidden="true"></span>
+              <span class="qr-corner qr-corner--tr" aria-hidden="true"></span>
+              <span class="qr-corner qr-corner--bl" aria-hidden="true"></span>
+              <span class="qr-corner qr-corner--br" aria-hidden="true"></span>
+            </div>
+            <p class="stage-url" id="stage-url">—</p>
+            <p class="stage-qr-note">Open your camera.<br />Point. Tap. Vote.</p>
+          </aside>
+
+          <div class="timer-dial" id="timer-dial" aria-live="off">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="timer-ring-track" cx="60" cy="60" r="52"></circle>
+              <circle class="timer-ring-value" id="timer-ring-value" cx="60" cy="60" r="52"></circle>
+            </svg>
+            <div class="timer-dial-copy">
+              <span id="timer-value">01:00</span>
+              <span id="timer-label">left</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="results-stage" id="results-stage" aria-labelledby="results-heading" hidden>
+          <div class="results-head">
+            <div>
+              <p class="eyebrow">That’s a wrap</p>
+              <h1 id="results-heading">The room<br />has spoken.</h1>
+            </div>
+            <div class="results-summary">
+              <span class="results-summary-number" id="results-vote-total">0</span>
+              <span class="results-summary-label">votes cast</span>
+              <span class="results-summary-tag" id="results-reason">Revealed by host</span>
+            </div>
+          </div>
+
+          <div class="results-question" id="results-question"></div>
+
+          <div class="host-result-bars" id="host-result-bars" aria-label="Final poll results"></div>
+
+          <div class="results-footer">
+            <div class="winner-note" id="winner-note">
+              <span class="winner-spark" aria-hidden="true">✦</span>
+              <p id="winner-note-text">The room has a favorite.</p>
+            </div>
+            <div class="results-actions">
+              <button class="button button--secondary button--large" id="again-button" type="button">Play it again</button>
+              <button class="button button--primary button--large" id="new-question-button" type="button">New question</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <canvas class="confetti-canvas" id="confetti-canvas" aria-hidden="true"></canvas>
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+    <noscript>
+      <div class="noscript">Room Check needs JavaScript to run the live poll.</div>
+    </noscript>
+  </body>
+</html>
