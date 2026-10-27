@@ -1,3 +1,9 @@
+/*
+ * Room Check
+ * Copyright (c) 2026 Muhammad Rashid K
+ * SPDX-License-Identifier: MIT
+ */
+
 const PLAYER_ID_KEY = "roomcheck.playerId.v1";
 
 export const $ = (selector, root = document) => root.querySelector(selector);

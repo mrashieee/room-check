@@ -1,3 +1,9 @@
+/*
+ * Room Check
+ * Copyright (c) 2026 Muhammad Rashid K
+ * SPDX-License-Identifier: MIT
+ */
+
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";

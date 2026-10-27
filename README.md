@@ -1,14 +1,28 @@
 # Room Check
 
-**Created by [Muhammad Rashid K](https://github.com/mrashieee)** · MIT licensed
+<p align="center">
+  <strong>Created by <a href="https://github.com/mrashieee">Muhammad Rashid K</a></strong>
+</p>
+
+<p align="center">
+  <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-d8ff57?style=for-the-badge&amp;labelColor=101210" /></a>
+  <img alt="Node.js 22.9 or newer" src="https://img.shields.io/badge/node-%E2%89%A522.9-d8ff57?style=for-the-badge&amp;labelColor=101210" />
+  <img alt="No build step" src="https://img.shields.io/badge/build-none-ff6e4a?style=for-the-badge&amp;labelColor=101210" />
+  <img alt="Self-hosted" src="https://img.shields.io/badge/deploy-self--hosted-72dff2?style=for-the-badge&amp;labelColor=101210" />
+</p>
 
 A self-hosted, real-time audience poll for presentations. Show a QR code on the big screen, let everyone vote from their phone, then reveal the results on your laptop when you press **Done** or when the timer runs out.
 
-<p align="center">
-  <img src="./docs/host-stage.png" alt="Room Check host screen with a QR code and live vote counter" width="720" />
-  &nbsp;
-  <img src="./docs/player-mobile.png" alt="Room Check voting page on a phone" width="220" />
-</p>
+<table align="center">
+  <tr>
+    <td width="73%" valign="middle">
+      <img src="./docs/host-stage.png" alt="Room Check host screen with a QR code and live vote counter" width="100%" />
+    </td>
+    <td width="27%" valign="middle">
+      <img src="./docs/player-mobile.png" alt="Room Check voting page on a phone" width="100%" />
+    </td>
+  </tr>
+</table>
 
 ## Features
 
@@ -504,14 +518,21 @@ Stack: Node.js, Express, `ws`, `qrcode`, and vanilla browser JavaScript.
 
 ## License
 
-MIT License
+<p align="center">
+  <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-d8ff57?style=for-the-badge&amp;labelColor=101210" /></a>
+</p>
 
-Copyright (c) 2026 Muhammad Rashid K
+<p align="center">
+  <strong>MIT License</strong><br />
+  Copyright © 2026 Muhammad Rashid K
+</p>
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+Room Check is free to use, modify, distribute, and self-host. The full license text is in [LICENSE](./LICENSE).
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+---
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-See [LICENSE](./LICENSE).
+<p align="center">
+  <strong>Room Check</strong><br />
+  Built by <a href="https://github.com/mrashieee">Muhammad Rashid K</a><br />
+  <sub>MIT licensed · © 2026</sub>
+</p>

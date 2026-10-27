@@ -1,3 +1,9 @@
+/*
+ * Room Check
+ * Copyright (c) 2026 Muhammad Rashid K
+ * SPDX-License-Identifier: MIT
+ */
+
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
