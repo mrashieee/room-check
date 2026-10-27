@@ -674,6 +674,7 @@ svg {
 .footer-mark {
   color: var(--lime);
   opacity: 0.6;
+  white-space: nowrap;
 }
 
 .player-screen--connecting,
@@ -1482,6 +1483,7 @@ svg {
   letter-spacing: 0.06em;
   text-align: center;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .login-decoration {
@@ -2933,6 +2935,15 @@ kbd {
 
   .stage-controls {
     margin-top: 22px;
+  }
+}
+
+@media (max-width: 560px) {
+  .player-footer {
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
   }
 }
 
