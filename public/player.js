@@ -63,7 +63,7 @@ let pollBusy = false;
 let lastStateNow = 0;
 let connection = null;
 
-const LETTERS = ["A", "B", "C", "D", "E", "F"];
+const LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
 
 function showScreen(name) {
   if (currentScreen === name) return false;

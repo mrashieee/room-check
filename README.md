@@ -228,7 +228,7 @@ For a stable URL, run Room Check behind a reverse proxy with HTTPS and set `PUBL
 
 ## 5. Run a poll
 
-1. In the host console, enter a game title, a question, and 2–6 answers.
+1. In the host console, enter a game title, a question, and 2–10 answers.
 2. Choose a voting window: 30, 60, 90, or 120 seconds, or **Manual**.
 3. Check the audience link under the QR preview. Scan it with a phone to test the audience view.
 4. Press **Open the room**.

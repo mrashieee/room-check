@@ -35,6 +35,10 @@
   --pink: #ff9dcd;
   --violet: #b8a4ff;
   --sand: #ffd472;
+  --mint: #79ffb3;
+  --ice: #8fc5ff;
+  --peach: #ffb26e;
+  --rose: #ff7e9d;
   --white: #f7f3e8;
   --muted: rgba(247, 243, 232, 0.62);
   --muted-strong: rgba(247, 243, 232, 0.78);
@@ -585,6 +589,26 @@ svg {
 [data-color="sand"] {
   --accent: var(--sand);
   --accent-rgb: 255, 212, 114;
+}
+
+[data-color="mint"] {
+  --accent: var(--mint);
+  --accent-rgb: 121, 255, 179;
+}
+
+[data-color="ice"] {
+  --accent: var(--ice);
+  --accent-rgb: 143, 197, 255;
+}
+
+[data-color="peach"] {
+  --accent: var(--peach);
+  --accent-rgb: 255, 178, 110;
+}
+
+[data-color="rose"] {
+  --accent: var(--rose);
+  --accent-rgb: 255, 126, 157;
 }
 
 /* Player */

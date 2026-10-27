@@ -43,12 +43,12 @@ const LIMITS = {
   question: 160,
   option: 52,
   minOptions: 2,
-  maxOptions: 6,
+  maxOptions: 10,
   minDuration: 10,
   maxDuration: 600,
 };
 
-const OPTION_COLORS = ["lime", "coral", "blue", "pink", "violet", "sand"];
+const OPTION_COLORS = ["lime", "coral", "blue", "pink", "violet", "sand", "mint", "ice", "peach", "rose"];
 
 function findLanAddress() {
   const interfaces = os.networkInterfaces();
@@ -132,7 +132,7 @@ function validateRoundInput(body) {
   }
 
   if (options.length < LIMITS.minOptions) throw new HttpError(400, "Add at least two answers.");
-  if (options.length > LIMITS.maxOptions) throw new HttpError(400, "Keep it to six answers or fewer.");
+  if (options.length > LIMITS.maxOptions) throw new HttpError(400, "Keep it to ten answers or fewer.");
 
   let durationSec = Number(body.durationSec);
   if (!Number.isFinite(durationSec)) durationSec = 60;

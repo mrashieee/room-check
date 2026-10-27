@@ -20,7 +20,9 @@ import {
 } from "./common.js";
 
 const DRAFT_KEY = "roomcheck.hostDraft.v1";
-const LETTERS = ["A", "B", "C", "D", "E", "F"];
+const LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+const MAX_OPTIONS = 10;
+const OPTION_COLORS = ["lime", "coral", "blue", "pink", "violet", "sand", "mint", "ice", "peach", "rose"];
 const DEFAULT_OPTIONS = ["Electric", "Warming up", "Need coffee", "Send help"];
 const TIMER_CIRCUMFERENCE = 2 * Math.PI * 52;
 
@@ -196,7 +198,7 @@ function readDuration() {
 
 function normalizeOptions(labels) {
   const source = Array.isArray(labels) && labels.length ? labels : DEFAULT_OPTIONS;
-  return source.slice(0, 6).map((label) => ({ label: typeof label === "string" ? label : "" }));
+  return source.slice(0, MAX_OPTIONS).map((label) => ({ label: typeof label === "string" ? label : "" }));
 }
 
 function renderOptionEditor(focusIndex = null) {
@@ -205,7 +207,7 @@ function renderOptionEditor(focusIndex = null) {
   options.forEach((option, index) => {
     const row = document.createElement("div");
     row.className = "option-edit";
-    row.dataset.color = ["lime", "coral", "blue", "pink", "violet", "sand"][index] || "lime";
+    row.dataset.color = OPTION_COLORS[index] || "lime";
 
     const badge = document.createElement("span");
     badge.className = "option-letter";
@@ -256,7 +258,7 @@ function renderOptionEditor(focusIndex = null) {
 }
 
 function updateAddOptionState() {
-  addOptionButton.disabled = options.length >= 6;
+  addOptionButton.disabled = options.length >= MAX_OPTIONS;
 }
 
 function populateSetup(draft) {
@@ -894,7 +896,7 @@ $("#timer-choices").addEventListener("change", () => {
 });
 
 addOptionButton.addEventListener("click", () => {
-  if (options.length >= 6) return;
+  if (options.length >= MAX_OPTIONS) return;
   options.push({ label: "" });
   renderOptionEditor(options.length - 1);
   debounceSaveDraft();
