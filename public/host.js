@@ -12,6 +12,7 @@ import {
   api,
   copyText,
   formatClock,
+  formatList,
   formatVoteCount,
   launchConfetti,
   pluralize,
@@ -439,13 +440,22 @@ function buildHostResults(round) {
   });
 
   const note = $("#winner-note-text");
+  const tieNote = $("#results-tie");
+  tieNote.hidden = true;
+
   if (!results.total) {
     note.textContent = "Silence. The room declined to participate.";
   } else if (results.winners.length === 1) {
     const winner = results.options.find((option) => option.optionId === results.winners[0]);
     note.textContent = `“${winner?.label || "That one"}” takes it with ${winner?.percent || 0}% of the room.`;
   } else {
-    note.textContent = `${results.winners.length} answers split the room. A proper cliffhanger.`;
+    const labels = results.winners
+      .map((optionId) => results.options.find((option) => option.optionId === optionId)?.label)
+      .filter(Boolean);
+    const topCount = results.options.find((option) => results.winners.includes(option.optionId))?.count || 0;
+    tieNote.textContent = `The room is in a tie: ${formatList(labels)}.`;
+    tieNote.hidden = false;
+    note.textContent = `No single favorite — ${labels.length} answers tied with ${formatVoteCount(topCount)} ${pluralize(topCount, "vote")} each.`;
   }
 
   renderedResultsRoundId = round.id;

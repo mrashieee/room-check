@@ -212,6 +212,13 @@ export function pluralize(count, singular, plural = `${singular}s`) {
   return Number(count) === 1 ? singular : plural;
 }
 
+export function formatList(items) {
+  const values = (items || []).filter(Boolean);
+  if (values.length <= 1) return values[0] || "";
+  if (values.length === 2) return `${values[0]} and ${values[1]}`;
+  return `${values.slice(0, -1).join(", ")} and ${values[values.length - 1]}`;
+}
+
 export function showToast(el, message, duration = 3000) {
   if (!el) return;
   clearTimeout(showToast.timer);

@@ -10,6 +10,7 @@ import {
   LiveConnection,
   api,
   formatClock,
+  formatList,
   formatVoteCount,
   getPlayerId,
   pluralize,
@@ -183,8 +184,6 @@ function renderResults(round) {
   const winners = round.results?.winners || [];
   const key = resultKey(round);
 
-  resultsEyebrow.textContent =
-    round.revealReason === "timer" ? "Time’s up · the room has spoken" : "The room has spoken";
   resultsTitle.textContent = round.question;
 
   if (total === 0) {
@@ -197,11 +196,18 @@ function renderResults(round) {
       outcomeBanner.querySelector(".outcome-kicker").textContent = "The room picked";
       resultsWinner.textContent = winnerLabels[0] || "";
     } else {
-      outcomeBanner.querySelector(".outcome-kicker").textContent = `${winners.length}-way tie`;
-      resultsWinner.textContent = winnerLabels.join(" · ");
+      outcomeBanner.querySelector(".outcome-kicker").textContent = "The room is in a tie";
+      resultsWinner.textContent = formatList(winnerLabels);
     }
     resultsTotal.textContent = `${formatVoteCount(total)} ${pluralize(total, "vote")}`;
   }
+
+  const isTie = total > 0 && winners.length > 1;
+  resultsEyebrow.textContent = isTie
+    ? "No single favorite · the room is tied"
+    : round.revealReason === "timer"
+      ? "Time’s up · the room has spoken"
+      : "The room has spoken";
 
   if (key !== renderedResultsKey) {
     renderedResultsKey = key;
@@ -253,22 +259,26 @@ function renderResults(round) {
   } else {
     const chosen = optionById(myVote);
     if (winners.includes(myVote)) {
-      personalResult.textContent =
-        winners.length > 1
-          ? `You backed the room’s favorite: ${chosen?.label || "your pick"}.`
-          : "You called it. The room agreed with your pick.";
+      personalResult.textContent = isTie
+        ? `You backed one of the tied answers: ${chosen?.label || "your pick"}.`
+        : "You called it. The room agreed with your pick.";
     } else {
-      personalResult.textContent = `The room went another way. Your pick was ${chosen?.label || "a brave choice"}.`;
+      personalResult.textContent = isTie
+        ? `The room split; your pick was ${chosen?.label || "a brave choice"}.`
+        : `The room went another way. Your pick was ${chosen?.label || "a brave choice"}.`;
     }
   }
 
   const changedScreen = currentScreen !== "results";
   showScreen("results");
   if (changedScreen) {
+    const labelList = winners.map((id) => optionById(id)?.label).filter(Boolean);
     const summary =
       total === 0
         ? "No votes were cast."
-        : `${resultsWinner.textContent || "The room has decided"}. ${formatVoteCount(total)} ${pluralize(total, "vote")}.`;
+        : isTie
+          ? `The room is in a tie: ${formatList(labelList)}. ${formatVoteCount(total)} ${pluralize(total, "vote")}.`
+          : `${resultsWinner.textContent || "The room has decided"}. ${formatVoteCount(total)} ${pluralize(total, "vote")}.`;
     announce(`Results are in. ${summary}`);
     window.scrollTo({ top: 0, behavior: "auto" });
   }
