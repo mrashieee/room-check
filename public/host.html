@@ -382,14 +382,27 @@
 
         <section class="ended-stage" id="ended-stage" aria-labelledby="ended-title" hidden>
           <div class="ended-copy">
-            <p class="eyebrow">Session closed</p>
+            <div class="thanks-mark ended-mark" aria-hidden="true">
+              <svg viewBox="0 0 64 64" fill="none">
+                <path d="M22 38V15a4 4 0 0 1 8 0v17M30 32V11a4 4 0 0 1 8 0v21M38 33V15a4 4 0 0 1 8 0v21M46 37V23a4 4 0 0 1 8 0v18c0 10-7 17-17 17h-4c-5 0-9-2-12-6L10 39a4 4 0 0 1 6-5l6 6" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </div>
+            <p class="eyebrow">That’s a wrap</p>
             <h1 id="ended-title">Thanks for joining.</h1>
-            <p class="lede ended-pitch">Had fun? <strong>Give Room Check a star</strong> — it takes 10 seconds and helps more presenters discover the project.</p>
+
+            <div class="thanks-support ended-support">
+              <span class="thanks-support-kicker">Independent &amp; open source</span>
+              <p class="thanks-support-title">Had fun? Give Room Check a star.</p>
+              <p class="thanks-support-copy">We’re a small open-source project. A star takes 10 seconds and helps more presenters discover us.</p>
+            </div>
+
             <a class="button button--primary button--large ended-star" href="https://github.com/mrashieee/room-check" target="_blank" rel="noopener noreferrer">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.8L12 3.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg>
               <span>Star Room Check on GitHub</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
             </a>
+            <p class="thanks-appeal ended-appeal">Every star genuinely helps. Thank you.</p>
+            <p class="ended-version">Built by Muhammad Rashid K · v1.1.0</p>
             <button class="text-button text-button--muted ended-back" id="ended-back-button" type="button">Back to setup</button>
           </div>
 

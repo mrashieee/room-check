@@ -836,10 +836,15 @@ svg {
 
 .screen-note--quiet {
   margin-top: 24px;
-  border: 0;
   padding: 0;
+  border: 0;
   background: none;
   color: var(--muted);
+  font-family: var(--body);
+  font-size: 0.8rem;
+  letter-spacing: 0.005em;
+  line-height: 1.5;
+  text-transform: none;
 }
 
 /* Player vote */
@@ -3102,29 +3107,46 @@ kbd {
 }
 
 .ended-copy h1 {
-  max-width: 8ch;
-  margin: 14px 0 0;
+  max-width: 10ch;
+  margin: 12px 0 0;
   font-family: var(--display);
-  font-size: clamp(3.8rem, 8.4vw, 8.6rem);
+  font-size: clamp(3.2rem, 5.8vw, 6.2rem);
   font-weight: 700;
-  letter-spacing: -0.075em;
-  line-height: 0.8;
+  letter-spacing: -0.07em;
+  line-height: 0.82;
   text-transform: uppercase;
   text-wrap: balance;
 }
 
-.ended-copy .lede {
-  margin-top: 24px;
+.ended-mark {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 16px;
 }
 
-.ended-pitch strong {
-  color: var(--lime);
-  font-weight: 600;
+.ended-support {
+  max-width: 430px;
+  margin-top: 22px;
+}
+
+.ended-appeal {
+  margin-top: 14px;
+}
+
+.ended-version {
+  margin: 14px 0 0;
+  color: rgba(247, 243, 232, 0.35);
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .ended-star {
   display: flex;
-  margin-top: 32px;
+  width: 100%;
+  max-width: 430px;
+  margin-top: 18px;
   text-decoration: none;
 }
 
@@ -3141,7 +3163,7 @@ kbd {
 
 .ended-back {
   display: block;
-  margin-top: 22px;
+  margin-top: 18px;
   padding: 0;
 }
 
