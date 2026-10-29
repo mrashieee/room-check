@@ -1267,11 +1267,28 @@ body[data-screen="thanks"] .connection-pill {
   text-decoration: none;
 }
 
-.thanks-star svg {
+.thanks-star svg:first-child {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+
+.thanks-star svg:last-child {
   width: 17px;
   height: 17px;
   flex: 0 0 auto;
   margin-left: auto;
+}
+
+.thanks-appeal {
+  margin: 14px 0 0;
+  color: var(--lime);
+  font-family: var(--mono);
+  font-size: 0.61rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  line-height: 1.5;
+  text-transform: uppercase;
 }
 
 .thanks-url {
@@ -3064,7 +3081,12 @@ kbd {
   text-decoration: none;
 }
 
-.ended-star svg {
+.ended-star svg:first-child {
+  width: 20px;
+  height: 20px;
+}
+
+.ended-star svg:last-child {
   width: 17px;
   height: 17px;
   margin-left: auto;
