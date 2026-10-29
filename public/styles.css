@@ -677,6 +677,10 @@ svg {
   white-space: nowrap;
 }
 
+.footer-built {
+  display: none;
+}
+
 .player-screen--connecting,
 .player-screen--error {
   text-align: center;
@@ -1261,10 +1265,48 @@ body[data-screen="thanks"] .connection-pill {
 .thanks-star {
   width: 100%;
   max-width: 390px;
-  margin-top: 30px;
+  margin-top: 18px;
   gap: 12px;
   text-align: left;
   text-decoration: none;
+}
+
+.thanks-support {
+  width: 100%;
+  max-width: 390px;
+  margin-top: 24px;
+  padding: 15px 18px;
+  border: 1px solid rgba(216, 255, 87, 0.2);
+  border-radius: 16px;
+  background:
+    linear-gradient(120deg, rgba(216, 255, 87, 0.08), rgba(216, 255, 87, 0.025)),
+    rgba(255, 255, 255, 0.02);
+  text-align: left;
+}
+
+.thanks-support-kicker {
+  color: var(--lime);
+  font-family: var(--mono);
+  font-size: 0.54rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.thanks-support-title {
+  margin: 7px 0 4px;
+  font-family: var(--display);
+  font-size: clamp(1.2rem, 4.8vw, 1.5rem);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+
+.thanks-support-copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
 }
 
 .thanks-star svg:first-child {
@@ -3075,6 +3117,11 @@ kbd {
   margin-top: 24px;
 }
 
+.ended-pitch strong {
+  color: var(--lime);
+  font-weight: 600;
+}
+
 .ended-star {
   display: flex;
   margin-top: 32px;
@@ -3808,6 +3855,22 @@ kbd {
     align-items: center;
     gap: 6px;
     text-align: center;
+  }
+
+  body[data-screen="thanks"] .footer-mark,
+  body[data-screen="thanks"] .player-screen--thanks .screen-note--quiet {
+    display: none;
+  }
+
+  body[data-screen="thanks"] .footer-built {
+    display: block;
+    width: 100%;
+    color: var(--lime);
+    font-size: 0.5rem;
+    letter-spacing: 0.08em;
+    opacity: 0.62;
+    text-align: center;
+    white-space: nowrap;
   }
 }
 
