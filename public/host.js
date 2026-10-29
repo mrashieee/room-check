@@ -46,6 +46,7 @@ const authSetupSubmit = $("#setup-submit");
 const setupView = $("#setup-view");
 const openStage = $("#open-stage");
 const resultsStage = $("#results-stage");
+const endedStage = $("#ended-stage");
 const setupForm = $("#setup-form");
 const modeChoices = $("#mode-choices");
 const modeHint = $("#mode-hint");
@@ -82,6 +83,10 @@ const timerLabel = $("#timer-label");
 const timerRingValue = $("#timer-ring-value");
 const confettiCanvas = $("#confetti-canvas");
 const fullscreenButton = $("#fullscreen-button");
+const endSessionButton = $("#end-session-button");
+const endedBackButton = $("#ended-back-button");
+const githubQr = $("#github-qr");
+const GITHUB_URL = "https://github.com/mrashieee/room-check";
 const wheelOverlay = $("#wheel-overlay");
 const wheelDisc = $("#wheel-disc");
 const wheelLegend = $("#wheel-legend");
@@ -121,6 +126,7 @@ function setView(view) {
   setupView.hidden = view !== "setup";
   openStage.hidden = view !== "open";
   resultsStage.hidden = view !== "results";
+  endedStage.hidden = view !== "ended";
 }
 
 function handleAuthFailure() {
@@ -785,6 +791,14 @@ function showResults(round) {
   }
 }
 
+function showEnded() {
+  hideWheel();
+  endSessionButton.hidden = true;
+  const qrSrc = qrImageUrl(GITHUB_URL);
+  if (githubQr.getAttribute("src") !== qrSrc) githubQr.src = qrSrc;
+  setView("ended");
+}
+
 function applyState(state) {
   const incomingNow = Number(state?.now) || 0;
   if (incomingNow && incomingNow < lastStateNow) return;
@@ -796,11 +810,18 @@ function applyState(state) {
   const previousTieStatus = roundState?.round?.tieBreak?.status || null;
 
   if (!round) {
-    hideWheel();
     const hadRound = Boolean(roundState?.round);
     roundState = state;
 
-    if (currentView === "boot" || hadRound) {
+    if (state.closed) {
+      showEnded();
+      return;
+    }
+
+    hideWheel();
+    endSessionButton.hidden = false;
+
+    if (currentView === "boot" || currentView === "ended" || hadRound) {
       if (lastRound) {
         populateSetupFromRound(lastRound);
       } else {
@@ -810,6 +831,8 @@ function applyState(state) {
     }
     return;
   }
+
+  endSessionButton.hidden = false;
 
   if (round.mode === "hands") {
     hideWheel();
@@ -1319,6 +1342,37 @@ $("#lock-button").addEventListener("click", async () => {
   stopClock();
   stopHostPolling();
   location.reload();
+});
+
+endSessionButton.addEventListener("click", async () => {
+  if (
+    !window.confirm(
+      "End the session? The audience will see a thank-you screen with the GitHub link.",
+    )
+  ) {
+    return;
+  }
+  endSessionButton.disabled = true;
+  try {
+    const result = await api("/api/host/end", { method: "POST", body: {} });
+    applyState(result.state);
+  } catch (error) {
+    handleActionError(error);
+  } finally {
+    endSessionButton.disabled = false;
+  }
+});
+
+endedBackButton.addEventListener("click", async () => {
+  endedBackButton.disabled = true;
+  try {
+    const result = await api("/api/host/reset", { method: "POST", body: {} });
+    applyState(result.state);
+  } catch (error) {
+    handleActionError(error);
+  } finally {
+    endedBackButton.disabled = false;
+  }
 });
 
 document.addEventListener("keydown", (event) => {

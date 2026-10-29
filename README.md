@@ -6,6 +6,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-d8ff57?style=for-the-badge&amp;labelColor=101210" /></a>
+  <img alt="Version 1.1.0" src="https://img.shields.io/badge/version-1.1.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Node.js 22.9 or newer" src="https://img.shields.io/badge/node-%E2%89%A522.9-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Realtime WebSocket updates" src="https://img.shields.io/badge/realtime-WebSocket-ff6e4a?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Self-hosted" src="https://img.shields.io/badge/deploy-self--hosted-72dff2?style=for-the-badge&amp;labelColor=101210" />
@@ -32,6 +33,7 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - Mobile-first participation page
 - Results hidden until the reveal
 - Live raised-hand toggle with a presenter-side count
+- End-of-session thank-you screen with a GitHub star link
 - Automatic timer reveal or manual reveal
 - Optional tie-breaker wheel when the top answers tie
 - Animated, projector-friendly results
@@ -255,6 +257,16 @@ Choose **Live Hands** in the host setup to run a quick room pulse instead of a p
 6. Use **New question** to return to setup.
 
 Live Hands has no answer choices, timer, results reveal, or tie-breaker. It is intentionally a fast, live count for the presenter.
+
+### End the session
+
+Use **End session** in the host header to close the event.
+
+- The audience sees a **Thanks for joining** screen with a button to star Room Check on GitHub.
+- The host screen shows the same thank-you message and a QR code for the GitHub repository.
+- **Back to setup** clears the closed session and returns to the host setup.
+
+The session ends even if the browser host page stays open. The thank-you state is stored on the server, so reloading either side keeps showing it until the host returns to setup or starts a new round.
 
 Host shortcuts:
 

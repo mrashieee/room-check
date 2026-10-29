@@ -150,6 +150,7 @@
           <button class="icon-button" id="fullscreen-button" type="button" aria-label="Toggle full screen" title="Full screen (F)">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           </button>
+          <button class="text-button" id="end-session-button" type="button">End session</button>
           <button class="text-button" id="lock-button" type="button">Lock</button>
         </div>
       </header>
@@ -377,6 +378,32 @@
               <button class="button button--primary button--large" id="new-question-button" type="button">New question</button>
             </div>
           </div>
+        </section>
+
+        <section class="ended-stage" id="ended-stage" aria-labelledby="ended-title" hidden>
+          <div class="ended-copy">
+            <p class="eyebrow">Session closed</p>
+            <h1 id="ended-title">Thanks for joining.</h1>
+            <p class="lede">That’s the room check. If you enjoyed it, give the project a star on GitHub.</p>
+            <a class="button button--primary button--large ended-star" href="https://github.com/mrashieee/room-check" target="_blank" rel="noopener noreferrer">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.8L12 3.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg>
+              <span>Star Room Check on GitHub</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </a>
+            <button class="text-button text-button--muted ended-back" id="ended-back-button" type="button">Back to setup</button>
+          </div>
+
+          <aside class="ended-qr" aria-label="GitHub project QR code">
+            <div class="qr-frame qr-frame--stage">
+              <img id="github-qr" alt="QR code for the Room Check GitHub repository" width="440" height="440" />
+              <span class="qr-corner qr-corner--tl" aria-hidden="true"></span>
+              <span class="qr-corner qr-corner--tr" aria-hidden="true"></span>
+              <span class="qr-corner qr-corner--bl" aria-hidden="true"></span>
+              <span class="qr-corner qr-corner--br" aria-hidden="true"></span>
+            </div>
+            <p class="stage-url">github.com/mrashieee/room-check</p>
+            <p class="stage-qr-note">Scan to star<br />the project.</p>
+          </aside>
         </section>
       </main>
     </div>

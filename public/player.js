@@ -25,6 +25,7 @@ const screens = {
   hands: $("#screen-hands"),
   voted: $("#screen-voted"),
   results: $("#screen-results"),
+  thanks: $("#screen-thanks"),
   error: $("#screen-error"),
 };
 
@@ -345,6 +346,11 @@ function renderWaiting() {
   if (changed) announce("Waiting for the host to start the poll.");
 }
 
+function renderThanks() {
+  const changed = showScreen("thanks");
+  if (changed) announce("Thanks for joining. You can star Room Check on GitHub.");
+}
+
 function renderHands(round) {
   const closed = round.status === "closed";
   const changed = currentScreen !== "hands";
@@ -395,7 +401,11 @@ function renderHands(round) {
 function renderScreen() {
   const round = currentState?.round;
   if (!round) {
-    renderWaiting();
+    if (currentState?.closed) {
+      renderThanks();
+    } else {
+      renderWaiting();
+    }
     return;
   }
 

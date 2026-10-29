@@ -91,7 +91,7 @@ let setupCode = null;
 let setupInFlight = false;
 
 /** @type {{round: null | {id:string,title:string,question:string,options:{id:string,label:string,color:string}[],durationSec:number,status:"open"|"revealed",startedAt:number,endsAt:number|null,revealedAt:number|null,revealReason:string|null,votes:Record<string,{optionId:string,at:number}>}}} */
-let state = { round: null };
+let state = { round: null, sessionClosedAt: null };
 let revealTimer = null;
 let tieBreakTimer = null;
 let saveTimer = null;
@@ -267,12 +267,19 @@ function publicTieBreak(round, result) {
 function publicState() {
   const round = state.round;
   if (!round) {
-    return { now: Date.now(), round: null };
+    return {
+      now: Date.now(),
+      round: null,
+      closed: Boolean(state.sessionClosedAt),
+      closedAt: state.sessionClosedAt || null,
+    };
   }
 
   if (round.mode === "hands") {
     return {
       now: Date.now(),
+      closed: false,
+      closedAt: null,
       round: {
         id: round.id,
         mode: "hands",
@@ -290,6 +297,8 @@ function publicState() {
 
   return {
     now: Date.now(),
+    closed: false,
+    closedAt: null,
     round: {
       id: round.id,
       mode: "poll",
@@ -364,6 +373,7 @@ function persistState() {
       version: 1,
       savedAt: Date.now(),
       round: state.round,
+      sessionClosedAt: state.sessionClosedAt || null,
     },
     null,
     2,
@@ -390,7 +400,7 @@ function persistStateSync() {
     const temp = STATE_FILE + ".tmp";
     fs.writeFileSync(
       temp,
-      JSON.stringify({ version: 1, savedAt: Date.now(), round: state.round }, null, 2),
+      JSON.stringify({ version: 1, savedAt: Date.now(), round: state.round, sessionClosedAt: state.sessionClosedAt || null }, null, 2),
       { encoding: "utf8", mode: 0o600 },
     );
     try {
@@ -413,8 +423,10 @@ function loadState() {
   }
   try {
     const raw = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
+    state.sessionClosedAt = Number(raw?.sessionClosedAt) || null;
     const round = raw?.round;
     if (!round || typeof round !== "object") return;
+    state.sessionClosedAt = null;
     if (typeof round.id !== "string" || typeof round.question !== "string") return;
 
     if (round.mode === "hands") {
@@ -596,6 +608,7 @@ function openRound(details) {
     clearTimeout(tieBreakTimer);
     tieBreakTimer = null;
   }
+  state.sessionClosedAt = null;
   state.round = createRound(details);
   armRevealTimer();
   scheduleSave();
@@ -613,6 +626,22 @@ function resetRound() {
     tieBreakTimer = null;
   }
   state.round = null;
+  state.sessionClosedAt = null;
+  scheduleSave();
+  broadcastState();
+}
+
+function endSession() {
+  if (revealTimer) {
+    clearTimeout(revealTimer);
+    revealTimer = null;
+  }
+  if (tieBreakTimer) {
+    clearTimeout(tieBreakTimer);
+    tieBreakTimer = null;
+  }
+  state.round = null;
+  state.sessionClosedAt = Date.now();
   scheduleSave();
   broadcastState();
 }
@@ -1141,6 +1170,11 @@ app.post("/api/host/tiebreak/spin", requireHost, (req, res, next) => {
 
 app.post("/api/host/reset", requireHost, (req, res) => {
   resetRound();
+  res.json({ ok: true, state: publicState() });
+});
+
+app.post("/api/host/end", requireHost, (req, res) => {
+  endSession();
   res.json({ ok: true, state: publicState() });
 });
 
