@@ -94,7 +94,8 @@ const wheelTitle = $("#wheel-title");
 const wheelSubtitle = $("#wheel-subtitle");
 const wheelStatus = $("#wheel-status");
 const wheelSpinButton = $("#wheel-spin-button");
-const WHEEL_ANIMATION_MS = 5000;
+const wheelResult = $("#wheel-result");
+const WHEEL_ANIMATION_MS = 6500;
 
 let roundState = null;
 let currentView = "boot";
@@ -117,6 +118,7 @@ let wheelRoundId = null;
 let wheelOptions = [];
 let wheelAutoTimer = null;
 let wheelFallbackTimer = null;
+let wheelStopTimer = null;
 let wheelSpinBusy = false;
 let wheelWinnerId = null;
 let wheelIsOpen = false;
@@ -638,6 +640,7 @@ function renderWheelLegend(tiedOptions) {
     const item = document.createElement("div");
     item.className = "wheel-legend-item";
     item.dataset.color = option.color || "lime";
+    item.dataset.optionId = option.optionId;
 
     const letter = document.createElement("span");
     letter.className = "wheel-legend-letter";
@@ -657,6 +660,19 @@ function clearWheelTimers() {
   wheelAutoTimer = null;
   clearTimeout(wheelFallbackTimer);
   wheelFallbackTimer = null;
+  clearTimeout(wheelStopTimer);
+  wheelStopTimer = null;
+}
+
+function revealWheelWinner(winnerId) {
+  const winner = wheelOptions.find((option) => option.optionId === winnerId);
+  if (!winner) return;
+  wheelResult.textContent = `${winner.label} wins!`;
+  wheelResult.hidden = false;
+  wheelStatus.textContent = "The wheel has chosen.";
+  wheelLegend.querySelectorAll(".wheel-legend-item").forEach((item) => {
+    item.classList.toggle("is-winner", item.dataset.optionId === winnerId);
+  });
 }
 
 function hideWheel() {
@@ -668,6 +684,9 @@ function hideWheel() {
   wheelSpinBusy = false;
   wheelOptions = [];
   wheelSpinButton.hidden = true;
+  wheelResult.hidden = true;
+  wheelResult.textContent = "";
+  wheelLegend.replaceChildren();
   wheelDisc.classList.remove("is-waiting");
   wheelDisc.replaceChildren();
   wheelDisc.style.transition = "none";
@@ -698,6 +717,8 @@ function showWheel(round) {
     wheelTitle.textContent = "The room is split.";
     wheelSubtitle.textContent = `One spin decides between ${formatList(tiedOptions.map((option) => option.label))}.`;
     wheelSpinButton.hidden = true;
+    wheelResult.hidden = true;
+    wheelResult.textContent = "";
     wheelLegend.replaceChildren();
     renderWheelLegend(tiedOptions);
     wheelDisc.replaceChildren(buildWheelSvg(tiedOptions));
@@ -737,6 +758,7 @@ async function spinWheel() {
     const result = await api("/api/host/tiebreak/spin", { method: "POST", body: {} });
     if (!wheelIsOpen || wheelRoundId !== spinningRoundId) return;
     wheelWinnerId = result.winnerOptionId;
+    wheelDisc.classList.remove("is-waiting");
     const index = wheelOptions.findIndex((option) => option.optionId === wheelWinnerId);
     const slice = 360 / wheelOptions.length;
     const offset = 360 - ((index + 0.5) * slice) % 360;
@@ -745,10 +767,16 @@ async function spinWheel() {
     wheelDisc.style.transition = "none";
     wheelDisc.style.transform = "rotate(0deg)";
     void wheelDisc.offsetWidth;
-    wheelDisc.style.transition = `transform ${WHEEL_ANIMATION_MS}ms cubic-bezier(0.12, 0.78, 0.12, 1)`;
+    wheelDisc.style.transition = `transform ${WHEEL_ANIMATION_MS}ms cubic-bezier(0.08, 0.82, 0.12, 1)`;
     requestAnimationFrame(() => {
       wheelDisc.style.transform = `rotate(${rotation}deg)`;
     });
+
+    clearTimeout(wheelStopTimer);
+    wheelStopTimer = setTimeout(() => {
+      wheelStopTimer = null;
+      revealWheelWinner(wheelWinnerId);
+    }, WHEEL_ANIMATION_MS + 120);
 
     wheelFallbackTimer = setTimeout(async () => {
       wheelFallbackTimer = null;
@@ -758,7 +786,7 @@ async function spinWheel() {
       } catch {
         // The WebSocket state will catch up if this fails.
       }
-    }, WHEEL_ANIMATION_MS + 1800);
+    }, WHEEL_ANIMATION_MS + 3200);
   } catch (error) {
     if (!wheelIsOpen) return;
     wheelSpinBusy = false;

@@ -302,9 +302,11 @@ function renderResults(round) {
     if (myVote === wheelWinnerId) {
       personalResult.textContent = "The wheel picked your answer. You called it.";
     } else if (myVote && winners.includes(myVote)) {
-      personalResult.textContent = "The wheel broke the tie; your answer was one of the tied options.";
+      const chosen = optionById(myVote);
+      personalResult.textContent = `Sorry — your choice, ${chosen?.label || "your pick"}, was broken by the tie breaker. ${wheelWinner?.label || "The winner"} wins.`;
     } else if (myVote) {
-      personalResult.textContent = `The room split; the wheel picked ${wheelWinner?.label || "another answer"}.`;
+      const chosen = optionById(myVote);
+      personalResult.textContent = `The tie breaker went to ${wheelWinner?.label || "another answer"}. Your pick was ${chosen?.label || "a brave choice"}.`;
     } else {
       personalResult.textContent = `The wheel picked ${wheelWinner?.label || "the winner"} to break the tie.`;
     }

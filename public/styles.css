@@ -1228,7 +1228,7 @@ body[data-screen="thanks"] .connection-pill {
   margin-bottom: 26px;
   color: var(--lime);
   filter: drop-shadow(0 0 26px rgba(216, 255, 87, 0.18));
-  animation: thanks-float 3.2s ease-in-out infinite;
+  animation: thanks-wave 2.2s ease-in-out infinite;
 }
 
 .thanks-mark svg {
@@ -1236,13 +1236,13 @@ body[data-screen="thanks"] .connection-pill {
   height: 100%;
 }
 
-@keyframes thanks-float {
+@keyframes thanks-wave {
   0%,
   100% {
-    transform: translateY(2px) rotate(-4deg);
+    transform: rotate(-7deg);
   }
   50% {
-    transform: translateY(-4px) rotate(4deg);
+    transform: rotate(9deg);
   }
 }
 
@@ -1267,13 +1267,7 @@ body[data-screen="thanks"] .connection-pill {
   text-decoration: none;
 }
 
-.thanks-star svg:first-child {
-  width: 20px;
-  height: 20px;
-  flex: 0 0 auto;
-}
-
-.thanks-star svg:last-child {
+.thanks-star svg {
   width: 17px;
   height: 17px;
   flex: 0 0 auto;
@@ -3059,12 +3053,7 @@ kbd {
   text-decoration: none;
 }
 
-.ended-star svg:first-child {
-  width: 20px;
-  height: 20px;
-}
-
-.ended-star svg:last-child {
+.ended-star svg {
   width: 17px;
   height: 17px;
   margin-left: auto;
@@ -3273,6 +3262,16 @@ kbd {
   color: var(--muted-strong);
   font-size: 0.76rem;
   line-height: 1.25;
+  transition:
+    border-color 200ms ease,
+    background 200ms ease,
+    color 200ms ease;
+}
+
+.wheel-legend-item.is-winner {
+  border-color: rgba(var(--accent-rgb), 0.62);
+  background: rgba(var(--accent-rgb), 0.1);
+  color: var(--paper);
 }
 
 .wheel-legend-letter {
@@ -3303,6 +3302,17 @@ kbd {
   justify-content: flex-start;
   gap: 9px;
   margin-top: 20px;
+}
+
+.wheel-result {
+  margin: 16px 0 0;
+  color: var(--paper);
+  font-family: var(--display);
+  font-size: clamp(1.35rem, 2.2vw, 1.85rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+  animation: result-in 360ms var(--ease-out) both;
 }
 
 .wheel-status {

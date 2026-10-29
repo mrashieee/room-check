@@ -36,7 +36,7 @@ const SCRYPT = {
   maxmem: 64 * 1024 * 1024,
 };
 const SETUP_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const TIEBREAK_MS = 6500;
+const TIEBREAK_MS = 9000;
 const PUBLIC_URL = String(process.env.PUBLIC_URL || "").trim().replace(/\/+$/, "");
 
 const LIMITS = {
