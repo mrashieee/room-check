@@ -31,6 +31,7 @@ A self-hosted, real-time audience poll for presentations. Show a QR code on the 
 - Mobile-first voting page
 - Results hidden until the reveal
 - Automatic timer reveal or manual reveal
+- Optional tie-breaker wheel when the top answers tie
 - Animated, projector-friendly results
 - Works on a local network or through a public HTTPS tunnel
 - One Node.js process, no database and no build step
@@ -230,11 +231,14 @@ For a stable URL, run Room Check behind a reverse proxy with HTTPS and set `PUBL
 
 1. In the host console, enter a game title, a question, and 2–10 answers.
 2. Choose a voting window: 30, 60, 90, or 120 seconds, or **Manual**.
-3. Check the audience link under the QR preview. Scan it with a phone to test the audience view.
-4. Press **Open the room**.
-5. Project the screen and let everyone scan the QR code.
-6. Press **Done — reveal results** at any time, or let the timer reveal them automatically.
-7. Choose **Play it again** to reuse the same question, or **New question** to go back to setup.
+3. Leave **If tied, spin the wheel** enabled if you want a tie to be settled by a live random wheel on the big screen. Turn it off to keep the tie as the final result.
+4. Check the audience link under the QR preview. Scan it with a phone to test the audience view.
+5. Press **Open the room**.
+6. Project the screen and let everyone scan the QR code.
+7. Press **Done — reveal results** at any time, or let the timer reveal them automatically.
+8. Choose **Play it again** to reuse the same question, or **New question** to go back to setup.
+
+If the result is tied and the wheel is enabled, the host screen shows a spinning wheel with all tied answers. The server picks the winner at random, the wheel lands on it, and the final results then show the wheel pick. Phones show a “watch the big screen” message while the wheel is spinning.
 
 Host shortcuts:
 

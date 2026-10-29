@@ -170,10 +170,15 @@ function renderVotedScreen(round) {
 
 function resultKey(round) {
   if (!round?.results) return "";
+  const tieBreak = round.tieBreak;
   return (
     round.id +
     ":" +
     round.revealedAt +
+    ":" +
+    (tieBreak?.status || "none") +
+    ":" +
+    (tieBreak?.winnerOptionId || "") +
     ":" +
     round.results.options.map((option) => `${option.optionId}-${option.count}`).join(",")
   );
@@ -182,43 +187,67 @@ function resultKey(round) {
 function renderResults(round) {
   const total = round.results?.total || 0;
   const winners = round.results?.winners || [];
+  const tieBreak = round.tieBreak;
+  const wheelDone = tieBreak?.status === "done" && tieBreak.winnerOptionId;
+  const wheelWinnerId = wheelDone ? tieBreak.winnerOptionId : null;
+  const wheelPending = Boolean(tieBreak && tieBreak.status !== "done");
+  const isTie = total > 0 && winners.length > 1;
+  const winnerLabels = winners.map((id) => optionById(id)?.label).filter(Boolean);
+  const wheelWinner = wheelWinnerId ? optionById(wheelWinnerId) : null;
   const key = resultKey(round);
 
   resultsTitle.textContent = round.question;
+  resultsEyebrow.textContent = wheelDone
+    ? "Tie breaker · the wheel has spoken"
+    : wheelPending
+      ? tieBreak.status === "spinning"
+        ? "Tie breaker · the wheel is spinning"
+        : "Tie breaker · the room is tied"
+      : round.revealReason === "timer"
+        ? "Time’s up · the room has spoken"
+        : "The room has spoken";
 
   if (total === 0) {
     resultsWinner.textContent = "No votes";
     resultsTotal.textContent = "The room stayed quiet";
     outcomeBanner.querySelector(".outcome-kicker").textContent = "Well then";
+  } else if (wheelPending) {
+    outcomeBanner.querySelector(".outcome-kicker").textContent =
+      tieBreak.status === "spinning" ? "The wheel is spinning" : "The room is in a tie";
+    resultsWinner.textContent = formatList(winnerLabels);
+    resultsTotal.textContent = `${formatVoteCount(total)} ${pluralize(total, "vote")} · watch the big screen`;
+  } else if (wheelWinnerId) {
+    outcomeBanner.querySelector(".outcome-kicker").textContent = "The wheel picked";
+    resultsWinner.textContent = wheelWinner?.label || "";
+    resultsTotal.textContent = `${formatVoteCount(total)} ${pluralize(total, "vote")} · tie broken`;
+  } else if (winners.length === 1) {
+    outcomeBanner.querySelector(".outcome-kicker").textContent = "The room picked";
+    resultsWinner.textContent = winnerLabels[0] || "";
+    resultsTotal.textContent = `${formatVoteCount(total)} ${pluralize(total, "vote")}`;
   } else {
-    const winnerLabels = winners.map((id) => optionById(id)?.label).filter(Boolean);
-    if (winners.length === 1) {
-      outcomeBanner.querySelector(".outcome-kicker").textContent = "The room picked";
-      resultsWinner.textContent = winnerLabels[0] || "";
-    } else {
-      outcomeBanner.querySelector(".outcome-kicker").textContent = "The room is in a tie";
-      resultsWinner.textContent = formatList(winnerLabels);
-    }
+    outcomeBanner.querySelector(".outcome-kicker").textContent = "The room is in a tie";
+    resultsWinner.textContent = formatList(winnerLabels);
     resultsTotal.textContent = `${formatVoteCount(total)} ${pluralize(total, "vote")}`;
   }
-
-  const isTie = total > 0 && winners.length > 1;
-  resultsEyebrow.textContent = isTie
-    ? "No single favorite · the room is tied"
-    : round.revealReason === "timer"
-      ? "Time’s up · the room has spoken"
-      : "The room has spoken";
 
   if (key !== renderedResultsKey) {
     renderedResultsKey = key;
     resultsBars.replaceChildren();
 
-    const ordered = [...(round.results?.options || [])].sort((a, b) => b.count - a.count);
+    let ordered = [...(round.results?.options || [])].sort((a, b) => b.count - a.count);
+    if (wheelWinnerId) {
+      ordered = [
+        ...ordered.filter((option) => option.optionId === wheelWinnerId),
+        ...ordered.filter((option) => option.optionId !== wheelWinnerId),
+      ];
+    }
+
+    const highlighted = wheelWinnerId ? [wheelWinnerId] : winners;
     for (const option of ordered) {
       const bar = document.createElement("div");
       bar.className = "result-bar";
       bar.dataset.color = option.color || "lime";
-      if (winners.includes(option.optionId)) bar.classList.add("is-winner");
+      if (highlighted.includes(option.optionId)) bar.classList.add("is-winner");
 
       const top = document.createElement("div");
       top.className = "result-bar-top";
@@ -254,6 +283,18 @@ function renderResults(round) {
 
   if (total === 0) {
     personalResult.textContent = "Nobody cast a vote. A moment of silence for the poll.";
+  } else if (wheelPending) {
+    personalResult.textContent = "Eyes on the big screen — the wheel is picking the winner.";
+  } else if (wheelWinnerId) {
+    if (myVote === wheelWinnerId) {
+      personalResult.textContent = "The wheel picked your answer. You called it.";
+    } else if (myVote && winners.includes(myVote)) {
+      personalResult.textContent = "The wheel broke the tie; your answer was one of the tied options.";
+    } else if (myVote) {
+      personalResult.textContent = `The room split; the wheel picked ${wheelWinner?.label || "another answer"}.`;
+    } else {
+      personalResult.textContent = `The wheel picked ${wheelWinner?.label || "the winner"} to break the tie.`;
+    }
   } else if (!myVote) {
     personalResult.textContent = "You didn’t vote this round — the room went on without you.";
   } else {
@@ -272,13 +313,16 @@ function renderResults(round) {
   const changedScreen = currentScreen !== "results";
   showScreen("results");
   if (changedScreen) {
-    const labelList = winners.map((id) => optionById(id)?.label).filter(Boolean);
     const summary =
       total === 0
         ? "No votes were cast."
-        : isTie
-          ? `The room is in a tie: ${formatList(labelList)}. ${formatVoteCount(total)} ${pluralize(total, "vote")}.`
-          : `${resultsWinner.textContent || "The room has decided"}. ${formatVoteCount(total)} ${pluralize(total, "vote")}.`;
+        : wheelPending
+          ? `The room is tied: ${formatList(winnerLabels)}. The wheel is spinning on the big screen.`
+          : wheelWinnerId
+            ? `The wheel picked ${wheelWinner?.label || "the winner"} to break the tie. ${formatVoteCount(total)} ${pluralize(total, "vote")}.`
+            : isTie
+              ? `The room is in a tie: ${formatList(winnerLabels)}. ${formatVoteCount(total)} ${pluralize(total, "vote")}.`
+              : `${resultsWinner.textContent || "The room has decided"}. ${formatVoteCount(total)} ${pluralize(total, "vote")}.`;
     announce(`Results are in. ${summary}`);
     window.scrollTo({ top: 0, behavior: "auto" });
   }

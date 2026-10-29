@@ -208,6 +208,19 @@
               </fieldset>
 
               <div class="field">
+                <label class="setting-toggle">
+                  <span class="setting-toggle-copy">
+                    <span class="setting-toggle-title">If tied, spin the wheel</span>
+                    <span class="setting-toggle-note">A random wheel picks a winner on the big screen when the top answers tie.</span>
+                  </span>
+                  <span class="toggle-switch">
+                    <input type="checkbox" id="spin-on-tie" checked />
+                    <span class="toggle-track" aria-hidden="true"><span></span></span>
+                  </span>
+                </label>
+              </div>
+
+              <div class="field">
                 <label class="field-label" for="join-url-input">Audience link</label>
                 <input class="text-input" id="join-url-input" name="joinUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" />
                 <p class="field-hint" id="join-url-hint">Phones must be on the same Wi-Fi as this laptop. Use <code>npm run share</code> for a public link.</p>
@@ -340,6 +353,29 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <div class="wheel-overlay" id="wheel-overlay" hidden>
+      <div class="wheel-panel" role="dialog" aria-modal="true" aria-labelledby="wheel-title">
+        <div class="wheel-copy">
+          <p class="eyebrow">Tie breaker</p>
+          <h2 id="wheel-title">The room is split.</h2>
+          <p id="wheel-subtitle">One spin decides it.</p>
+        </div>
+
+        <div class="wheel-stage">
+          <span class="wheel-pointer" aria-hidden="true"></span>
+          <div class="wheel-disc" id="wheel-disc"></div>
+          <div class="wheel-hub" aria-hidden="true"><span>Tie<br />breaker</span></div>
+        </div>
+
+        <div class="wheel-legend" id="wheel-legend"></div>
+
+        <div class="wheel-actions">
+          <button class="button button--primary button--large" id="wheel-spin-button" type="button" hidden>Spin now</button>
+          <p class="wheel-status" id="wheel-status">Starting the wheel…</p>
+        </div>
+      </div>
     </div>
 
     <canvas class="confetti-canvas" id="confetti-canvas" aria-hidden="true"></canvas>

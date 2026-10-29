@@ -1877,6 +1877,102 @@ svg {
   font-size: 0.66rem;
 }
 
+.setting-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 15px 16px;
+  border: 1px solid rgba(10, 12, 11, 0.14);
+  border-radius: 14px;
+  background: rgba(10, 12, 11, 0.035);
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
+}
+
+.setting-toggle:hover {
+  background: rgba(10, 12, 11, 0.055);
+  border-color: rgba(10, 12, 11, 0.22);
+}
+
+.setting-toggle:has(input:focus-visible) {
+  outline: 3px solid rgba(10, 12, 11, 0.45);
+  outline-offset: 3px;
+}
+
+.setting-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.setting-toggle-title {
+  font-family: var(--display);
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.setting-toggle-note {
+  max-width: 35ch;
+  color: rgba(10, 12, 11, 0.48);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.toggle-switch {
+  position: relative;
+  display: block;
+  width: 46px;
+  height: 26px;
+  flex: 0 0 auto;
+}
+
+.toggle-switch input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.toggle-track {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(10, 12, 11, 0.2);
+  transition: background 180ms ease;
+}
+
+.toggle-track span {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--paper-bright);
+  box-shadow: 0 2px 6px rgba(10, 12, 11, 0.18);
+  transition:
+    transform 200ms var(--ease-out),
+    background 180ms ease;
+}
+
+.toggle-switch input:checked + .toggle-track {
+  background: var(--ink);
+}
+
+.toggle-switch input:checked + .toggle-track span {
+  background: var(--lime);
+  transform: translateX(20px);
+}
+
 .setup-submit-row {
   display: flex;
   align-items: center;
@@ -2561,6 +2657,247 @@ kbd {
 }
 
 /* Host utility */
+
+.wheel-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: clamp(18px, 4vw, 46px);
+  background:
+    radial-gradient(circle at 50% 40%, rgba(216, 255, 87, 0.08), transparent 42%),
+    rgba(5, 7, 6, 0.88);
+  backdrop-filter: blur(12px);
+  animation: wheel-fade-in 240ms ease both;
+}
+
+@keyframes wheel-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.wheel-panel {
+  width: min(680px, 100%);
+  margin: auto;
+  text-align: center;
+}
+
+.wheel-copy .eyebrow {
+  color: var(--lime);
+}
+
+.wheel-copy h2 {
+  margin: 9px 0 0;
+  font-family: var(--display);
+  font-size: clamp(2.2rem, 4.8vw, 3.8rem);
+  font-weight: 700;
+  letter-spacing: -0.06em;
+  line-height: 0.92;
+}
+
+.wheel-copy p:last-child {
+  margin: 11px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.wheel-stage {
+  position: relative;
+  width: min(44vh, 360px, 78vw);
+  aspect-ratio: 1;
+  margin: 24px auto 18px;
+}
+
+.wheel-disc {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 8px solid rgba(242, 237, 224, 0.08);
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow:
+    0 0 0 1px rgba(247, 243, 232, 0.14),
+    0 30px 80px rgba(0, 0, 0, 0.45);
+  transform: rotate(0deg);
+}
+
+.wheel-disc svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+.wheel-disc.is-waiting {
+  animation: wheel-idle 1.5s linear infinite;
+}
+
+@keyframes wheel-idle {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.wheel-pointer {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  z-index: 5;
+  width: 0;
+  height: 0;
+  border-top: 25px solid var(--lime);
+  border-right: 15px solid transparent;
+  border-left: 15px solid transparent;
+  filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.4));
+  transform: translateX(-50%);
+}
+
+.wheel-hub {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 4;
+  display: grid;
+  width: 21%;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 2px solid rgba(216, 255, 87, 0.55);
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--lime);
+  font-family: var(--mono);
+  font-size: clamp(0.46rem, 0.8vw, 0.62rem);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.35;
+  text-align: center;
+  text-transform: uppercase;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 8px rgba(10, 12, 11, 0.68);
+}
+
+.wheel-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 18px;
+  width: min(560px, 100%);
+  margin: 0 auto;
+  text-align: left;
+}
+
+.wheel-legend-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--muted-strong);
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.wheel-legend-letter {
+  display: grid;
+  width: 21px;
+  height: 21px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.wheel-legend-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wheel-actions {
+  display: flex;
+  min-height: 64px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  margin-top: 20px;
+}
+
+.wheel-status {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+@media (max-width: 760px) {
+  .wheel-panel {
+    width: 100%;
+  }
+
+  .wheel-copy h2 {
+    font-size: clamp(2rem, 9vw, 3rem);
+  }
+
+  .wheel-stage {
+    width: min(58vw, 300px);
+    margin-top: 20px;
+  }
+
+  .wheel-legend {
+    grid-template-columns: 1fr;
+    max-height: 122px;
+    overflow-y: auto;
+  }
+
+  .wheel-actions {
+    margin-top: 14px;
+  }
+}
+
+@media (max-height: 760px) and (min-width: 761px) {
+  .wheel-stage {
+    width: min(37vh, 300px);
+    margin-top: 14px;
+    margin-bottom: 10px;
+  }
+
+  .wheel-copy h2 {
+    font-size: 2.7rem;
+  }
+
+  .wheel-copy p:last-child {
+    margin-top: 7px;
+  }
+
+  .wheel-legend {
+    gap: 4px 14px;
+  }
+
+  .wheel-legend-item {
+    padding: 4px 8px;
+  }
+
+  .wheel-actions {
+    margin-top: 10px;
+  }
+}
 
 .confetti-canvas {
   position: fixed;

@@ -52,6 +52,7 @@ const addOptionButton = $("#add-option");
 const questionInput = $("#question-input");
 const questionCount = $("#question-count");
 const titleInput = $("#game-title");
+const spinOnTieInput = $("#spin-on-tie");
 const joinUrlInput = $("#join-url-input");
 const setupUrl = $("#setup-url");
 const setupQr = $("#setup-qr");
@@ -71,12 +72,20 @@ const timerLabel = $("#timer-label");
 const timerRingValue = $("#timer-ring-value");
 const confettiCanvas = $("#confetti-canvas");
 const fullscreenButton = $("#fullscreen-button");
+const wheelOverlay = $("#wheel-overlay");
+const wheelDisc = $("#wheel-disc");
+const wheelLegend = $("#wheel-legend");
+const wheelTitle = $("#wheel-title");
+const wheelSubtitle = $("#wheel-subtitle");
+const wheelStatus = $("#wheel-status");
+const wheelSpinButton = $("#wheel-spin-button");
+const WHEEL_ANIMATION_MS = 5000;
 
 let roundState = null;
 let currentView = "boot";
 let lastRound = null;
 let renderedOpenRoundId = null;
-let renderedResultsRoundId = null;
+let renderedResultsSignature = null;
 let celebratedRoundId = null;
 let options = [];
 let joinUrl = "";
@@ -89,6 +98,13 @@ let config = null;
 let hostPollTimer = null;
 let hostPollBusy = false;
 let lastStateNow = 0;
+let wheelRoundId = null;
+let wheelOptions = [];
+let wheelAutoTimer = null;
+let wheelFallbackTimer = null;
+let wheelSpinBusy = false;
+let wheelWinnerId = null;
+let wheelIsOpen = false;
 
 function setView(view) {
   currentView = view;
@@ -159,6 +175,7 @@ function currentDraft() {
     question: questionInput.value,
     options: options.map((option) => option.label),
     durationSec: readDuration(),
+    spinOnTie: spinOnTieInput.checked,
   };
 }
 
@@ -270,6 +287,7 @@ function populateSetup(draft) {
   questionInput.value = chosen?.question || "How’s the energy in the room right now?";
   options = normalizeOptions(chosen?.options);
   setTimerChoice(Number.isFinite(Number(chosen?.durationSec)) ? Number(chosen.durationSec) : 60);
+  spinOnTieInput.checked = chosen?.spinOnTie !== false;
   updateQuestionCount();
   renderOptionEditor();
   applyJoinUrl(joinUrl, { silent: true });
@@ -281,6 +299,7 @@ function populateSetupFromRound(round) {
   questionInput.value = round.question || "";
   options = round.options.map((option) => ({ label: option.label }));
   setTimerChoice(round.durationSec ?? 60);
+  spinOnTieInput.checked = round.spinOnTie !== false;
   updateQuestionCount();
   renderOptionEditor();
   applyJoinUrl(joinUrl, { silent: true });
@@ -366,7 +385,9 @@ function showStage(round) {
   const isNewRound = renderedOpenRoundId !== round.id;
   if (isNewRound) {
     renderedOpenRoundId = round.id;
-    renderedResultsRoundId = null;
+    renderedResultsSignature = null;
+    wheelRoundId = null;
+    hideWheel();
     stageQuestion.textContent = round.question;
     stageQuestion.classList.toggle("is-long", round.question.length > 68 && round.question.length <= 112);
     stageQuestion.classList.toggle("is-very-long", round.question.length > 112);
@@ -386,6 +407,10 @@ function buildHostResults(round) {
   const results = round.results;
   if (!results) return;
 
+  const tieBreak = round.tieBreak;
+  const wheelWinnerId = tieBreak?.status === "done" ? tieBreak.winnerOptionId : null;
+  const displayWinners = wheelWinnerId ? [wheelWinnerId] : results.winners;
+
   $("#results-vote-total").textContent = formatVoteCount(results.total);
   $("#results-question").textContent = round.question;
   $("#results-reason").textContent =
@@ -395,13 +420,20 @@ function buildHostResults(round) {
   bars.replaceChildren();
   bars.classList.toggle("is-many", results.options.length > 4);
 
-  const ordered = [...results.options].sort((a, b) => b.count - a.count);
+  let ordered = [...results.options].sort((a, b) => b.count - a.count);
+  if (wheelWinnerId) {
+    ordered = [
+      ...ordered.filter((option) => option.optionId === wheelWinnerId),
+      ...ordered.filter((option) => option.optionId !== wheelWinnerId),
+    ];
+  }
+
   ordered.forEach((option, index) => {
     const row = document.createElement("div");
     row.className = "host-result";
     row.dataset.color = option.color || "lime";
     row.style.setProperty("--i", String(index));
-    if (results.winners.includes(option.optionId)) row.classList.add("is-winner");
+    if (displayWinners.includes(option.optionId)) row.classList.add("is-winner");
 
     const top = document.createElement("div");
     top.className = "host-result-top";
@@ -445,6 +477,14 @@ function buildHostResults(round) {
 
   if (!results.total) {
     note.textContent = "Silence. The room declined to participate.";
+  } else if (wheelWinnerId) {
+    const winner = results.options.find((option) => option.optionId === wheelWinnerId);
+    const tiedLabels = results.winners
+      .map((optionId) => results.options.find((option) => option.optionId === optionId)?.label)
+      .filter(Boolean);
+    tieNote.textContent = `The wheel broke the tie: ${winner?.label || "One answer"} wins.`;
+    tieNote.hidden = false;
+    note.textContent = `The wheel picked “${winner?.label || "one answer"}” from ${formatList(tiedLabels)}.`;
   } else if (results.winners.length === 1) {
     const winner = results.options.find((option) => option.optionId === results.winners[0]);
     note.textContent = `“${winner?.label || "That one"}” takes it with ${winner?.percent || 0}% of the room.`;
@@ -457,15 +497,214 @@ function buildHostResults(round) {
     tieNote.hidden = false;
     note.textContent = `No single favorite — ${labels.length} answers tied with ${formatVoteCount(topCount)} ${pluralize(topCount, "vote")} each.`;
   }
+}
 
-  renderedResultsRoundId = round.id;
-  setView("results");
+function buildWheelSvg(tiedOptions) {
+  const ns = "http://www.w3.org/2000/svg";
+  const size = 200;
+  const center = size / 2;
+  const radius = 96;
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "Tie-breaker wheel with " + tiedOptions.map((option) => option.label).join(", "));
+
+  const slice = (Math.PI * 2) / tiedOptions.length;
+  const styles = getComputedStyle(document.documentElement);
+
+  tiedOptions.forEach((option, index) => {
+    const start = -Math.PI / 2 + index * slice;
+    const end = start + slice;
+    const x1 = center + radius * Math.cos(start);
+    const y1 = center + radius * Math.sin(start);
+    const x2 = center + radius * Math.cos(end);
+    const y2 = center + radius * Math.sin(end);
+    const largeArc = slice > Math.PI ? 1 : 0;
+
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute(
+      "d",
+      `M ${center} ${center} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${radius} ${radius} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`,
+    );
+    const color = styles.getPropertyValue(`--${option.color}`).trim() || "#d8ff57";
+    path.setAttribute("fill", color);
+    path.setAttribute("stroke", "#0a0c0b");
+    path.setAttribute("stroke-width", "1.2");
+    svg.append(path);
+
+    const mid = start + slice / 2;
+    const text = document.createElementNS(ns, "text");
+    text.setAttribute("x", (center + Math.cos(mid) * radius * 0.64).toFixed(2));
+    text.setAttribute("y", (center + Math.sin(mid) * radius * 0.64).toFixed(2));
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("dominant-baseline", "central");
+    text.setAttribute("fill", "#101210");
+    text.setAttribute("font-family", "DM Sans, sans-serif");
+    text.setAttribute("font-size", "13");
+    text.setAttribute("font-weight", "700");
+    text.textContent = LETTERS[index] || String(index + 1);
+    svg.append(text);
+  });
+
+  return svg;
+}
+
+function renderWheelLegend(tiedOptions) {
+  wheelLegend.replaceChildren();
+  tiedOptions.forEach((option, index) => {
+    const item = document.createElement("div");
+    item.className = "wheel-legend-item";
+    item.dataset.color = option.color || "lime";
+
+    const letter = document.createElement("span");
+    letter.className = "wheel-legend-letter";
+    letter.textContent = LETTERS[index] || String(index + 1);
+
+    const label = document.createElement("span");
+    label.className = "wheel-legend-label";
+    label.textContent = option.label;
+
+    item.append(letter, label);
+    wheelLegend.append(item);
+  });
+}
+
+function clearWheelTimers() {
+  clearTimeout(wheelAutoTimer);
+  wheelAutoTimer = null;
+  clearTimeout(wheelFallbackTimer);
+  wheelFallbackTimer = null;
+}
+
+function hideWheel() {
+  clearWheelTimers();
+  wheelOverlay.hidden = true;
+  wheelIsOpen = false;
+  wheelRoundId = null;
+  wheelWinnerId = null;
+  wheelSpinBusy = false;
+  wheelOptions = [];
+  wheelSpinButton.hidden = true;
+  wheelDisc.classList.remove("is-waiting");
+  wheelDisc.replaceChildren();
+  wheelDisc.style.transition = "none";
+  wheelDisc.style.transform = "rotate(0deg)";
+}
+
+function showWheel(round) {
+  if (!round.tieBreak || round.tieBreak.status === "done") {
+    hideWheel();
+    return;
+  }
+
+  const tiedOptions = round.results.winners
+    .map((optionId) => round.results.options.find((option) => option.optionId === optionId))
+    .filter(Boolean);
+  if (tiedOptions.length < 2) {
+    hideWheel();
+    return;
+  }
+
+  if (wheelRoundId !== round.id || !wheelIsOpen) {
+    clearWheelTimers();
+    wheelRoundId = round.id;
+    wheelIsOpen = true;
+    wheelWinnerId = null;
+    wheelSpinBusy = false;
+    wheelOptions = tiedOptions;
+    wheelTitle.textContent = "The room is split.";
+    wheelSubtitle.textContent = `One spin decides between ${formatList(tiedOptions.map((option) => option.label))}.`;
+    wheelSpinButton.hidden = true;
+    wheelLegend.replaceChildren();
+    renderWheelLegend(tiedOptions);
+    wheelDisc.replaceChildren(buildWheelSvg(tiedOptions));
+    wheelDisc.classList.remove("is-waiting");
+    wheelDisc.style.transition = "none";
+    wheelDisc.style.transform = "rotate(0deg)";
+    wheelOverlay.hidden = false;
+    if (round.tieBreak.status === "ready") {
+      wheelStatus.textContent = "Starting the wheel…";
+      wheelAutoTimer = setTimeout(() => {
+        wheelAutoTimer = null;
+        spinWheel();
+      }, 900);
+    } else {
+      wheelStatus.textContent = "Spinning…";
+      wheelDisc.classList.add("is-waiting");
+    }
+  } else if (round.tieBreak.status === "spinning" && !wheelWinnerId) {
+    clearTimeout(wheelAutoTimer);
+    wheelAutoTimer = null;
+    wheelStatus.textContent = "Spinning…";
+    wheelDisc.classList.add("is-waiting");
+  }
+}
+
+async function spinWheel() {
+  if (!wheelIsOpen || wheelSpinBusy || wheelWinnerId) return;
+  const spinningRoundId = wheelRoundId;
+  clearTimeout(wheelAutoTimer);
+  wheelAutoTimer = null;
+  wheelSpinBusy = true;
+  wheelSpinButton.hidden = true;
+  wheelDisc.classList.remove("is-waiting");
+  wheelStatus.textContent = "Spinning…";
+
+  try {
+    const result = await api("/api/host/tiebreak/spin", { method: "POST", body: {} });
+    if (!wheelIsOpen || wheelRoundId !== spinningRoundId) return;
+    wheelWinnerId = result.winnerOptionId;
+    const index = wheelOptions.findIndex((option) => option.optionId === wheelWinnerId);
+    const slice = 360 / wheelOptions.length;
+    const offset = 360 - ((index + 0.5) * slice) % 360;
+    const rotation = 360 * 6 + offset;
+
+    wheelDisc.style.transition = "none";
+    wheelDisc.style.transform = "rotate(0deg)";
+    void wheelDisc.offsetWidth;
+    wheelDisc.style.transition = `transform ${WHEEL_ANIMATION_MS}ms cubic-bezier(0.12, 0.78, 0.12, 1)`;
+    requestAnimationFrame(() => {
+      wheelDisc.style.transform = `rotate(${rotation}deg)`;
+    });
+
+    wheelFallbackTimer = setTimeout(async () => {
+      wheelFallbackTimer = null;
+      try {
+        const payload = await api("/api/host/state");
+        if (payload?.state) applyState(payload.state);
+      } catch {
+        // The WebSocket state will catch up if this fails.
+      }
+    }, WHEEL_ANIMATION_MS + 1800);
+  } catch (error) {
+    if (!wheelIsOpen) return;
+    wheelSpinBusy = false;
+    wheelDisc.classList.remove("is-waiting");
+    wheelStatus.textContent = error?.message || "Could not spin the wheel.";
+    wheelSpinButton.hidden = false;
+    wheelSpinButton.textContent = "Try again";
+  }
 }
 
 function showResults(round) {
   setView("results");
-  if (renderedResultsRoundId !== round.id) {
+  const tieBreak = round.tieBreak;
+  const signature = [
+    round.id,
+    round.revealedAt || "",
+    tieBreak?.status || "none",
+    tieBreak?.winnerOptionId || "",
+  ].join(":");
+
+  if (renderedResultsSignature !== signature) {
+    renderedResultsSignature = signature;
     buildHostResults(round);
+  }
+
+  if (tieBreak && tieBreak.status !== "done") {
+    showWheel(round);
+  } else {
+    hideWheel();
   }
 }
 
@@ -477,8 +716,10 @@ function applyState(state) {
 
   const round = state.round;
   const previousStatus = roundState?.round?.status || null;
+  const previousTieStatus = roundState?.round?.tieBreak?.status || null;
 
   if (!round) {
+    hideWheel();
     const hadRound = Boolean(roundState?.round);
     roundState = state;
 
@@ -496,6 +737,7 @@ function applyState(state) {
   const isNewReveal = round.status === "revealed" && previousStatus === "open";
 
   if (round.status === "open") {
+    hideWheel();
     roundState = state;
     lastRound = round;
     showStage(round);
@@ -506,7 +748,12 @@ function applyState(state) {
   lastRound = round;
   showResults(round);
 
-  if (isNewReveal && celebratedRoundId !== round.id) {
+  const justResolvedTie = round.tieBreak?.status === "done" && previousTieStatus && previousTieStatus !== "done";
+  const canCelebrate = isNewReveal
+    ? !round.tieBreak || round.tieBreak.status === "done"
+    : justResolvedTie;
+
+  if (canCelebrate && celebratedRoundId !== round.id) {
     celebratedRoundId = round.id;
     launchConfetti(confettiCanvas);
   }
@@ -621,6 +868,7 @@ async function startRound(event) {
         question: questionInput.value,
         options: labels,
         durationSec: readDuration(),
+        spinOnTie: spinOnTieInput.checked,
       },
     });
     applyState(result.state);
@@ -664,6 +912,7 @@ async function playAgain() {
         question: lastRound.question,
         options: lastRound.options.map((option) => option.label),
         durationSec: lastRound.durationSec,
+        spinOnTie: lastRound.spinOnTie !== false,
       },
     });
     applyState(result.state);
@@ -900,6 +1149,7 @@ questionInput.addEventListener("input", () => {
   debounceSaveDraft();
 });
 titleInput.addEventListener("input", debounceSaveDraft);
+spinOnTieInput.addEventListener("change", debounceSaveDraft);
 
 $("#timer-choices").addEventListener("change", () => {
   debounceSaveDraft();
@@ -931,6 +1181,7 @@ $("#copy-link-button").addEventListener("click", async () => {
 });
 
 revealButton.addEventListener("click", revealResults);
+wheelSpinButton.addEventListener("click", spinWheel);
 $("#cancel-round-button").addEventListener("click", askReset);
 $("#again-button").addEventListener("click", playAgain);
 $("#new-question-button").addEventListener("click", newQuestion);

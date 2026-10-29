@@ -36,6 +36,7 @@ const SCRYPT = {
   maxmem: 64 * 1024 * 1024,
 };
 const SETUP_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const TIEBREAK_MS = 6500;
 const PUBLIC_URL = String(process.env.PUBLIC_URL || "").trim().replace(/\/+$/, "");
 
 const LIMITS = {
@@ -92,6 +93,7 @@ let setupInFlight = false;
 /** @type {{round: null | {id:string,title:string,question:string,options:{id:string,label:string,color:string}[],durationSec:number,status:"open"|"revealed",startedAt:number,endsAt:number|null,revealedAt:number|null,revealReason:string|null,votes:Record<string,{optionId:string,at:number}>}}} */
 let state = { round: null };
 let revealTimer = null;
+let tieBreakTimer = null;
 let saveTimer = null;
 let saveChain = Promise.resolve();
 
@@ -141,7 +143,13 @@ function validateRoundInput(body) {
     throw new HttpError(400, "Choose a timer between 10 seconds and 10 minutes, or turn it off.");
   }
 
-  return { title, question, options, durationSec };
+  return {
+    title,
+    question,
+    options,
+    durationSec,
+    spinOnTie: body.spinOnTie !== false,
+  };
 }
 
 function createRound(details) {
@@ -152,11 +160,13 @@ function createRound(details) {
     question: details.question,
     options: details.options,
     durationSec: details.durationSec,
+    spinOnTie: Boolean(details.spinOnTie),
     status: "open",
     startedAt,
     endsAt: details.durationSec > 0 ? startedAt + details.durationSec * 1000 : null,
     revealedAt: null,
     revealReason: null,
+    tieBreak: null,
     votes: {},
   };
 }
@@ -207,6 +217,20 @@ function buildResults(round) {
   };
 }
 
+function publicTieBreak(round, result) {
+  if (!round.spinOnTie || !result || result.total === 0 || result.winners.length < 2) return null;
+
+  const tieBreak = round.tieBreak;
+  if (!tieBreak) {
+    return { status: "ready", winnerOptionId: null, endsAt: null };
+  }
+  return {
+    status: tieBreak.status,
+    winnerOptionId: tieBreak.status === "done" ? tieBreak.winnerOptionId : null,
+    endsAt: tieBreak.endsAt || null,
+  };
+}
+
 function publicState() {
   const round = state.round;
   if (!round) {
@@ -224,11 +248,13 @@ function publicState() {
       options: round.options.map(({ id, label, color }) => ({ id, label, color })),
       status: round.status,
       durationSec: round.durationSec,
+      spinOnTie: Boolean(round.spinOnTie),
       startedAt: round.startedAt,
       endsAt: round.endsAt,
       totalVotes: voteCount(round),
       revealedAt: round.revealedAt,
       revealReason: round.revealReason,
+      tieBreak: round.status === "revealed" ? publicTieBreak(round, result) : null,
       results: result,
     },
   };
@@ -351,6 +377,32 @@ function loadState() {
       }
     }
 
+    let cleanTieBreak = null;
+    if (round.status === "revealed" && round.tieBreak && typeof round.tieBreak === "object") {
+      const pool = Array.isArray(round.tieBreak.pool)
+        ? round.tieBreak.pool.filter((optionId) => validOptions.has(optionId))
+        : [];
+      const winnerOptionId =
+        typeof round.tieBreak.winnerOptionId === "string" &&
+        validOptions.has(round.tieBreak.winnerOptionId)
+          ? round.tieBreak.winnerOptionId
+          : null;
+      if (
+        (round.tieBreak.status === "spinning" || round.tieBreak.status === "done") &&
+        pool.length >= 2 &&
+        winnerOptionId
+      ) {
+        cleanTieBreak = {
+          status: round.tieBreak.status,
+          pool,
+          winnerOptionId,
+          startedAt: Number(round.tieBreak.startedAt) || Date.now(),
+          endsAt: Number(round.tieBreak.endsAt) || Date.now(),
+          completedAt: Number(round.tieBreak.completedAt) || null,
+        };
+      }
+    }
+
     state.round = {
       ...round,
       title: cleanString(round.title, LIMITS.title) || "Room Check",
@@ -361,17 +413,28 @@ function loadState() {
         color: option.color || OPTION_COLORS[index % OPTION_COLORS.length],
       })),
       votes: cleanVotes,
+      spinOnTie: Boolean(round.spinOnTie),
       durationSec: Number(round.durationSec) || 0,
       endsAt: Number(round.endsAt) || null,
       startedAt: Number(round.startedAt) || Date.now(),
       revealedAt: Number(round.revealedAt) || null,
       revealReason: round.revealReason || null,
+      tieBreak: round.status === "open" ? null : cleanTieBreak,
     };
 
     if (state.round.status === "open" && state.round.endsAt && state.round.endsAt <= Date.now()) {
       state.round.status = "revealed";
       state.round.revealedAt = Date.now();
       state.round.revealReason = "timer";
+      persistState();
+    }
+
+    if (
+      state.round.tieBreak?.status === "spinning" &&
+      state.round.tieBreak.endsAt <= Date.now()
+    ) {
+      state.round.tieBreak.status = "done";
+      state.round.tieBreak.completedAt = Date.now();
       persistState();
     }
   } catch (error) {
@@ -393,6 +456,33 @@ function armRevealTimer() {
   }, remaining);
 }
 
+function armTieBreakTimer() {
+  if (tieBreakTimer) {
+    clearTimeout(tieBreakTimer);
+    tieBreakTimer = null;
+  }
+  const tieBreak = state.round?.tieBreak;
+  if (!tieBreak || tieBreak.status !== "spinning") return;
+  const remaining = Math.max(0, tieBreak.endsAt - Date.now());
+  tieBreakTimer = setTimeout(() => {
+    tieBreakTimer = null;
+    completeTieBreak();
+  }, remaining);
+}
+
+function completeTieBreak() {
+  const tieBreak = state.round?.tieBreak;
+  if (!tieBreak || tieBreak.status !== "spinning") return;
+  tieBreak.status = "done";
+  tieBreak.completedAt = Date.now();
+  if (tieBreakTimer) {
+    clearTimeout(tieBreakTimer);
+    tieBreakTimer = null;
+  }
+  scheduleSave();
+  broadcastState();
+}
+
 function revealRound(reason) {
   const round = state.round;
   if (!round || round.status !== "open") return false;
@@ -412,6 +502,10 @@ function openRound(details) {
   if (state.round?.status === "open") {
     throw new HttpError(409, "A round is already open. Finish it before starting another.");
   }
+  if (tieBreakTimer) {
+    clearTimeout(tieBreakTimer);
+    tieBreakTimer = null;
+  }
   state.round = createRound(details);
   armRevealTimer();
   scheduleSave();
@@ -423,6 +517,10 @@ function resetRound() {
   if (revealTimer) {
     clearTimeout(revealTimer);
     revealTimer = null;
+  }
+  if (tieBreakTimer) {
+    clearTimeout(tieBreakTimer);
+    tieBreakTimer = null;
   }
   state.round = null;
   scheduleSave();
@@ -908,6 +1006,49 @@ app.post("/api/host/reveal", requireHost, (req, res) => {
   res.json({ ok: true, state: publicState() });
 });
 
+app.post("/api/host/tiebreak/spin", requireHost, (req, res, next) => {
+  try {
+    const round = state.round;
+    if (!round || round.status !== "revealed") {
+      throw new HttpError(409, "Reveal the poll before spinning the wheel.");
+    }
+    if (!round.spinOnTie) {
+      throw new HttpError(409, "The tie-breaker wheel is not enabled for this poll.");
+    }
+
+    const results = buildResults(round);
+    if (results.winners.length < 2) {
+      throw new HttpError(409, "This poll is not tied.");
+    }
+    if (round.tieBreak) {
+      throw new HttpError(409, "The tie-breaker has already been used for this round.");
+    }
+
+    const winnerOptionId = results.winners[crypto.randomInt(results.winners.length)];
+    const now = Date.now();
+    round.tieBreak = {
+      status: "spinning",
+      pool: [...results.winners],
+      winnerOptionId,
+      startedAt: now,
+      endsAt: now + TIEBREAK_MS,
+      completedAt: null,
+    };
+    armTieBreakTimer();
+    scheduleSave();
+    broadcastState();
+
+    res.json({
+      ok: true,
+      winnerOptionId,
+      endsAt: round.tieBreak.endsAt,
+      state: publicState(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post("/api/host/reset", requireHost, (req, res) => {
   resetRound();
   res.json({ ok: true, state: publicState() });
@@ -1039,6 +1180,7 @@ const heartbeat = setInterval(() => {
 initAuth();
 loadState();
 armRevealTimer();
+armTieBreakTimer();
 
 server.on("error", (error) => {
   if (error.code === "EADDRINUSE") {
@@ -1073,6 +1215,7 @@ server.listen(PORT, HOST_BIND, () => {
 function shutdown() {
   clearInterval(heartbeat);
   if (revealTimer) clearTimeout(revealTimer);
+  if (tieBreakTimer) clearTimeout(tieBreakTimer);
   if (saveTimer) clearTimeout(saveTimer);
   persistStateSync();
   for (const ws of wss.clients) {
