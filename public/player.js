@@ -355,7 +355,7 @@ function renderHands(round) {
   handsEyebrow.textContent =
     round.title && round.title.trim().toLowerCase() !== "room check" ? round.title : "Live hands";
   handsLiveChip.classList.toggle("live-chip--warm", closed);
-  handsLiveLabel.textContent = closed ? "Closed" : "Live";
+  handsLiveLabel.textContent = closed ? "Closed" : "Open";
   handsToggle.disabled = closed || handsBusy;
   handsToggle.classList.toggle("is-raised", raised);
   handsToggle.setAttribute("aria-pressed", raised ? "true" : "false");
