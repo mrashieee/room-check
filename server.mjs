@@ -112,9 +112,21 @@ function validateRoundInput(body) {
     throw new HttpError(400, "Invalid poll details.");
   }
 
+  const mode = body.mode === "hands" ? "hands" : "poll";
   const title = cleanString(body.title, LIMITS.title) || "Room Check";
   const question = normalizeQuestion(body.question);
   if (!question) throw new HttpError(400, "Add a question for the room.");
+
+  if (mode === "hands") {
+    return {
+      mode,
+      title,
+      question,
+      options: [],
+      durationSec: 0,
+      spinOnTie: false,
+    };
+  }
 
   if (!Array.isArray(body.options)) throw new HttpError(400, "Add at least two answers.");
 
@@ -144,6 +156,7 @@ function validateRoundInput(body) {
   }
 
   return {
+    mode,
     title,
     question,
     options,
@@ -154,15 +167,35 @@ function validateRoundInput(body) {
 
 function createRound(details) {
   const startedAt = Date.now();
-  return {
+  const base = {
     id: crypto.randomUUID(),
+    mode: details.mode === "hands" ? "hands" : "poll",
     title: details.title,
     question: details.question,
+    status: "open",
+    startedAt,
+  };
+
+  if (base.mode === "hands") {
+    return {
+      ...base,
+      options: [],
+      durationSec: 0,
+      endsAt: null,
+      revealedAt: null,
+      revealReason: null,
+      closedAt: null,
+      tieBreak: null,
+      votes: {},
+      hands: {},
+    };
+  }
+
+  return {
+    ...base,
     options: details.options,
     durationSec: details.durationSec,
     spinOnTie: Boolean(details.spinOnTie),
-    status: "open",
-    startedAt,
     endsAt: details.durationSec > 0 ? startedAt + details.durationSec * 1000 : null,
     revealedAt: null,
     revealReason: null,
@@ -237,12 +270,29 @@ function publicState() {
     return { now: Date.now(), round: null };
   }
 
+  if (round.mode === "hands") {
+    return {
+      now: Date.now(),
+      round: {
+        id: round.id,
+        mode: "hands",
+        title: round.title,
+        question: round.question,
+        status: round.status,
+        startedAt: round.startedAt,
+        closedAt: round.closedAt || null,
+        raisedCount: Object.keys(round.hands || {}).length,
+      },
+    };
+  }
+
   const result = round.status === "revealed" ? buildResults(round) : null;
 
   return {
     now: Date.now(),
     round: {
       id: round.id,
+      mode: "poll",
       title: round.title,
       question: round.question,
       options: round.options.map(({ id, label, color }) => ({ id, label, color })),
@@ -260,8 +310,15 @@ function publicState() {
   };
 }
 
-function personalVote(round, playerId) {
+function personalState(round, playerId) {
   if (!round) return null;
+  if (round.mode === "hands") {
+    return {
+      roundId: round.id,
+      optionId: null,
+      raised: Boolean(playerId && Object.prototype.hasOwnProperty.call(round.hands, playerId)),
+    };
+  }
   const hasVote =
     playerId && Object.prototype.hasOwnProperty.call(round.votes, playerId)
       ? round.votes[playerId]
@@ -269,6 +326,7 @@ function personalVote(round, playerId) {
   return {
     roundId: round.id,
     optionId: hasVote ? hasVote.optionId : null,
+    raised: null,
   };
 }
 
@@ -286,7 +344,7 @@ function broadcastState() {
       JSON.stringify({
         type: "state",
         state: publicPayload,
-        you: client.role === "host" ? null : personalVote(state.round, client.playerId),
+        you: client.role === "host" ? null : personalState(state.round, client.playerId),
       }),
     );
   }
@@ -358,6 +416,37 @@ function loadState() {
     const round = raw?.round;
     if (!round || typeof round !== "object") return;
     if (typeof round.id !== "string" || typeof round.question !== "string") return;
+
+    if (round.mode === "hands") {
+      if (round.status !== "open" && round.status !== "closed") return;
+      const cleanHands = {};
+      for (const [playerId, hand] of Object.entries(round.hands || {})) {
+        if (/^[a-zA-Z0-9_-]{16,64}$/.test(playerId) && hand && typeof hand === "object") {
+          cleanHands[playerId] = {
+            raisedAt: Number(hand.raisedAt) || Date.now(),
+          };
+        }
+      }
+      state.round = {
+        id: round.id,
+        mode: "hands",
+        title: cleanString(round.title, LIMITS.title) || "Room Check",
+        question: normalizeQuestion(round.question),
+        status: round.status,
+        startedAt: Number(round.startedAt) || Date.now(),
+        closedAt: Number(round.closedAt) || null,
+        options: [],
+        durationSec: 0,
+        endsAt: null,
+        revealedAt: null,
+        revealReason: null,
+        tieBreak: null,
+        votes: {},
+        hands: cleanHands,
+      };
+      return;
+    }
+
     if (!Array.isArray(round.options) || round.options.length < LIMITS.minOptions) return;
     if (round.status !== "open" && round.status !== "revealed") return;
 
@@ -405,6 +494,7 @@ function loadState() {
 
     state.round = {
       ...round,
+      mode: "poll",
       title: cleanString(round.title, LIMITS.title) || "Room Check",
       question: normalizeQuestion(round.question),
       options: round.options.map((option, index) => ({
@@ -448,7 +538,7 @@ function armRevealTimer() {
     revealTimer = null;
   }
   const round = state.round;
-  if (!round || round.status !== "open" || !round.endsAt) return;
+  if (!round || round.mode === "hands" || round.status !== "open" || !round.endsAt) return;
   const remaining = Math.max(0, round.endsAt - Date.now());
   revealTimer = setTimeout(() => {
     revealTimer = null;
@@ -485,7 +575,7 @@ function completeTieBreak() {
 
 function revealRound(reason) {
   const round = state.round;
-  if (!round || round.status !== "open") return false;
+  if (!round || round.mode === "hands" || round.status !== "open") return false;
   round.status = "revealed";
   round.revealedAt = Date.now();
   round.revealReason = reason;
@@ -868,7 +958,7 @@ app.get("/api/state", (req, res) => {
   const validPlayer = /^[a-zA-Z0-9_-]{16,64}$/.test(playerId) ? playerId : "";
   res.json({
     state: publicState(),
-    you: personalVote(state.round, validPlayer),
+    you: personalState(state.round, validPlayer),
   });
 });
 
@@ -1009,7 +1099,7 @@ app.post("/api/host/reveal", requireHost, (req, res) => {
 app.post("/api/host/tiebreak/spin", requireHost, (req, res, next) => {
   try {
     const round = state.round;
-    if (!round || round.status !== "revealed") {
+    if (!round || round.status !== "revealed" || round.mode !== "poll") {
       throw new HttpError(409, "Reveal the poll before spinning the wheel.");
     }
     if (!round.spinOnTie) {
@@ -1054,11 +1144,65 @@ app.post("/api/host/reset", requireHost, (req, res) => {
   res.json({ ok: true, state: publicState() });
 });
 
+app.post("/api/host/hands/close", requireHost, (req, res) => {
+  const round = state.round;
+  if (!round || round.mode !== "hands") {
+    return res.status(409).json({ error: "There is no live-hands round open." });
+  }
+  if (round.status === "open") {
+    round.status = "closed";
+    round.closedAt = Date.now();
+    scheduleSave();
+    broadcastState();
+  }
+  res.json({ ok: true, state: publicState() });
+});
+
+app.post("/api/hands", (req, res, next) => {
+  try {
+    const round = state.round;
+    if (!round || round.mode !== "hands") {
+      throw new HttpError(409, "There is no live-hands round open.");
+    }
+    if (round.status !== "open") {
+      throw new HttpError(409, "The host has closed the hands.");
+    }
+
+    const playerId = typeof req.body?.playerId === "string" ? req.body.playerId : "";
+    if (!/^[a-zA-Z0-9_-]{16,64}$/.test(playerId)) {
+      throw new HttpError(400, "This browser could not be identified. Reload and try again.");
+    }
+
+    const raised = Boolean(req.body?.raised);
+    const currentlyRaised = Object.prototype.hasOwnProperty.call(round.hands, playerId);
+    if (raised && !currentlyRaised) {
+      round.hands[playerId] = { raisedAt: Date.now() };
+      scheduleSave();
+      broadcastState();
+    } else if (!raised && currentlyRaised) {
+      delete round.hands[playerId];
+      scheduleSave();
+      broadcastState();
+    }
+
+    res.json({
+      ok: true,
+      state: publicState(),
+      you: personalState(round, playerId),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post("/api/vote", (req, res, next) => {
   try {
     const round = state.round;
     if (!round || round.status !== "open") {
       throw new HttpError(409, "Voting is closed.");
+    }
+    if (round.mode !== "poll") {
+      throw new HttpError(409, "This round does not use votes.");
     }
     if (round.endsAt && Date.now() >= round.endsAt) {
       revealRound("timer");
@@ -1080,14 +1224,14 @@ app.post("/api/vote", (req, res, next) => {
         error: "Your vote is already locked in.",
         code: "already_voted",
         state: publicState(),
-        you: personalVote(round, playerId),
+        you: personalState(round, playerId),
       });
     }
 
     round.votes[playerId] = { optionId, at: Date.now() };
     scheduleSave();
     broadcastState();
-    res.json({ ok: true, state: publicState(), you: personalVote(round, playerId) });
+    res.json({ ok: true, state: publicState(), you: personalState(round, playerId) });
   } catch (error) {
     next(error);
   }
@@ -1150,7 +1294,7 @@ wss.on("connection", (ws) => {
   sendJson(ws, {
     type: "state",
     state: currentState,
-    you: ws.role === "host" ? null : personalVote(state.round, ws.playerId),
+    you: ws.role === "host" ? null : personalState(state.round, ws.playerId),
   });
 
   ws.on("pong", () => {

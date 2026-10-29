@@ -94,6 +94,29 @@
         </form>
       </section>
 
+      <section class="player-screen player-screen--hands" id="screen-hands" aria-labelledby="hands-question" hidden>
+        <div class="hands-topline">
+          <p class="eyebrow" id="hands-eyebrow">Live hands</p>
+          <span class="live-chip live-chip--warm" id="hands-live-chip"><span class="live-dot" aria-hidden="true"></span><span id="hands-live-label">Open</span></span>
+        </div>
+
+        <h1 class="hands-question" id="hands-question"></h1>
+        <p class="hands-instruction" id="hands-instruction">Tap the hand to raise it. The presenter can see the room’s hands.</p>
+
+        <button class="hands-toggle" id="hands-toggle" type="button" aria-pressed="false">
+          <span class="hands-toggle-icon" aria-hidden="true">
+            <svg viewBox="0 0 64 64" fill="none">
+              <path d="M22 38V15a4 4 0 0 1 8 0v17M30 32V11a4 4 0 0 1 8 0v21M38 33V15a4 4 0 0 1 8 0v21M46 37V23a4 4 0 0 1 8 0v18c0 10-7 17-17 17h-4c-5 0-9-2-12-6L10 39a4 4 0 0 1 6-5l6 6" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </span>
+          <span class="hands-toggle-label" id="hands-toggle-label">Raise hand</span>
+          <span class="hands-toggle-hint" id="hands-toggle-hint">Tap to join the room</span>
+        </button>
+
+        <p class="hands-final" id="hands-final" hidden></p>
+        <p class="hands-footnote" id="hands-footnote">You can put your hand down anytime.</p>
+      </section>
+
       <section class="player-screen player-screen--voted" id="screen-voted" aria-labelledby="voted-title" hidden>
         <div class="success-seal" aria-hidden="true">
           <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30"></circle><path d="M19 33l9 9 18-20"></path></svg>

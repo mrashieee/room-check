@@ -11,7 +11,7 @@
   <img alt="Self-hosted" src="https://img.shields.io/badge/deploy-self--hosted-72dff2?style=for-the-badge&amp;labelColor=101210" />
 </p>
 
-A self-hosted, real-time audience poll for presentations. Show a QR code on the big screen, let everyone vote from their phone, then reveal the results on your laptop when you press **Done** or when the timer runs out.
+A self-hosted, real-time audience poll for presentations. Run a vote with a big-screen reveal, or switch to **Live Hands** mode and watch the room raise and lower hands in real time. Show a QR code, let everyone participate from their phone, and control everything from your laptop.
 
 <table align="center">
   <tr>
@@ -27,9 +27,11 @@ A self-hosted, real-time audience poll for presentations. Show a QR code on the 
 ## Features
 
 - Password-protected host console, configured on first launch
-- Large QR code and live vote counter for the projector
-- Mobile-first voting page
+- Two modes: **Poll** and **Live Hands**
+- Large QR code and live counts for the projector
+- Mobile-first participation page
 - Results hidden until the reveal
+- Live raised-hand toggle with a presenter-side count
 - Automatic timer reveal or manual reveal
 - Optional tie-breaker wheel when the top answers tie
 - Animated, projector-friendly results
@@ -85,6 +87,7 @@ Wait for **Public link verified and ready**, then use the printed HTTPS link. Th
 | Try it on one computer | `npm start`, open the host console |
 | Audience on the same Wi-Fi | `npm start`, use the LAN audience link |
 | Audience on cellular or another network | `npm run share` |
+| Live audience pulse / raised hands | Choose **Live Hands** in host setup |
 | Permanent domain and HTTPS | Node.js behind a reverse proxy, with `PUBLIC_URL` set |
 
 `npm start` and `npm run share` both serve the app on port 3000. Run only one of them at a time.
@@ -239,6 +242,19 @@ For a stable URL, run Room Check behind a reverse proxy with HTTPS and set `PUBL
 8. Choose **Play it again** to reuse the same question, or **New question** to go back to setup.
 
 If the result is tied and the wheel is enabled, the host screen shows a spinning wheel with all tied answers. The server picks the winner at random, the wheel lands on it, and the final results then show the wheel pick. Phones show a “watch the big screen” message while the wheel is spinning.
+
+### Live Hands mode
+
+Choose **Live Hands** in the host setup to run a quick room pulse instead of a poll.
+
+1. Enter the question, for example “Who has used an AI assistant today?”
+2. Press **Open live hands**.
+3. The audience gets one large **Raise hand** button. They can tap **Put hand down** at any time.
+4. The host screen shows the live count of raised hands.
+5. Press **Done — hands down** to close the room and keep the final count.
+6. Use **New question** to return to setup.
+
+Live Hands has no answer choices, timer, results reveal, or tie-breaker. It is intentionally a fast, live count for the presenter.
 
 Host shortcuts:
 

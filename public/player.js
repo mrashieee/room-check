@@ -22,6 +22,7 @@ const screens = {
   connecting: $("#screen-connecting"),
   waiting: $("#screen-waiting"),
   vote: $("#screen-vote"),
+  hands: $("#screen-hands"),
   voted: $("#screen-voted"),
   results: $("#screen-results"),
   error: $("#screen-error"),
@@ -48,6 +49,16 @@ const resultsBars = $("#results-bars");
 const personalResult = $("#personal-result-text");
 const outcomeBanner = $("#results-outcome");
 const announcer = $("#live-announcer");
+const handsQuestion = $("#hands-question");
+const handsEyebrow = $("#hands-eyebrow");
+const handsLiveChip = $("#hands-live-chip");
+const handsLiveLabel = $("#hands-live-label");
+const handsInstruction = $("#hands-instruction");
+const handsToggle = $("#hands-toggle");
+const handsToggleLabel = $("#hands-toggle-label");
+const handsToggleHint = $("#hands-toggle-hint");
+const handsFinal = $("#hands-final");
+const handsFootnote = $("#hands-footnote");
 
 let currentScreen = "connecting";
 let currentState = null;
@@ -55,6 +66,8 @@ let currentRoundId = null;
 let renderedRoundId = null;
 let renderedResultsKey = null;
 let myVote = null;
+let myHandRaised = false;
+let handsBusy = false;
 let selectedOption = null;
 let submitting = false;
 let clockTimer = null;
@@ -333,10 +346,63 @@ function renderWaiting() {
   if (changed) announce("Waiting for the host to start the poll.");
 }
 
+function renderHands(round) {
+  const closed = round.status === "closed";
+  const changed = currentScreen !== "hands";
+  const raised = closed ? myHandRaised : myHandRaised;
+
+  handsQuestion.textContent = round.question;
+  handsEyebrow.textContent =
+    round.title && round.title.trim().toLowerCase() !== "room check" ? round.title : "Live hands";
+  handsLiveChip.classList.toggle("live-chip--warm", closed);
+  handsLiveLabel.textContent = closed ? "Closed" : "Live";
+  handsToggle.disabled = closed || handsBusy;
+  handsToggle.classList.toggle("is-raised", raised);
+  handsToggle.setAttribute("aria-pressed", raised ? "true" : "false");
+  handsToggleLabel.textContent = closed
+    ? raised
+      ? "Hand was raised"
+      : "Hands closed"
+    : raised
+      ? "Put hand down"
+      : "Raise hand";
+  handsToggleHint.textContent = closed
+    ? "The host has the count"
+    : raised
+      ? "Tap to lower it"
+      : "Tap to join the room";
+  handsInstruction.textContent = closed
+    ? "The room is closed. The presenter has the final count."
+    : raised
+      ? "Your hand is raised. The presenter can see it."
+      : "Tap the hand to raise it. The presenter can see the room’s hands.";
+  handsFinal.hidden = !closed;
+  handsFinal.textContent = closed
+    ? round.raisedCount > 0
+      ? `The room finished with ${formatVoteCount(round.raisedCount)} ${pluralize(round.raisedCount, "hand")} raised.`
+      : "No hands were raised."
+    : "";
+  handsFootnote.textContent = closed ? "Thanks for taking part." : "You can put your hand down anytime.";
+
+  showScreen("hands");
+  if (changed) {
+    announce(
+      closed
+        ? "The live-hands round is closed. The presenter has the final count."
+        : `Live hands: ${round.question}. ${raised ? "Your hand is raised." : "Tap the raise hand button to join."}`,
+    );
+  }
+}
+
 function renderScreen() {
   const round = currentState?.round;
   if (!round) {
     renderWaiting();
+    return;
+  }
+
+  if (round.mode === "hands") {
+    renderHands(round);
     return;
   }
 
@@ -363,7 +429,13 @@ function handleState(state, you) {
   currentRoundId = state.round?.id || null;
 
   if (previousRoundId !== currentRoundId) {
-    myVote = you && you.roundId === currentRoundId ? you.optionId || null : null;
+    myHandRaised = false;
+    if (state.round?.mode === "hands") {
+      myVote = null;
+      myHandRaised = Boolean(you && you.roundId === currentRoundId && you.raised);
+    } else {
+      myVote = you && you.roundId === currentRoundId ? you.optionId || null : null;
+    }
     selectedOption = null;
     renderedRoundId = null;
     renderedResultsKey = null;
@@ -371,7 +443,10 @@ function handleState(state, you) {
       window.scrollTo({ top: 0, behavior: "auto" });
     }
   } else if (you !== undefined) {
-    if (you && you.roundId === currentRoundId) {
+    if (state.round?.mode === "hands") {
+      if (you && you.roundId === currentRoundId) myHandRaised = Boolean(you.raised);
+      myVote = null;
+    } else if (you && you.roundId === currentRoundId) {
       myVote = you.optionId || null;
     } else if (!you && !currentRoundId) {
       myVote = null;
@@ -390,6 +465,10 @@ function handleState(state, you) {
 }
 
 function updateClock() {
+  if (currentState?.round?.mode === "hands") {
+    voteClock.hidden = true;
+    return;
+  }
   if (!currentState?.round || currentState.round.status !== "open") {
     voteClock.hidden = currentScreen !== "vote";
     return;
@@ -423,6 +502,32 @@ function setLoginError(message) {
     voteHelp.removeAttribute("role");
   }, 1800);
 }
+
+handsToggle.addEventListener("click", async () => {
+  const round = currentState?.round;
+  if (!round || round.mode !== "hands" || round.status !== "open" || handsBusy) return;
+
+  const raised = !myHandRaised;
+  handsBusy = true;
+  handsToggle.disabled = true;
+  handsToggleLabel.textContent = raised ? "Raising hand…" : "Lowering hand…";
+  handsToggleHint.textContent = "Updating…";
+
+  try {
+    const result = await api("/api/hands", {
+      method: "POST",
+      body: { playerId, raised },
+    });
+    myHandRaised = Boolean(result.you?.raised);
+    handsBusy = false;
+    if (navigator.vibrate) navigator.vibrate(raised ? [12, 30, 16] : 10);
+    handleState(result.state, result.you);
+  } catch (error) {
+    handsBusy = false;
+    renderHands(round);
+    handsFootnote.textContent = error?.message || "Could not update your hand. Try again.";
+  }
+});
 
 voteOptions.addEventListener("change", (event) => {
   const input = event.target.closest('input[name="answer"]');

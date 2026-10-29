@@ -47,6 +47,10 @@ const setupView = $("#setup-view");
 const openStage = $("#open-stage");
 const resultsStage = $("#results-stage");
 const setupForm = $("#setup-form");
+const modeChoices = $("#mode-choices");
+const modeHint = $("#mode-hint");
+const startButtonLabel = $("#start-button-label");
+const setupSubmitNote = $("#setup-submit-note");
 const optionEditor = $("#option-editor");
 const addOptionButton = $("#add-option");
 const questionInput = $("#question-input");
@@ -62,6 +66,12 @@ const stageTitle = $("#stage-title");
 const stageQuestion = $("#stage-question");
 const stageVoteCount = $("#stage-vote-count");
 const stageChoiceCount = $("#stage-choice-count");
+const stageLiveLabel = $("#stage-live-label");
+const stageLede = $("#stage-lede");
+const stageStatLabel = $("#stage-stat-label");
+const stageDetailNote = $("#stage-detail-note");
+const stageShortcuts = $("#stage-shortcuts");
+const handsGlyph = $("#hands-glyph");
 const revealButton = $("#reveal-button");
 const hostConnection = $("#host-connection");
 const hostConnectionLabel = $("#host-connection-label");
@@ -171,6 +181,7 @@ function debounceSaveDraft() {
 
 function currentDraft() {
   return {
+    mode: readMode(),
     title: titleInput.value.trim(),
     question: questionInput.value,
     options: options.map((option) => option.label),
@@ -212,6 +223,33 @@ function setTimerChoice(seconds) {
 function readDuration() {
   const checked = $('input[name="duration"]:checked');
   return checked ? Number(checked.value) : 60;
+}
+
+function readMode() {
+  const checked = $('input[name="mode"]:checked', setupForm);
+  return checked?.value === "hands" ? "hands" : "poll";
+}
+
+function setMode(mode) {
+  const input = $$('input[name="mode"]', setupForm).find((radio) => radio.value === mode);
+  if (input) input.checked = true;
+  syncModeUI();
+}
+
+function syncModeUI() {
+  const mode = readMode();
+  const hands = mode === "hands";
+  setupForm.dataset.mode = mode;
+  $$(".poll-only", setupForm).forEach((element) => {
+    element.hidden = hands;
+  });
+  modeHint.textContent = hands
+    ? "The audience can raise and lower a hand from their phone. The count updates live on this screen."
+    : "Ask a question, collect votes, then reveal the results.";
+  startButtonLabel.textContent = hands ? "Open live hands" : "Open the room";
+  setupSubmitNote.textContent = hands
+    ? "The raised-hand button goes live instantly. Keep this tab projected."
+    : "The QR code goes live instantly. Keep this tab projected.";
 }
 
 function normalizeOptions(labels) {
@@ -288,6 +326,7 @@ function populateSetup(draft) {
   options = normalizeOptions(chosen?.options);
   setTimerChoice(Number.isFinite(Number(chosen?.durationSec)) ? Number(chosen.durationSec) : 60);
   spinOnTieInput.checked = chosen?.spinOnTie !== false;
+  setMode(chosen?.mode === "hands" ? "hands" : "poll");
   updateQuestionCount();
   renderOptionEditor();
   applyJoinUrl(joinUrl, { silent: true });
@@ -297,9 +336,11 @@ function populateSetup(draft) {
 function populateSetupFromRound(round) {
   titleInput.value = round.title || "Room Check";
   questionInput.value = round.question || "";
-  options = round.options.map((option) => ({ label: option.label }));
+  const draftOptions = round.mode === "hands" ? loadDraft()?.options : null;
+  options = normalizeOptions(draftOptions || round.options);
   setTimerChoice(round.durationSec ?? 60);
   spinOnTieInput.checked = round.spinOnTie !== false;
+  setMode(round.mode === "hands" ? "hands" : "poll");
   updateQuestionCount();
   renderOptionEditor();
   applyJoinUrl(joinUrl, { silent: true });
@@ -382,7 +423,10 @@ async function loadConfig() {
 }
 
 function showStage(round) {
+  const isHands = round.mode === "hands";
+  const handsClosed = isHands && round.status === "closed";
   const isNewRound = renderedOpenRoundId !== round.id;
+
   if (isNewRound) {
     renderedOpenRoundId = round.id;
     renderedResultsSignature = null;
@@ -392,15 +436,48 @@ function showStage(round) {
     stageQuestion.classList.toggle("is-long", round.question.length > 68 && round.question.length <= 112);
     stageQuestion.classList.toggle("is-very-long", round.question.length > 112);
     stageTitle.textContent = round.title || "Room Check";
-    stageChoiceCount.textContent = `${round.options.length} ${pluralize(round.options.length, "answer")}`;
     if (joinUrl) {
       stageQr.src = qrImageUrl(joinUrl);
       stageUrl.textContent = joinUrl.replace(/^https?:\/\//, "");
     }
   }
-  stageVoteCount.textContent = formatVoteCount(round.totalVotes);
+
+  openStage.classList.toggle("is-hands", isHands);
+  openStage.classList.toggle("is-closed", handsClosed);
+  stageLiveLabel.textContent = isHands ? (handsClosed ? "Hands closed" : "Hands live") : "Voting live";
+  stageLiveLabel.parentElement.classList.toggle("live-chip--warm", handsClosed);
+  handsGlyph.hidden = !isHands;
+  timerDial.hidden = isHands;
+  stageShortcuts.hidden = isHands;
+
+  if (isHands) {
+    stageLede.textContent = handsClosed
+      ? "Hands are down. This is the final count."
+      : "Scan the code. Raise a hand. Put it down anytime.";
+    stageStatLabel.textContent = handsClosed ? "hands raised" : "hands up";
+    stageChoiceCount.textContent = handsClosed ? "Final count" : "Live count";
+    stageDetailNote.textContent = handsClosed ? "round closed" : "updates instantly";
+    stageVoteCount.textContent = formatVoteCount(round.raisedCount);
+    const label = revealButton.querySelector("span");
+    if (label) label.textContent = "Done — hands down";
+    revealButton.hidden = handsClosed;
+    $("#cancel-round-button").textContent = handsClosed ? "New question" : "Start over";
+  } else {
+    const accent = document.createElement("span");
+    accent.textContent = "No overthinking.";
+    stageLede.replaceChildren(document.createTextNode("Scan the code. Pick an answer. "), accent);
+    stageStatLabel.textContent = "votes in";
+    stageChoiceCount.textContent = `${round.options.length} ${pluralize(round.options.length, "answer")}`;
+    stageDetailNote.textContent = "on every phone";
+    stageVoteCount.textContent = formatVoteCount(round.totalVotes);
+    const label = revealButton.querySelector("span");
+    if (label) label.textContent = "Done — reveal results";
+    revealButton.hidden = false;
+    $("#cancel-round-button").textContent = "Start over";
+  }
+
   setView("open");
-  updateTimer(round);
+  if (!isHands) updateTimer(round);
 }
 
 function buildHostResults(round) {
@@ -734,6 +811,14 @@ function applyState(state) {
     return;
   }
 
+  if (round.mode === "hands") {
+    hideWheel();
+    roundState = state;
+    lastRound = round;
+    showStage(round);
+    return;
+  }
+
   const isNewReveal = round.status === "revealed" && previousStatus === "open";
 
   if (round.status === "open") {
@@ -762,7 +847,9 @@ function applyState(state) {
 function startClock() {
   stopClock();
   clockTimer = setInterval(() => {
-    if (roundState?.round?.status === "open") updateTimer(roundState.round);
+    if (roundState?.round?.status === "open" && roundState?.round?.mode !== "hands") {
+      updateTimer(roundState.round);
+    }
   }, 250);
 }
 
@@ -772,7 +859,8 @@ function stopClock() {
 }
 
 function updateTimer(round) {
-  if (!round || round.status !== "open") return;
+  if (!round || round.mode === "hands" || round.status !== "open") return;
+  timerDial.hidden = false;
 
   if (!round.endsAt || round.durationSec <= 0) {
     timerDial.classList.add("is-manual");
@@ -810,7 +898,26 @@ function setActionBusy(button, busy, busyText = "Working…") {
   }
 }
 
+async function closeHands() {
+  if (actionInFlight || roundState?.round?.mode !== "hands" || roundState?.round?.status !== "open") return;
+  actionInFlight = true;
+  setActionBusy(revealButton, true, "Closing…");
+  try {
+    const result = await api("/api/host/hands/close", { method: "POST", body: {} });
+    applyState(result.state);
+  } catch (error) {
+    handleActionError(error);
+  } finally {
+    actionInFlight = false;
+    setActionBusy(revealButton, false);
+  }
+}
+
 async function revealResults() {
+  if (roundState?.round?.mode === "hands") {
+    await closeHands();
+    return;
+  }
   if (actionInFlight || roundState?.round?.status !== "open") return;
   actionInFlight = true;
   setActionBusy(revealButton, true, "Revealing…");
@@ -829,16 +936,20 @@ async function startRound(event) {
   event.preventDefault();
   if (actionInFlight) return;
 
-  const labels = options.map((option) => option.label.trim()).filter(Boolean);
-  if (labels.length < 2) {
-    showToast(toast, "Add at least two answers.", 3500);
-    return;
-  }
+  const mode = readMode();
+  const labels = mode === "poll" ? options.map((option) => option.label.trim()).filter(Boolean) : [];
 
-  const unique = new Set(labels.map((label) => label.toLocaleLowerCase()));
-  if (unique.size !== labels.length) {
-    showToast(toast, "Each answer needs to be different.", 3500);
-    return;
+  if (mode === "poll") {
+    if (labels.length < 2) {
+      showToast(toast, "Add at least two answers.", 3500);
+      return;
+    }
+
+    const unique = new Set(labels.map((label) => label.toLocaleLowerCase()));
+    if (unique.size !== labels.length) {
+      showToast(toast, "Each answer needs to be different.", 3500);
+      return;
+    }
   }
 
   if (!questionInput.value.trim()) {
@@ -864,11 +975,12 @@ async function startRound(event) {
     const result = await api("/api/host/open", {
       method: "POST",
       body: {
+        mode,
         title: titleInput.value.trim(),
         question: questionInput.value,
         options: labels,
-        durationSec: readDuration(),
-        spinOnTie: spinOnTieInput.checked,
+        durationSec: mode === "poll" ? readDuration() : 0,
+        spinOnTie: mode === "poll" ? spinOnTieInput.checked : false,
       },
     });
     applyState(result.state);
@@ -894,7 +1006,11 @@ async function resetToSetup() {
 }
 
 function askReset() {
-  if (!window.confirm("Close this round and start over? Any votes in this round will be discarded.")) return;
+  const hands = roundState?.round?.mode === "hands";
+  const message = hands
+    ? "Close the live-hands round and start over? The raised-hand count will be discarded."
+    : "Close this round and start over? Any votes in this round will be discarded.";
+  if (!window.confirm(message)) return;
   resetToSetup();
 }
 
@@ -913,6 +1029,7 @@ async function playAgain() {
         options: lastRound.options.map((option) => option.label),
         durationSec: lastRound.durationSec,
         spinOnTie: lastRound.spinOnTie !== false,
+        mode: "poll",
       },
     });
     applyState(result.state);
@@ -1155,6 +1272,11 @@ $("#timer-choices").addEventListener("change", () => {
   debounceSaveDraft();
 });
 
+modeChoices.addEventListener("change", () => {
+  syncModeUI();
+  debounceSaveDraft();
+});
+
 addOptionButton.addEventListener("click", () => {
   if (options.length >= MAX_OPTIONS) return;
   options.push({ label: "" });
@@ -1217,8 +1339,10 @@ document.addEventListener("keydown", (event) => {
   }
 
   if (event.key.toLowerCase() === "r" && currentView === "open") {
-    event.preventDefault();
-    revealResults();
+    if (roundState?.round?.mode === "poll") {
+      event.preventDefault();
+      revealResults();
+    }
   }
 });
 

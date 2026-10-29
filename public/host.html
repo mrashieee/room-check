@@ -171,6 +171,27 @@
 
           <div class="setup-grid">
             <form class="setup-form paper-panel" id="setup-form" novalidate>
+              <fieldset class="field field--mode">
+                <legend class="field-label">Mode</legend>
+                <div class="mode-choices" id="mode-choices">
+                  <label class="mode-choice">
+                    <input type="radio" name="mode" value="poll" checked />
+                    <span class="mode-choice-body">
+                      <strong>Poll</strong>
+                      <small>Vote and reveal</small>
+                    </span>
+                  </label>
+                  <label class="mode-choice">
+                    <input type="radio" name="mode" value="hands" />
+                    <span class="mode-choice-body">
+                      <strong>Live hands</strong>
+                      <small>Raise and lower hands</small>
+                    </span>
+                  </label>
+                </div>
+                <p class="field-hint" id="mode-hint">Ask a question, collect votes, then reveal the results.</p>
+              </fieldset>
+
               <div class="field">
                 <label class="field-label" for="game-title">Game title</label>
                 <input class="text-input" id="game-title" name="title" type="text" maxlength="52" value="Room Check" autocomplete="off" />
@@ -184,7 +205,7 @@
                 <textarea class="text-input question-input" id="question-input" name="question" maxlength="160" rows="3" placeholder="What does the room think?" required>How’s the energy in the room right now?</textarea>
               </div>
 
-              <fieldset class="field field--options">
+              <fieldset class="field field--options poll-only">
                 <div class="field-label-row">
                   <legend class="field-label">The answers</legend>
                   <span class="field-hint">2–10 answers</span>
@@ -195,7 +216,7 @@
                 </button>
               </fieldset>
 
-              <fieldset class="field field--timer">
+              <fieldset class="field field--timer poll-only">
                 <legend class="field-label">Voting window</legend>
                 <div class="timer-choices" id="timer-choices">
                   <label class="timer-choice"><input type="radio" name="duration" value="30" /><span>30 sec</span></label>
@@ -207,7 +228,7 @@
                 <p class="field-hint">Results reveal automatically when time runs out — or whenever you hit Done.</p>
               </fieldset>
 
-              <div class="field">
+              <div class="field poll-only">
                 <label class="setting-toggle">
                   <span class="setting-toggle-copy">
                     <span class="setting-toggle-title">If tied, spin the wheel</span>
@@ -228,10 +249,10 @@
 
               <div class="setup-submit-row">
                 <button class="button button--primary button--large" id="start-button" type="submit">
-                  <span>Open the room</span>
+                  <span id="start-button-label">Open the room</span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
                 </button>
-                <p class="microcopy">The QR code goes live instantly.<br />Keep this tab projected.</p>
+                <p class="microcopy" id="setup-submit-note">The QR code goes live instantly.<br />Keep this tab projected.</p>
               </div>
             </form>
 
@@ -262,22 +283,27 @@
         <section class="open-stage" id="open-stage" aria-labelledby="stage-question" hidden>
           <div class="stage-copy">
             <div class="stage-topline">
-              <span class="live-chip"><span class="live-dot" aria-hidden="true"></span> Voting live</span>
+              <span class="live-chip"><span class="live-dot" aria-hidden="true"></span><span id="stage-live-label">Voting live</span></span>
               <span class="stage-meta" id="stage-title">Room Check</span>
             </div>
 
             <h1 class="stage-question" id="stage-question"></h1>
-            <p class="stage-lede">Scan the code. Pick an answer. <span>No overthinking.</span></p>
+            <p class="stage-lede" id="stage-lede">Scan the code. Pick an answer. <span>No overthinking.</span></p>
 
             <div class="stage-stats">
+              <span class="hands-glyph" id="hands-glyph" hidden aria-hidden="true">
+                <svg viewBox="0 0 64 64" fill="none">
+                  <path d="M22 38V15a4 4 0 0 1 8 0v17M30 32V11a4 4 0 0 1 8 0v21M38 33V15a4 4 0 0 1 8 0v21M46 37V23a4 4 0 0 1 8 0v18c0 10-7 17-17 17h-4c-5 0-9-2-12-6L10 39a4 4 0 0 1 6-5l6 6" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+                </svg>
+              </span>
               <div class="vote-total">
                 <span class="stat-number" id="stage-vote-count">0</span>
-                <span class="stat-label">votes in</span>
+                <span class="stat-label" id="stage-stat-label">votes in</span>
               </div>
               <span class="stat-divider" aria-hidden="true"></span>
               <div class="stat-detail">
                 <span id="stage-choice-count">4 answers</span>
-                <span>on every phone</span>
+                <span id="stage-detail-note">on every phone</span>
               </div>
             </div>
 
@@ -289,7 +315,7 @@
               <button class="text-button text-button--muted" id="cancel-round-button" type="button">Start over</button>
             </div>
 
-            <div class="keyboard-hint">
+            <div class="keyboard-hint" id="stage-shortcuts">
               <span><kbd>R</kbd> reveal</span>
               <span><kbd>F</kbd> full screen</span>
             </div>
