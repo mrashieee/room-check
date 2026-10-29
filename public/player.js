@@ -50,7 +50,6 @@ const personalResult = $("#personal-result-text");
 const outcomeBanner = $("#results-outcome");
 const announcer = $("#live-announcer");
 const handsQuestion = $("#hands-question");
-const handsEyebrow = $("#hands-eyebrow");
 const handsLiveChip = $("#hands-live-chip");
 const handsLiveLabel = $("#hands-live-label");
 const handsInstruction = $("#hands-instruction");
@@ -352,10 +351,9 @@ function renderHands(round) {
   const raised = closed ? myHandRaised : myHandRaised;
 
   handsQuestion.textContent = round.question;
-  handsEyebrow.textContent =
-    round.title && round.title.trim().toLowerCase() !== "room check" ? round.title : "Live hands";
-  handsLiveChip.classList.toggle("live-chip--warm", closed);
-  handsLiveLabel.textContent = closed ? "Closed" : "Open";
+  handsLiveChip.classList.toggle("is-closed", closed);
+  handsLiveChip.dataset.status = closed ? "closed" : "open";
+  handsLiveLabel.textContent = closed ? "Live hands: Closed" : "Live hands: Open";
   handsToggle.disabled = closed || handsBusy;
   handsToggle.classList.toggle("is-raised", raised);
   handsToggle.setAttribute("aria-pressed", raised ? "true" : "false");

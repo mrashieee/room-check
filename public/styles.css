@@ -1044,17 +1044,48 @@ svg {
   text-align: center;
 }
 
-.hands-topline {
-  display: flex;
-  width: 100%;
+.hands-status {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 8px;
+  padding: 9px 13px 8px;
+  border: 1px solid rgba(216, 255, 87, 0.3);
+  border-radius: 999px;
+  background: rgba(216, 255, 87, 0.06);
+  color: var(--lime);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  line-height: 1;
+  text-transform: uppercase;
+  transition:
+    color 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.hands-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 10px rgba(216, 255, 87, 0.45);
+}
+
+.hands-status.is-closed {
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+}
+
+.hands-status.is-closed .hands-status-dot {
+  box-shadow: none;
 }
 
 .hands-question {
   max-width: 18ch;
-  margin: 30px 0 0 !important;
+  margin: 26px 0 0 !important;
   font-family: var(--display);
   font-size: clamp(2rem, 7.4vw, 3.2rem) !important;
   font-weight: 700;
