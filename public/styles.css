@@ -1391,6 +1391,7 @@ body[data-screen="thanks"] .connection-pill {
 }
 
 .vote-meter-track {
+  position: relative;
   height: 4px;
   margin: 16px 0 14px;
   overflow: hidden;
@@ -1399,22 +1400,32 @@ body[data-screen="thanks"] .connection-pill {
 }
 
 .vote-meter-track span {
+  position: absolute;
+  top: 0;
+  left: 0;
   display: block;
-  width: 100%;
+  width: 46%;
   height: 100%;
   border-radius: inherit;
-  background-image: linear-gradient(90deg, transparent 0%, var(--lime) 50%, transparent 100%);
-  background-repeat: repeat-x;
-  background-size: 50% 100%;
-  animation: meter-scan 2.4s linear infinite;
+  background: linear-gradient(90deg, transparent 0%, var(--lime) 50%, transparent 100%);
+  opacity: 0;
+  animation: meter-scan 2.4s ease-in-out infinite;
 }
 
 @keyframes meter-scan {
-  from {
-    background-position: 0 0;
+  0% {
+    opacity: 0;
+    transform: translateX(-100%);
   }
-  to {
-    background-position: 200% 0;
+  14% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(240%);
   }
 }
 
