@@ -33,6 +33,7 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - Mobile-first participation page
 - Results hidden until the reveal
 - Change your answer until voting closes
+- Looping waiting progress on audience screens
 - Live raised-hand toggle with a presenter-side count
 - End-of-session thank-you screen with a GitHub star link
 - Automatic timer reveal or manual reveal
@@ -69,7 +70,7 @@ Existing `carnival` state migrates to Shore; `orchard` state migrates to Candy. 
 
 ## What's new in 2.1
 
-Version 2.1 is the update-awareness release.
+Version 2.1 adds update awareness and a few audience-flow improvements.
 
 - **Updates page** at `/updates`
 - **Host notification** on the host setup screen when a newer release is available
@@ -79,8 +80,12 @@ Version 2.1 is the update-awareness release.
 - **Step-by-step install-specific instructions** for git checkouts and archive installs
 - **Copy buttons** for every command and a “Copy all commands” action
 - **Release notes rendered as Markdown**
+- **Cross-platform backup** with `npm run backup-data`; no `tar` requirement
 - **No automatic updates** — Room Check never executes an update on its own
 - **Config controls** for `UPDATE_CHECK`, `UPDATE_REPO` and `UPDATE_API_URL`
+- **Change your answer** until voting closes; a rejected late change keeps the previous vote
+- **Looping waiting progress** on the audience waiting and voted screens
+- **Timestamped `npm run share` progress** with elapsed time and health-check updates
 
 The host notice links to the update page. The page works without host login, so anyone running Room Check can check for a release.
 
