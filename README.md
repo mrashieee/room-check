@@ -434,7 +434,7 @@ The server restricts these files to the owner where the filesystem supports perm
 Stop the app first for a consistent snapshot, then copy the whole `.data` directory:
 
 ```bash
-tar czf room-check-data-backup.tgz .data
+npm run backup-data
 ```
 
 ### Restore
@@ -599,11 +599,14 @@ Before updating:
 For a git checkout, the page shows:
 
 ```bash
+npm run backup-data
 git fetch --tags
 git checkout <latest-release-tag>
 npm ci
 # restart Room Check
 ```
+
+`npm run backup-data` copies `.data` to a timestamped backup and works on Windows, macOS and Linux. No `tar` command is required.
 
 For an archive install, download the release ZIP, replace the app files, keep `.data/` and `.env`, run `npm ci`, then restart.
 
@@ -646,6 +649,7 @@ Useful commands:
 npm start             # run the server with .env
 npm run share         # run with a temporary public Cloudflare tunnel
 npm run reset-password
+npm run backup-data   # copy .data to a timestamped backup
 npm run check         # syntax checks
 ```
 
@@ -669,7 +673,8 @@ public/
 └── fonts/                  local fonts
 scripts/
 ├── share.mjs               temporary Cloudflare tunnel
-└── reset-password.mjs      password reset helper
+├── reset-password.mjs      password reset helper
+└── backup-data.mjs         cross-platform .data backup
 docs/                       README screenshots
 CHANGELOG.md                release history
 .env.example

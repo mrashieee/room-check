@@ -3746,3 +3746,14 @@ body.customizer-open {
   border: 0;
   background: transparent;
 }
+
+.update-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.release-notes {
+  flex: 1;
+  min-height: 280px;
+  max-height: none;
+}

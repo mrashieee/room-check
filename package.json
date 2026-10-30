@@ -10,6 +10,7 @@
     "dev": "node --watch --env-file-if-exists=.env server.mjs",
     "share": "node --env-file-if-exists=.env scripts/share.mjs",
     "reset-password": "node --env-file-if-exists=.env scripts/reset-password.mjs",
+    "backup-data": "node --env-file-if-exists=.env scripts/backup-data.mjs",
     "check": "node --check server.mjs && node --check scripts/share.mjs && node --check scripts/reset-password.mjs && node --check public/player.js && node --check public/host.js && node --check public/common.js"
   },
   "engines": {

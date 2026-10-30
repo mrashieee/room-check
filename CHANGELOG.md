@@ -14,7 +14,9 @@ This is the update-awareness release.
 - Release notes and a direct link to the GitHub Release
 - Install-specific update instructions for git checkouts and archive installs
 - Step-by-step update commands with per-command copy buttons and a “Copy all commands” action
+- Cross-platform `npm run backup-data` command instead of requiring `tar`
 - Release notes rendered as Markdown instead of raw text
+- Release notes panel fills its available height
 - `GET /api/update` endpoint with a forced-check option
 - Config controls: `UPDATE_CHECK`, `UPDATE_REPO`, `UPDATE_API_URL`
 - Update page and host notification documentation

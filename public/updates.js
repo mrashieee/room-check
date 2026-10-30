@@ -237,9 +237,9 @@ function renderInstructions(update) {
     installModeNote.textContent =
       "This looks like a git checkout. Follow the steps, then restart Room Check.";
     addStep(1, "Back up your data", "Keep a copy of the room state before changing the app.", [
-      "tar czf room-check-data-backup.tgz .data",
+      "npm run backup-data",
     ]);
-    allCommands.push("tar czf room-check-data-backup.tgz .data");
+    allCommands.push("npm run backup-data");
     addStep(2, "Update the code", "Fetch release tags and check out this release.", [
       "git fetch --tags",
       `git checkout v${version}`,
@@ -254,9 +254,9 @@ function renderInstructions(update) {
     installModeNote.textContent =
       "This looks like an archive install. Replace the app files, keep .data/ and .env, then restart.";
     addStep(1, "Back up your data", "Keep a copy of the room state before changing the app.", [
-      "tar czf room-check-data-backup.tgz .data",
+      "npm run backup-data",
     ]);
-    allCommands.push("tar czf room-check-data-backup.tgz .data");
+    allCommands.push("npm run backup-data");
     addStep(2, "Replace the app files", `Download the v${version} release ZIP and replace the app files. Keep .data/ and .env.`);
     addStep(3, "Install dependencies", "Use the lockfile so the install matches the release.", [
       "npm ci",
