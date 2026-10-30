@@ -44,6 +44,8 @@ const votedOption = $("#voted-option");
 const votedCount = $("#voted-count");
 const votedCountLabel = $("#voted-count-label");
 const votedWaiting = $("#voted-waiting");
+const changeVoteButton = $("#change-vote-button");
+const changeVoteNote = $("#change-vote-note");
 const resultsTitle = $("#results-title");
 const resultsEyebrow = $("#results-eyebrow");
 const resultsWinner = $("#results-winner");
@@ -71,6 +73,8 @@ let myVote = null;
 let myHandRaised = false;
 let handsBusy = false;
 let selectedOption = null;
+let changingVote = false;
+let voteWasUpdated = false;
 let submitting = false;
 let clockTimer = null;
 let offlineTimer = null;
@@ -102,8 +106,11 @@ function optionById(optionId) {
 
 function updateSubmitState() {
   if (!voteSubmit) return;
-  const roundOpen = currentState?.round?.status === "open";
-  voteSubmit.disabled = !roundOpen || !selectedOption || submitting;
+  const round = currentState?.round;
+  const roundOpen = round?.status === "open";
+  const timeUp =
+    roundOpen && round.endsAt && round.endsAt <= (connection?.serverNow() ?? Date.now());
+  voteSubmit.disabled = !roundOpen || !selectedOption || submitting || Boolean(timeUp);
 }
 
 function applyChoiceInk(element, colorKey) {
@@ -160,25 +167,53 @@ function buildVoteOptions(round) {
   });
 }
 
-function renderVoteScreen(round, { force = false } = {}) {
+function renderVoteScreen(round, { force = false, selected = null } = {}) {
   const roundChanged = renderedRoundId !== round.id;
   if (roundChanged || force) {
     renderedRoundId = round.id;
-    selectedOption = null;
+    selectedOption = selected;
     $("#vote-question").textContent = round.question;
     $("#vote-eyebrow").textContent =
       round.title && round.title.trim().toLowerCase() !== "room check"
         ? round.title
         : "Live question";
     buildVoteOptions(round);
-    voteSubmit.querySelector("span").textContent = "Lock in my answer";
-    voteHelp.textContent = "Choose one. You can’t change it after you lock it in.";
-    voteSubmit.disabled = true;
+    if (selectedOption) {
+      const input = Array.from(voteOptions.querySelectorAll('input[name="answer"]')).find(
+        (candidate) => candidate.value === selectedOption,
+      );
+      if (input) {
+        input.checked = true;
+        input.closest(".vote-option")?.classList.add("is-selected");
+      } else {
+        selectedOption = null;
+      }
+    }
+    voteSubmit.querySelector("span").textContent = changingVote
+      ? "Update my answer"
+      : "Lock in my answer";
+    voteHelp.textContent = changingVote
+      ? "Choose a new answer. Your current vote stays until you update it."
+      : "Choose one. You can change it until voting closes.";
+    voteSubmit.disabled = !selectedOption;
     window.scrollTo({ top: 0, behavior: "auto" });
   }
   const changed = showScreen("vote");
   if (changed) announce(`Voting is open. ${round.question}`);
   updateClock();
+}
+
+function updateChangeVoteState() {
+  if (!changeVoteButton || !changeVoteNote) return;
+  const round = currentState?.round;
+  const open = round?.status === "open" && currentScreen === "voted";
+  const remaining =
+    open && round.endsAt ? round.endsAt - (connection?.serverNow() ?? Date.now()) : null;
+  const canChange = Boolean(open && (remaining === null || remaining > 0));
+  changeVoteButton.hidden = !canChange;
+  changeVoteNote.textContent = canChange
+    ? "You can change this until voting closes."
+    : "Voting has closed. Your previous answer stands.";
 }
 
 function renderVotedScreen(round) {
@@ -200,7 +235,15 @@ function renderVotedScreen(round) {
     votedWaiting.textContent = "The room is weighing in…";
   }
   const changed = showScreen("voted");
-  if (changed) announce(`Vote locked in. You picked ${chosen.label}. Waiting for the reveal.`);
+  if (changed) {
+    announce(
+      voteWasUpdated
+        ? `Vote updated. You picked ${chosen.label}. Waiting for the reveal.`
+        : `Vote saved. You picked ${chosen.label}. Waiting for the reveal.`,
+    );
+  }
+  voteWasUpdated = false;
+  updateChangeVoteState();
 }
 
 function resultKey(round) {
@@ -443,7 +486,7 @@ function renderScreen() {
     return;
   }
 
-  if (myVote) {
+  if (myVote && !changingVote) {
     renderVotedScreen(round);
   } else {
     renderVoteScreen(round);
@@ -461,8 +504,15 @@ function handleState(state, you) {
   currentState = state;
   currentRoundId = state.round?.id || null;
 
+  if (state.round?.status !== "open") {
+    changingVote = false;
+    voteWasUpdated = false;
+  }
+
   if (previousRoundId !== currentRoundId) {
     myHandRaised = false;
+    changingVote = false;
+    voteWasUpdated = false;
     if (state.round?.mode === "hands") {
       myVote = null;
       myHandRaised = Boolean(you && you.roundId === currentRoundId && you.raised);
@@ -498,6 +548,7 @@ function handleState(state, you) {
 }
 
 function updateClock() {
+  updateChangeVoteState();
   if (currentState?.round?.mode === "hands") {
     voteClock.hidden = true;
     return;
@@ -514,7 +565,7 @@ function updateClock() {
       voteClock.classList.remove("is-urgent");
       voteClockLabel.textContent = "Voting";
       voteClockValue.textContent = "Open";
-      voteSubmit.disabled = !selectedOption || submitting;
+      updateSubmitState();
     } else {
       const remaining = round.endsAt - connection.serverNow();
       voteClock.classList.toggle("is-urgent", remaining <= 10_000);
@@ -523,6 +574,8 @@ function updateClock() {
       if (remaining <= 0) {
         voteSubmit.disabled = true;
         voteHelp.textContent = "Time’s up — the results are coming.";
+      } else {
+        updateSubmitState();
       }
     }
   }
@@ -575,6 +628,19 @@ voteOptions.addEventListener("change", (event) => {
   updateSubmitState();
 });
 
+changeVoteButton.addEventListener("click", () => {
+  const round = currentState?.round;
+  if (!round || round.status !== "open" || !myVote) return;
+  if (round.endsAt && round.endsAt <= connection.serverNow()) {
+    updateChangeVoteState();
+    return;
+  }
+  changingVote = true;
+  voteWasUpdated = false;
+  renderVoteScreen(round, { force: true, selected: myVote });
+  announce("Choose a new answer. Your current vote stays until you update it.");
+});
+
 voteForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (submitting) return;
@@ -591,7 +657,7 @@ voteForm.addEventListener("submit", async (event) => {
   voteSubmit.disabled = true;
   const label = voteSubmit.querySelector("span");
   const original = label.textContent;
-  label.textContent = "Locking it in…";
+  label.textContent = changingVote ? "Updating…" : "Locking it in…";
 
   try {
     const result = await api("/api/vote", {
@@ -600,14 +666,22 @@ voteForm.addEventListener("submit", async (event) => {
     });
     submitting = false;
     label.textContent = original;
+    changingVote = false;
+    voteWasUpdated = Boolean(result.updated);
     if (navigator.vibrate) navigator.vibrate([12, 40, 18]);
     handleState(result.state, result.you);
+    if (currentScreen === "vote") renderScreen();
   } catch (error) {
     submitting = false;
     label.textContent = original;
 
-    if (error.code === "already_voted" && error.payload?.you) {
-      if (error.payload.state) handleState(error.payload.state, error.payload.you);
+    if (error.status === 409 && myVote) {
+      changingVote = false;
+      const round = currentState?.round;
+      if (round) {
+        renderVotedScreen(round);
+        votedWaiting.textContent = "Voting has closed. Your previous answer stands.";
+      }
       return;
     }
 

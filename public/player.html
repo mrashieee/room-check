@@ -63,6 +63,9 @@
         <p class="eyebrow">You’re on the list</p>
         <h1 id="waiting-title">Standing by.</h1>
         <p class="lede">Keep this tab open. The room check will appear here when the host opens it.</p>
+        <div class="waiting-progress" aria-hidden="true">
+          <span></span>
+        </div>
         <div class="screen-note">
           <span class="status-dot" aria-hidden="true"></span>
           <span>Connected — eyes up front</span>
@@ -86,7 +89,7 @@
             <legend class="sr-only">Choose one answer</legend>
           </fieldset>
           <div class="vote-actions">
-            <p class="microcopy" id="vote-help">Choose one. You can’t change it after you lock it in.</p>
+            <p class="microcopy" id="vote-help">Choose one. You can change it until voting closes.</p>
             <button class="button button--primary button--wide" id="vote-submit" type="submit" disabled>
               <span>Lock in my answer</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -122,13 +125,21 @@
         <div class="success-seal" aria-hidden="true">
           <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30"></circle><path d="M19 33l9 9 18-20"></path></svg>
         </div>
-        <p class="eyebrow">Vote locked</p>
+        <p class="eyebrow">Vote saved</p>
         <h1 id="voted-title">You’re in.</h1>
-        <p class="lede">That’s your answer. The room’s answer stays under wraps until the reveal.</p>
+        <p class="lede">Your answer is in. You can change it until voting closes.</p>
 
         <div class="your-pick">
           <span class="your-pick-label">You picked</span>
           <strong id="voted-option"></strong>
+        </div>
+
+        <div class="voted-actions">
+          <button class="button button--secondary button--wide" id="change-vote-button" type="button">
+            <span>Change my answer</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
+          <p class="microcopy" id="change-vote-note">You can change this until voting closes.</p>
         </div>
 
         <div class="vote-meter">
@@ -172,7 +183,7 @@
         <p class="eyebrow">That’s a wrap</p>
         <h1 id="thanks-title">Thanks for joining.</h1>
         <div class="thanks-support">
-          <span class="thanks-support-kicker">Independent &amp; open source</span>
+          <span class="thanks-support-kicker">Open source</span>
           <p class="thanks-support-title">Had fun? Give Room Check a star.</p>
           <p class="thanks-support-copy">We’re a small open-source project. A star takes 10 seconds and helps more presenters discover us.</p>
         </div>
@@ -183,7 +194,7 @@
         </a>
         <p class="thanks-url">github.com/mrashieee/room-check</p>
         <p class="thanks-appeal">Every star genuinely helps. Thank you.</p>
-        <p class="screen-note screen-note--quiet">Built by Muhammad Rashid K · v2.0.0</p>
+        <p class="screen-note screen-note--quiet">Built by Muhammad Rashid K · v2.1.0</p>
       </section>
 
       <section class="player-screen player-screen--error" id="screen-error" aria-labelledby="error-title" hidden>
@@ -197,7 +208,7 @@
     <footer class="player-footer">
       <span>One question. One room. One answer.</span>
       <span class="footer-mark">© 2026 Muhammad Rashid K</span>
-      <span class="footer-built">Built by Muhammad Rashid K · v2.0.0</span>
+      <span class="footer-built">Built by Muhammad Rashid K · v2.1.0</span>
     </footer>
 
     <div class="sr-only" id="live-announcer" role="status" aria-live="polite"></div>

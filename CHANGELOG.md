@@ -2,6 +2,48 @@
 
 All notable changes to Room Check are documented here.
 
+## 2.1.0 — 2026-10-30
+
+This release adds update awareness and lets voters change their answer until voting closes.
+
+### Added
+
+- Public `/updates` page with current and latest version
+- Host setup notification when a newer GitHub Release is available
+- GitHub Releases check with a six-hour cache
+- Release notes and a direct link to the GitHub Release
+- Install-specific update instructions for git checkouts and archive installs
+- Step-by-step update commands with per-command copy buttons and a “Copy all commands” action
+- Cross-platform `npm run backup-data` command instead of requiring `tar`
+- Voters can change their answer until voting closes; rejected changes keep the previous vote
+- Looping waiting progress bars on the audience waiting and voted screens
+- Timestamped progress and elapsed time in `npm run share`
+- Release notes rendered as Markdown instead of raw text
+- Release notes panel matches the How to update height and scrolls long notes internally
+- `GET /api/update` endpoint with a forced-check option
+- Config controls: `UPDATE_CHECK`, `UPDATE_REPO`, `UPDATE_API_URL`
+- Update page and host notification documentation
+
+### Changed
+
+- GitHub CTA mark now sits directly in the button instead of inside a white tile
+- Thank-you support label now reads simply “Open source”
+- Mobile footer tagline is centred above the built-by credit
+- Version updated to 2.1.0
+
+### Security
+
+- Updates are never applied automatically
+- The page shows instructions only; the host must run the update
+- The check uses GitHub Releases, not branch heads
+- The response is cached to respect GitHub rate limits
+
+### Fixed
+
+- Update page works without host login
+- Host update notice can be dismissed and stays dismissed for that release
+- Update page and notification handle offline/error states
+
 ## 2.0.0 — 2026-10-30
 
 This is the customisation release: a full visual refresh, a host theme customiser, and a more capable local theme system.
