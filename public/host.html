@@ -8,16 +8,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b0d0c" />
+    <meta name="theme-color" content="#f6ecd7" />
     <meta name="robots" content="noindex, nofollow" />
     <meta name="description" content="Host console for Room Check." />
     <meta name="author" content="Muhammad Rashid K" />
     <meta name="copyright" content="Copyright (c) 2026 Muhammad Rashid K" />
     <title>Room Check — Host console</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="preload" href="/fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/dm-sans.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
+    <link rel="preload" href="/fonts/big-shoulders-display-800.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/golos-text.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/carnival.css" />
     <script type="module" src="/host.js"></script>
   </head>
   <body class="host-page">
@@ -36,7 +37,7 @@
           <a class="brand" href="/" aria-label="Room Check audience view">
             <span class="brand-mark" aria-hidden="true">
               <svg viewBox="0 0 32 32">
-                <rect width="32" height="32" rx="9" fill="currentColor"></rect>
+                <rect width="32" height="32" rx="1" fill="currentColor"></rect>
                 <path d="M9.5 12.5v7M16 9v14M22.5 13.5v5" fill="none" stroke="#101210" stroke-width="3" stroke-linecap="round"></path>
               </svg>
             </span>
@@ -134,7 +135,7 @@
         <a class="brand brand--host" href="/host" aria-label="Room Check host console">
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 32 32">
-              <rect width="32" height="32" rx="9" fill="currentColor"></rect>
+              <rect width="32" height="32" rx="1" fill="currentColor"></rect>
               <path d="M9.5 12.5v7M16 9v14M22.5 13.5v5" fill="none" stroke="#101210" stroke-width="3" stroke-linecap="round"></path>
             </svg>
           </span>
@@ -149,6 +150,9 @@
           </div>
           <button class="icon-button" id="fullscreen-button" type="button" aria-label="Toggle full screen" title="Full screen (F)">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
+          <button class="icon-button" id="customise-button" type="button" aria-label="Customise theme" title="Customise theme">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17h1.2a1.8 1.8 0 0 0 1.2-3.15 1.8 1.8 0 0 1 1.2-3.15h1.2a3.7 3.7 0 0 0 3.7-3.7c0-3.85-3.75-7-8.5-7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path><circle cx="8.2" cy="9.2" r="1" fill="currentColor"></circle><circle cx="12" cy="7.2" r="1" fill="currentColor"></circle><circle cx="15.8" cy="9.2" r="1" fill="currentColor"></circle><circle cx="8.4" cy="13.1" r="1" fill="currentColor"></circle></svg>
           </button>
           <button class="text-button" id="end-session-button" type="button">End session</button>
           <button class="text-button" id="lock-button" type="button">Lock</button>
@@ -397,12 +401,12 @@
             </div>
 
             <a class="button button--primary button--large ended-star" href="https://github.com/mrashieee/room-check" target="_blank" rel="noopener noreferrer">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.8L12 3.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg>
+              <span class="github-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" fill="currentColor"></path></svg></span>
               <span>Star Room Check on GitHub</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
             </a>
             <p class="thanks-appeal ended-appeal">Every star genuinely helps. Thank you.</p>
-            <p class="ended-version">Built by Muhammad Rashid K · v1.1.0</p>
+            <p class="ended-version">Built by Muhammad Rashid K · v2.0.0</p>
             <button class="text-button text-button--muted ended-back" id="ended-back-button" type="button">Back to setup</button>
           </div>
 
@@ -419,6 +423,129 @@
           </aside>
         </section>
       </main>
+    </div>
+
+    <div class="customizer-overlay" id="customizer-overlay" hidden>
+      <section class="customizer-panel" role="dialog" aria-modal="true" aria-labelledby="customizer-title">
+        <header class="customizer-head">
+          <div>
+            <p class="customizer-kicker">Host only</p>
+            <h2 id="customizer-title">Make it yours.</h2>
+            <p class="customizer-intro">Five colours, one logo, your rules. The Room Check title stays fixed.</p>
+          </div>
+          <button class="icon-button" id="customizer-close" type="button" aria-label="Close customiser">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+          </button>
+        </header>
+
+        <div class="customizer-body">
+          <section class="customizer-module customizer-module--wide">
+            <div class="customizer-module-head">
+              <h3>Palette</h3>
+              <p>Start with a room, then tune the five main colours.</p>
+            </div>
+            <div class="theme-palette-grid" id="theme-palette-grid"></div>
+            <div class="theme-color-grid" id="theme-color-grid"></div>
+            <p class="theme-contrast" id="theme-contrast" role="status"></p>
+            <div class="custom-palette-save">
+              <label class="field-label" for="theme-palette-name">Save this palette</label>
+              <div class="custom-palette-row">
+                <input
+                  class="text-input"
+                  id="theme-palette-name"
+                  type="text"
+                  maxlength="32"
+                  autocomplete="off"
+                  placeholder="Palette name"
+                />
+                <button class="button button--secondary" id="theme-palette-save" type="button">Save palette</button>
+              </div>
+              <p class="field-hint" id="theme-palette-note">Saved in your data folder and available here next time.</p>
+            </div>
+          </section>
+
+          <section class="customizer-module">
+            <div class="customizer-module-head">
+              <h3>Background</h3>
+              <p>Flat paper or a two-colour wash.</p>
+            </div>
+            <div class="segmented" id="theme-background">
+              <button type="button" data-background="flat">Flat</button>
+              <button type="button" data-background="gradient">Gradient</button>
+            </div>
+            <div class="gradient-color-grid" id="theme-gradient-colors">
+              <div class="color-field gradient-color-field">
+                <label for="theme-gradient-from">Start colour</label>
+                <input id="theme-gradient-from" type="color" />
+                <output id="theme-gradient-from-value" for="theme-gradient-from">#F6ECD7</output>
+              </div>
+              <div class="color-field gradient-color-field">
+                <label for="theme-gradient-to">End colour</label>
+                <input id="theme-gradient-to" type="color" />
+                <output id="theme-gradient-to-value" for="theme-gradient-to">#E7D8BD</output>
+              </div>
+            </div>
+            <p class="field-hint">The page wash blends Start → End. Panels keep the palette Background and Surface.</p>
+            <label class="theme-range" for="theme-angle">
+              <span>Angle</span>
+              <input id="theme-angle" type="range" min="0" max="360" step="5" />
+              <output id="theme-angle-value" for="theme-angle">135°</output>
+            </label>
+            <div class="background-preview" id="theme-background-preview" aria-hidden="true"></div>
+          </section>
+
+          <section class="customizer-module">
+            <div class="customizer-module-head">
+              <h3>Corners</h3>
+              <p>From print-sharp to friendly.</p>
+            </div>
+            <div class="theme-option-grid" id="theme-corners"></div>
+          </section>
+
+          <section class="customizer-module">
+            <div class="customizer-module-head">
+              <h3>Buttons</h3>
+              <p>Choose how actions land.</p>
+            </div>
+            <div class="theme-option-grid" id="theme-buttons"></div>
+          </section>
+
+          <section class="customizer-module customizer-module--wide">
+            <div class="customizer-module-head">
+              <h3>Answer colours</h3>
+              <p>One palette for A–J, so the room can tell them apart.</p>
+            </div>
+            <div class="choice-palette-grid" id="theme-choice-grid"></div>
+          </section>
+
+          <section class="customizer-module customizer-module--wide">
+            <div class="customizer-module-head">
+              <h3>Logo</h3>
+              <p>PNG, JPG, WebP or SVG. The Room Check title stays fixed.</p>
+            </div>
+            <div class="logo-row">
+              <div class="logo-preview" id="theme-logo-preview" aria-hidden="true"></div>
+              <div class="logo-actions">
+                <label class="button button--secondary logo-pick">
+                  Choose file
+                  <input id="theme-logo-input" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
+                </label>
+                <button class="text-button" id="theme-logo-remove" type="button">Remove logo</button>
+                <p class="field-hint" id="theme-logo-note">Max 256 KB; SVGs are usually tiny.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <footer class="customizer-foot">
+          <p class="customizer-status" id="theme-status" role="status"></p>
+          <div class="customizer-actions">
+            <button class="text-button" id="theme-reset" type="button">Reset</button>
+            <button class="button button--secondary" id="theme-cancel" type="button">Cancel</button>
+            <button class="button button--primary" id="theme-save" type="button">Save changes</button>
+          </div>
+        </footer>
+      </section>
     </div>
 
     <div class="wheel-overlay" id="wheel-overlay" hidden>

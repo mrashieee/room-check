@@ -252,7 +252,7 @@ export async function copyText(text) {
   }
 }
 
-const CONFETTI_COLORS = ["#d8ff57", "#ff6e4a", "#72dff2", "#ff9dcd", "#b8a4ff", "#ffd472", "#f2ede0"];
+const CONFETTI_COLORS = ["#e6b422", "#9b2c2c", "#6f9b95", "#d4a95f", "#c98b8b", "#2b1713"];
 let confettiFrame = 0;
 
 export function launchConfetti(canvas, { duration = 4800 } = {}) {
@@ -299,7 +299,7 @@ export function launchConfetti(canvas, { duration = 4800 } = {}) {
       width: size * (0.55 + Math.random() * 0.9),
       height: size,
       color: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
-      round: Math.random() > 0.76,
+      round: false,
       wobble: Math.random() * Math.PI * 2,
     });
   }

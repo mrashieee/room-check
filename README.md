@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-d8ff57?style=for-the-badge&amp;labelColor=101210" /></a>
-  <img alt="Version 1.1.0" src="https://img.shields.io/badge/version-1.1.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
+  <img alt="Version 2.0.0" src="https://img.shields.io/badge/version-2.0.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Node.js 22.9 or newer" src="https://img.shields.io/badge/node-%E2%89%A522.9-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Realtime WebSocket updates" src="https://img.shields.io/badge/realtime-WebSocket-ff6e4a?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Self-hosted" src="https://img.shields.io/badge/deploy-self--hosted-72dff2?style=for-the-badge&amp;labelColor=101210" />
@@ -25,6 +25,10 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
   </tr>
 </table>
 
+<p align="center">
+  <img src="./docs/customizer.png" alt="Room Check theme customiser with palette, colour and logo controls" width="100%" />
+</p>
+
 ## Features
 
 - Password-protected host console, configured on first launch
@@ -41,9 +45,32 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - One Node.js process, no database and no build step
 - All fonts and assets are served locally
 - Optional systemd service for permanent self-hosting
+- Six pre-packed palettes with Shore as the default
+- Live theme customiser: colours, gradient, corners, buttons, answer palettes and logo
+- Named custom palettes saved locally in `.data/palettes.json`
+
+## What's new in 2.0
+
+Version 2.0 is the customisation release.
+
+- **Theme customiser** — palette icon in the host header
+- **Six palettes, three dark and three light** — Ocean, Noir, Tokyo Night, Shore, Studio, Candy
+- **Shore default** — morning sand, seagrass and sea glass
+- **Five main colours** — Background, Surface, Ink, Primary and Accent
+- **Flat or gradient background** — dedicated Start and End colours plus angle
+- **Sharp, soft or round corners**
+- **Solid, outline or minimal buttons**
+- **Six answer-colour palettes** — Print, Bright, Cool, Warm, Mono, Garden
+- **Custom logo** — PNG, JPG, WebP or SVG up to 256 KB
+- **Named custom palettes** saved in `.data/palettes.json`
+- **Live audience theming** — save once and every phone updates
+- **Design refresh** — paper/ink surfaces, hard edges, a new waiting screen, centred QR, universal connection colours and a black-and-white GitHub mark
+
+Existing `carnival` state migrates to Shore; `orchard` state migrates to Candy. Your data is preserved.
 
 ## Contents
 
+- [What's new in 2.0](#whats-new-in-20)
 - [Quick start](#quick-start)
 - [Which setup should I use?](#which-setup-should-i-use)
 - [Requirements](#requirements)
@@ -52,6 +79,7 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - [3. Start and secure the host console](#3-start-and-secure-the-host-console)
 - [4. Connect the audience](#4-connect-the-audience)
 - [5. Run a poll](#5-run-a-poll)
+- [Customise the room](#customise-the-room)
 - [Configuration](#configuration)
 - [Data, backups, and password resets](#data-backups-and-password-resets)
 - [Permanent hosting and HTTPS](#permanent-hosting-and-https)
@@ -61,6 +89,7 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - [Security](#security)
 - [Development](#development)
 - [Project layout](#project-layout)
+- [Changelog](./CHANGELOG.md)
 - [License](#license)
 
 ## Quick start
@@ -279,6 +308,57 @@ Each browser can cast one vote per round. A vote cannot be changed after it is l
 
 The audience sees a waiting screen before a round starts and automatically switches to the voting screen when the host opens the room.
 
+## Customise the room
+
+Click the palette icon in the host header to open the theme customiser. Changes preview live on the host screen; nothing is sent to the audience until you press **Save changes**.
+
+### Palette
+
+Choose one of six pre-packed palettes:
+
+| Palette | Mood |
+| --- | --- |
+| Ocean | Deep current, tidal teal, foam |
+| Noir | Black paper, bone ink, amber and vermilion |
+| Tokyo Night | Ink-black navy, neon violet and ice cyan |
+| Shore | Morning sand, seagrass and sea glass — default |
+| Studio | Bone paper, charcoal and vermilion |
+| Candy | Blush paper, berry and gold |
+
+Then tune the five main colours:
+
+- **Background** — page base
+- **Surface** — panels and cards
+- **Ink** — text, borders and shadows
+- **Primary** — main actions and live state
+- **Accent** — rules, focus and secondary signals
+
+### Background
+
+Choose **Flat** or **Gradient**. For a gradient, choose a **Start colour**, **End colour** and angle. Panels keep the Background and Surface colours, so the page wash stays behind the content.
+
+### Shape and controls
+
+- **Corners** — Sharp, Soft or Round
+- **Buttons** — Solid, Outline or Minimal
+- **Answer colours** — Print, Bright, Cool, Warm, Mono or Garden
+
+### Logo
+
+Upload a PNG, JPG, WebP or SVG up to 256 KB. The Room Check title stays fixed. The preview is 112px on desktop and 88px on mobile. Use **Remove logo** to return to the default theme-coloured mark.
+
+### Save a custom palette
+
+Name the current five colours and press **Save palette**. It is stored in `.data/palettes.json` and appears in the Palette list next time. The live theme is still saved separately with **Save changes**.
+
+### Save, cancel and reset
+
+- **Save changes** sends the theme to every audience screen
+- **Cancel** restores the last saved theme
+- **Reset** loads the default Shore theme into the draft
+
+The customiser is host-only. The audience receives the saved theme over the live WebSocket state.
+
 ## Configuration
 
 Configuration is optional and read from `.env` when using `npm start` or `npm run share`.
@@ -317,7 +397,9 @@ The default data directory is:
 .data/
 ├── auth.json          # password hash and session identifier
 ├── session-secret     # generated session signing secret
-└── state.json         # current round, votes, and results
+├── state.json         # current round, votes, results and active theme
+├── palettes.json      # named custom palettes, when saved
+└── theme-logo.<ext>   # uploaded logo, when set
 ```
 
 The server restricts these files to the owner where the filesystem supports permissions. Do not serve `.data/` from a web server.
@@ -480,11 +562,14 @@ Render, Railway, Fly.io, and VPS providers can all run the app. On free tiers, c
 Back up `.data` first.
 
 ```bash
-git pull
-npm install
+git fetch --tags
+git checkout <latest-release-tag>
+npm ci
 ```
 
-Then stop and restart the server. The data format is versioned; no manual migration is required.
+Then stop and restart the server. The data format is versioned; theme/palette/logo state is preserved, and old palette names migrate automatically.
+
+Check the [CHANGELOG](./CHANGELOG.md) for the latest release notes.
 
 ## Presentation-day checklist
 
@@ -529,19 +614,24 @@ npm run check         # syntax checks
 ## Project layout
 
 ```text
-server.mjs                 HTTP server, polling state, password auth, WebSockets
+server.mjs                 HTTP server, polling state, auth, WebSockets, theme API
 public/
 ├── player.html             audience page
 ├── host.html               host console
 ├── player.js               audience behavior
 ├── host.js                 host behavior
 ├── common.js               shared client helpers
-├── styles.css              all styles
+├── theme-config.js         palettes, validation, theme variables
+├── theme.js                applies theme, logo and favicon
+├── customizer.js           host-only theme customiser
+├── styles.css              original base layer
+├── carnival.css            active design and customiser styles
 └── fonts/                  local fonts
 scripts/
 ├── share.mjs               temporary Cloudflare tunnel
 └── reset-password.mjs      password reset helper
 docs/                       README screenshots
+CHANGELOG.md                release history
 .env.example
 LICENSE
 ```

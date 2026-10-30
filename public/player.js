@@ -16,6 +16,8 @@ import {
   pluralize,
   renderConnection,
 } from "./common.js";
+import { applyTheme, loadTheme } from "./theme.js";
+import { contrastRatio } from "./theme-config.js";
 
 const playerId = getPlayerId();
 const screens = {
@@ -104,6 +106,25 @@ function updateSubmitState() {
   voteSubmit.disabled = !roundOpen || !selectedOption || submitting;
 }
 
+function applyChoiceInk(element, colorKey) {
+  const color =
+    getComputedStyle(document.documentElement).getPropertyValue(`--data-${colorKey}`).trim() || "#ebc831";
+  const ink = getComputedStyle(document.documentElement).getPropertyValue("--color-ink").trim() || "#1d3b32";
+  const paper = getComputedStyle(document.documentElement).getPropertyValue("--color-paper").trim() || "#f6ecd7";
+  element.style.setProperty(
+    "--accent-ink",
+    contrastRatio(color, ink) >= contrastRatio(color, paper) ? ink : paper,
+  );
+}
+
+function refreshChoiceInks() {
+  for (const option of voteOptions.querySelectorAll(".vote-option")) {
+    applyChoiceInk(option, option.dataset.color || "lime");
+  }
+}
+
+document.addEventListener("roomcheck:theme", refreshChoiceInks);
+
 function buildVoteOptions(round) {
   voteOptions.replaceChildren();
 
@@ -112,6 +133,7 @@ function buildVoteOptions(round) {
     label.className = "vote-option";
     label.dataset.color = option.color || "lime";
     label.style.setProperty("--i", String(index));
+    applyChoiceInk(label, label.dataset.color);
 
     const input = document.createElement("input");
     input.type = "radio";
@@ -429,6 +451,7 @@ function renderScreen() {
 }
 
 function handleState(state, you) {
+  applyTheme(state?.theme);
   const incomingNow = Number(state?.now) || 0;
   if (incomingNow && incomingNow < lastStateNow) return;
   lastStateNow = Math.max(lastStateNow, incomingNow);
@@ -625,6 +648,8 @@ function stopPolling() {
   clearInterval(pollTimer);
   pollTimer = null;
 }
+
+loadTheme();
 
 connection = new LiveConnection({
   role: "player",
