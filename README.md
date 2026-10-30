@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-d8ff57?style=for-the-badge&amp;labelColor=101210" /></a>
-  <img alt="Version 2.0.0" src="https://img.shields.io/badge/version-2.0.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
+  <img alt="Version 2.1.0" src="https://img.shields.io/badge/version-2.1.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Node.js 22.9 or newer" src="https://img.shields.io/badge/node-%E2%89%A522.9-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Realtime WebSocket updates" src="https://img.shields.io/badge/realtime-WebSocket-ff6e4a?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Self-hosted" src="https://img.shields.io/badge/deploy-self--hosted-72dff2?style=for-the-badge&amp;labelColor=101210" />
@@ -44,6 +44,8 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - Six pre-packed palettes with Shore as the default
 - Live theme customiser: colours, gradient, corners, buttons, answer palettes and logo
 - Named custom palettes saved locally in `.data/palettes.json`
+- Update page with release notes and copyable update instructions
+- Host notification when a newer GitHub release is available
 
 ## What's new in 2.0
 
@@ -64,8 +66,24 @@ Version 2.0 is the customisation release.
 
 Existing `carnival` state migrates to Shore; `orchard` state migrates to Candy. Your data is preserved.
 
+## What's new in 2.1
+
+Version 2.1 is the update-awareness release.
+
+- **Updates page** at `/updates`
+- **Host notification** on the host setup screen when a newer release is available
+- **GitHub Releases check** with a six-hour cache
+- **Current and latest version** shown clearly
+- **Release notes** from the published GitHub Release
+- **Install-specific instructions** for git checkouts and archive installs
+- **No automatic updates** — Room Check never executes an update on its own
+- **Config controls** for `UPDATE_CHECK`, `UPDATE_REPO` and `UPDATE_API_URL`
+
+The host notice links to the update page. The page works without host login, so anyone running Room Check can check for a release.
+
 ## Contents
 
+- [What's new in 2.1](#whats-new-in-21)
 - [What's new in 2.0](#whats-new-in-20)
 - [Quick start](#quick-start)
 - [Which setup should I use?](#which-setup-should-i-use)
@@ -370,6 +388,9 @@ Configuration is optional and read from `.env` when using `npm start` or `npm ru
 | `PUBLIC_URL` | automatic | Public base URL used by the audience QR code |
 | `DATA_DIR` | `./.data` | Directory for the password, session secret, and poll state |
 | `SESSION_SECRET` | generated | Optional signing secret for host sessions |
+| `UPDATE_CHECK` | `on` | Set to `off` to disable GitHub release checks |
+| `UPDATE_REPO` | `mrashieee/room-check` | GitHub repository used by the update checker |
+| `UPDATE_API_URL` | GitHub latest-release API | Optional override for a mirror or local test |
 
 Example `.env`:
 
@@ -559,17 +580,32 @@ Render, Railway, Fly.io, and VPS providers can all run the app. On free tiers, c
 
 ## Updating
 
-Back up `.data` first.
+Open `/updates` on your Room Check server, or click the update notice on the host setup screen. The page shows the current version, the latest GitHub Release, release notes and the correct update commands for the detected install method.
+
+<p align="center">
+  <img src="./docs/update-page.png" alt="Room Check updates page with current version, latest release and update instructions" width="88%" />
+</p>
+
+The check uses GitHub Releases and is cached for six hours. It does not install anything automatically. The update is always a host action.
+
+Before updating:
+
+1. Back up `.data`.
+2. Do not update during a live poll or Live Hands round.
+3. Keep one Room Check instance running.
+
+For a git checkout, the page shows:
 
 ```bash
 git fetch --tags
 git checkout <latest-release-tag>
 npm ci
+# restart Room Check
 ```
 
-Then stop and restart the server. The data format is versioned; theme/palette/logo state is preserved, and old palette names migrate automatically.
+For an archive install, download the release ZIP, replace the app files, keep `.data/` and `.env`, run `npm ci`, then restart.
 
-Check the [CHANGELOG](./CHANGELOG.md) for the latest release notes.
+Check the [CHANGELOG](./CHANGELOG.md) for release notes.
 
 ## Presentation-day checklist
 
@@ -624,6 +660,8 @@ public/
 ├── theme-config.js         palettes, validation, theme variables
 ├── theme.js                applies theme, logo and favicon
 ├── customizer.js           host-only theme customiser
+├── updates.html            update page
+├── updates.js              update page behavior
 ├── styles.css              original base layer
 ├── carnival.css            active design and customiser styles
 └── fonts/                  local fonts

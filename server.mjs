@@ -24,6 +24,16 @@ const STATE_FILE = path.join(DATA_DIR, "state.json");
 const AUTH_FILE = path.join(DATA_DIR, "auth.json");
 const SESSION_SECRET_FILE = path.join(DATA_DIR, "session-secret");
 const PALETTES_FILE = path.join(DATA_DIR, "palettes.json");
+const PACKAGE_JSON = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json"), "utf8"));
+const CURRENT_VERSION = PACKAGE_JSON.version;
+const UPDATE_REPO = process.env.UPDATE_REPO || "mrashieee/room-check";
+const UPDATE_API_URL =
+  process.env.UPDATE_API_URL ||
+  `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`;
+const UPDATE_CHECK_ENABLED = process.env.UPDATE_CHECK !== "off";
+const UPDATE_CACHE_MS = 6 * 60 * 60 * 1000;
+const UPDATE_ERROR_CACHE_MS = 5 * 60 * 1000;
+const UPDATE_FORCE_COOLDOWN_MS = 60 * 1000;
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST_BIND = process.env.BIND_ADDRESS || "0.0.0.0";
@@ -102,6 +112,10 @@ let setupInFlight = false;
 /** @type {{round: null | {id:string,title:string,question:string,options:{id:string,label:string,color:string}[],durationSec:number,status:"open"|"revealed",startedAt:number,endsAt:number|null,revealedAt:number|null,revealReason:string|null,votes:Record<string,{optionId:string,at:number}>}}} */
 let state = { round: null, sessionClosedAt: null, theme: normalizeTheme(DEFAULT_THEME) };
 let customPalettes = [];
+let updateCache = null;
+let updateCacheAt = 0;
+let updateCheckPromise = null;
+let updateLastForceAt = 0;
 let revealTimer = null;
 let tieBreakTimer = null;
 let saveTimer = null;
@@ -997,6 +1011,112 @@ function requireHost(req, res, next) {
   next();
 }
 
+function parseVersionParts(value) {
+  return String(value || "")
+    .replace(/^v/i, "")
+    .split(/[.+-]/)
+    .slice(0, 3)
+    .map((part) => {
+      const number = Number.parseInt(part, 10);
+      return Number.isFinite(number) ? number : 0;
+    });
+}
+
+function compareVersions(left, right) {
+  const a = parseVersionParts(left);
+  const b = parseVersionParts(right);
+  for (let index = 0; index < 3; index += 1) {
+    if (a[index] > b[index]) return 1;
+    if (a[index] < b[index]) return -1;
+  }
+  return 0;
+}
+
+function updateInstallMode() {
+  return fs.existsSync(path.join(__dirname, ".git")) ? "git" : "archive";
+}
+
+async function getUpdateStatus({ force = false } = {}) {
+  const now = Date.now();
+  const base = {
+    currentVersion: CURRENT_VERSION,
+    installMode: updateInstallMode(),
+    updateAvailable: false,
+    latestVersion: null,
+    releaseName: null,
+    releaseUrl: null,
+    releaseNotes: null,
+    publishedAt: null,
+    checkedAt: updateCacheAt || null,
+    error: null,
+    disabled: !UPDATE_CHECK_ENABLED,
+  };
+
+  if (!UPDATE_CHECK_ENABLED) {
+    return { ...base, error: "Update checks are disabled." };
+  }
+
+  const cacheAge = updateCacheAt ? now - updateCacheAt : Infinity;
+  const cacheLimit = updateCache?.error ? UPDATE_ERROR_CACHE_MS : UPDATE_CACHE_MS;
+  if (!force && updateCache && cacheAge < cacheLimit) {
+    return updateCache;
+  }
+  if (force && updateCache && now - updateLastForceAt < UPDATE_FORCE_COOLDOWN_MS) {
+    return updateCache;
+  }
+  if (updateCheckPromise) return updateCheckPromise;
+
+  if (force) updateLastForceAt = now;
+  updateCheckPromise = (async () => {
+    try {
+      const response = await fetch(UPDATE_API_URL, {
+        headers: {
+          Accept: "application/vnd.github+json",
+          "User-Agent": "room-check-update-check",
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) {
+        throw new Error(`GitHub returned ${response.status}. Try again later.`);
+      }
+      const release = await response.json();
+      const latestVersion = String(release.tag_name || release.name || "").replace(/^v/i, "");
+      if (!/^\d+\.\d+\.\d+/.test(latestVersion)) {
+        throw new Error("The latest release does not have a valid version tag.");
+      }
+      const update = {
+        ...base,
+        latestVersion,
+        updateAvailable: compareVersions(latestVersion, CURRENT_VERSION) > 0,
+        releaseName: cleanString(release.name, 120) || `v${latestVersion}`,
+        releaseUrl: /^https:\/\/github\.com\//i.test(String(release.html_url || ""))
+          ? release.html_url
+          : `https://github.com/${UPDATE_REPO}/releases/tag/v${latestVersion}`,
+        releaseNotes: typeof release.body === "string" ? release.body.slice(0, 8000) : "",
+        publishedAt: release.published_at || null,
+        checkedAt: Date.now(),
+        error: null,
+      };
+      updateCache = update;
+      updateCacheAt = Date.now();
+      return update;
+    } catch (error) {
+      const failed = {
+        ...base,
+        checkedAt: Date.now(),
+        error: error?.message || "Could not check for updates.",
+      };
+      updateCache = failed;
+      updateCacheAt = Date.now();
+      return failed;
+    } finally {
+      updateCheckPromise = null;
+    }
+  })();
+
+  return updateCheckPromise;
+}
+
 function logoPath(ext) {
   return path.join(DATA_DIR, `theme-logo.${ext}`);
 }
@@ -1114,6 +1234,11 @@ app.get("/host", (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, "host.html"));
 });
 
+app.get("/updates", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.sendFile(path.join(PUBLIC_DIR, "updates.html"));
+});
+
 app.get("/healthz", (req, res) => {
   res.json({ ok: true, round: state.round?.status || "idle" });
 });
@@ -1136,6 +1261,16 @@ app.get("/api/state", (req, res) => {
     state: publicState(),
     you: personalState(state.round, validPlayer),
   });
+});
+
+app.get("/api/update", async (req, res, next) => {
+  try {
+    const update = await getUpdateStatus({ force: req.query.force === "1" });
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ update });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get("/api/theme", (req, res) => {

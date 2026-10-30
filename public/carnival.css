@@ -1,6 +1,6 @@
 /* Hallmark · checked: 2026-10-30 · genre: editorial (Carnival)
  * floor: visual test · fixed: atmosphere, eyebrows, tracked labels, soft depth, neon palette, rounded chrome
- * built: the project · redesign: restyle · v2.0.0
+ * built: the project · redesign: restyle · v2.1.0
  */
 
 @font-face {
@@ -2638,14 +2638,25 @@ kbd {
   }
 
   .player-footer {
-    align-items: flex-start;
+    align-items: center;
     flex-direction: column;
     gap: 4px;
     font-size: 12px;
+    text-align: center;
+  }
+
+  .player-footer > span:first-child {
+    order: 1;
   }
 
   .footer-built {
     display: block;
+    order: 2;
+    width: 100%;
+  }
+
+  .footer-mark {
+    order: 3;
   }
 
   .wheel-panel {
@@ -3249,26 +3260,23 @@ body.customizer-open {
 /* GitHub link mark: black-and-white, used only for the GitHub CTA. */
 .github-mark {
   display: grid;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid var(--mono-black);
-  border-radius: var(--radius-card);
-  background: var(--mono-white);
-  color: var(--mono-black);
+  color: currentColor;
 }
 
 .github-mark svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   fill: currentColor;
 }
 
 .thanks-star .github-mark svg,
 .ended-star .github-mark svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .gradient-color-grid {
@@ -3305,5 +3313,251 @@ body.customizer-open {
   .logo-preview {
     width: 88px;
     height: 88px;
+  }
+}
+
+/* Updates page */
+
+.updates-page {
+  background: var(--page-background, var(--color-paper));
+}
+
+.updates-main {
+  width: min(100%, 980px);
+  margin: 0 auto;
+  padding: clamp(30px, 6vh, 64px) 20px 48px;
+}
+
+.updates-intro h1 {
+  max-width: 12ch;
+  margin: 10px 0 0;
+  font-size: 72px;
+  letter-spacing: var(--tracking-display);
+  line-height: 0.94;
+}
+
+.updates-kicker {
+  margin: 0;
+  color: var(--color-accent-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.update-status {
+  margin-top: 28px;
+  padding: 20px;
+}
+
+.update-status-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.update-status-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border: 1px solid var(--color-ink);
+  border-radius: 50%;
+  background: var(--status-waiting);
+}
+
+.update-status-dot[data-state="current"] {
+  background: var(--status-online);
+}
+
+.update-status-dot[data-state="available"] {
+  background: var(--status-waiting);
+}
+
+.update-status-dot[data-state="error"] {
+  background: var(--status-offline);
+}
+
+.update-status-copy {
+  max-width: 65ch;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.update-version-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: var(--rule-bar) solid var(--color-ink);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.update-version-row strong {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.update-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.updates-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.update-panel {
+  min-width: 0;
+  padding: 20px;
+}
+
+.update-panel h2 {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: var(--tracking-display);
+  line-height: 1;
+}
+
+.update-install-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.update-instructions h3 {
+  margin: 18px 0 6px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.update-command {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  border: var(--rule-bar) solid var(--color-ink);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.release-notes {
+  max-height: 360px;
+  margin: 12px 0 0;
+  padding: 12px;
+  overflow: auto;
+  border: var(--rule-bar) solid var(--color-ink);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-2);
+  color: var(--color-muted-strong);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.updates-main > .screen-note {
+  display: flex;
+  width: fit-content;
+  margin-top: 18px;
+}
+
+/* Host update notice */
+
+.setup-updates-link {
+  display: block;
+  width: fit-content;
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.update-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+  padding: 14px 16px;
+  border: var(--rule-bar) solid var(--color-ink);
+  border-radius: var(--radius-card);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  box-shadow: var(--shadow-card);
+}
+
+.update-notice-copy {
+  min-width: 0;
+}
+
+.update-notice-copy strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.update-notice-copy p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.update-notice .button {
+  flex: 0 0 auto;
+  border-color: var(--color-ink);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  box-shadow: 2px 2px 0 var(--color-ink);
+}
+
+.update-notice .icon-button {
+  flex: 0 0 auto;
+  border-color: var(--color-ink);
+  background: transparent;
+  color: var(--color-accent-ink);
+}
+
+@media (max-width: 760px) {
+  .updates-main {
+    padding-top: 28px;
+  }
+
+  .updates-intro h1 {
+    font-size: 48px;
+  }
+
+  .updates-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .update-status {
+    padding: 16px;
+  }
+
+  .update-panel {
+    padding: 16px;
+  }
+
+  .update-notice {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .update-notice .button {
+    width: 100%;
   }
 }

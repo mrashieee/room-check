@@ -166,6 +166,7 @@
               <p class="eyebrow">Host setup / 01</p>
               <h1 id="setup-title">Warm up the room.</h1>
               <p class="lede">One question. A few answers. Let the room decide.</p>
+              <a class="text-button setup-updates-link" href="/updates">Check for updates</a>
             </div>
             <div class="setup-steps" aria-label="How it works">
               <span><b>1</b> Write</span>
@@ -173,6 +174,17 @@
               <span><b>3</b> Reveal</span>
             </div>
           </div>
+
+          <aside class="update-notice" id="update-notice" hidden>
+            <div class="update-notice-copy">
+              <strong id="update-notice-title">Update available</strong>
+              <p id="update-notice-copy">A newer Room Check release is ready.</p>
+            </div>
+            <a class="button button--secondary" href="/updates">How to update</a>
+            <button class="icon-button" id="update-dismiss" type="button" aria-label="Dismiss update notice">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+            </button>
+          </aside>
 
           <div class="setup-grid">
             <form class="setup-form paper-panel" id="setup-form" novalidate>
@@ -395,7 +407,7 @@
             <h1 id="ended-title">Thanks for joining.</h1>
 
             <div class="thanks-support ended-support">
-              <span class="thanks-support-kicker">Independent &amp; open source</span>
+              <span class="thanks-support-kicker">Open source</span>
               <p class="thanks-support-title">Had fun? Give Room Check a star.</p>
               <p class="thanks-support-copy">We’re a small open-source project. A star takes 10 seconds and helps more presenters discover us.</p>
             </div>
@@ -406,7 +418,7 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
             </a>
             <p class="thanks-appeal ended-appeal">Every star genuinely helps. Thank you.</p>
-            <p class="ended-version">Built by Muhammad Rashid K · v2.0.0</p>
+            <p class="ended-version">Built by Muhammad Rashid K · v2.1.0</p>
             <button class="text-button text-button--muted ended-back" id="ended-back-button" type="button">Back to setup</button>
           </div>
 

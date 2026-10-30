@@ -87,6 +87,10 @@ const timerRingValue = $("#timer-ring-value");
 const confettiCanvas = $("#confetti-canvas");
 const fullscreenButton = $("#fullscreen-button");
 const endSessionButton = $("#end-session-button");
+const updateNotice = $("#update-notice");
+const updateNoticeTitle = $("#update-notice-title");
+const updateNoticeCopy = $("#update-notice-copy");
+const updateDismiss = $("#update-dismiss");
 const endedBackButton = $("#ended-back-button");
 const githubQr = $("#github-qr");
 const GITHUB_URL = "https://github.com/mrashieee/room-check";
@@ -99,6 +103,7 @@ const wheelStatus = $("#wheel-status");
 const wheelSpinButton = $("#wheel-spin-button");
 const wheelResult = $("#wheel-result");
 const WHEEL_ANIMATION_MS = 6500;
+const UPDATE_DISMISSED_KEY = "roomcheck.updateDismissed.v1";
 
 let roundState = null;
 let currentView = "boot";
@@ -1215,8 +1220,32 @@ async function enterConsole() {
   await loadConfig();
   connectHostSocket();
   applyState(stateResponse.state);
+  loadUpdateNotice();
   startClock();
   if (currentView === "setup") questionInput.focus();
+}
+
+async function loadUpdateNotice() {
+  if (!updateNotice || !updateNoticeTitle || !updateNoticeCopy) return;
+  try {
+    const payload = await api("/api/update");
+    const update = payload?.update;
+    if (!update?.updateAvailable || !update.latestVersion) {
+      updateNotice.hidden = true;
+      return;
+    }
+    if (localStorage.getItem(UPDATE_DISMISSED_KEY) === update.latestVersion) {
+      updateNotice.hidden = true;
+      return;
+    }
+    updateNotice.dataset.version = update.latestVersion;
+    updateNoticeTitle.textContent = `Room Check ${update.latestVersion} is available.`;
+    updateNoticeCopy.textContent =
+      "A newer release is ready. Review the update instructions before changing this install.";
+    updateNotice.hidden = false;
+  } catch {
+    updateNotice.hidden = true;
+  }
 }
 
 async function init() {
@@ -1247,6 +1276,13 @@ async function init() {
 }
 
 initCustomizer();
+
+updateDismiss?.addEventListener("click", () => {
+  if (updateNotice?.dataset.version) {
+    localStorage.setItem(UPDATE_DISMISSED_KEY, updateNotice.dataset.version);
+  }
+  if (updateNotice) updateNotice.hidden = true;
+});
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
