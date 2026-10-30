@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-d8ff57?style=for-the-badge&amp;labelColor=101210" /></a>
-  <img alt="Version 2.1.0" src="https://img.shields.io/badge/version-2.1.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
+  <img alt="Version 2.2.0" src="https://img.shields.io/badge/version-2.2.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Node.js 22.9 or newer" src="https://img.shields.io/badge/node-%E2%89%A522.9-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Realtime WebSocket updates" src="https://img.shields.io/badge/realtime-WebSocket-ff6e4a?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Self-hosted" src="https://img.shields.io/badge/deploy-self--hosted-72dff2?style=for-the-badge&amp;labelColor=101210" />
@@ -32,6 +32,7 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - Large QR code and live counts for the projector
 - Mobile-first participation page
 - Results hidden until the reveal
+- Multi-question poll sessions with host-controlled progression
 - Change your answer until voting closes
 - Looping waiting progress on audience screens
 - Live raised-hand toggle with a presenter-side count
@@ -49,24 +50,18 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - Update page with release notes and copyable update instructions
 - Host notification when a newer GitHub release is available
 
-## What's new in 2.0
+## What's new in 2.2
 
-Version 2.0 is the customisation release.
+Version 2.2 adds multi-question poll sessions.
 
-- **Theme customiser** — palette icon in the host header
-- **Six palettes, three dark and three light** — Ocean, Noir, Tokyo Night, Shore, Studio, Candy
-- **Shore default** — morning sand, seagrass and sea glass
-- **Five main colours** — Background, Surface, Ink, Primary and Accent
-- **Flat or gradient background** — dedicated Start and End colours plus angle
-- **Sharp, soft or round corners**
-- **Solid, outline or minimal buttons**
-- **Six answer-colour palettes** — Print, Bright, Cool, Warm, Mono, Garden
-- **Custom logo** — PNG, JPG, WebP or SVG up to 256 KB
-- **Named custom palettes** saved in `.data/palettes.json`
-- **Live audience theming** — save once and every phone updates
-- **Design refresh** — paper/ink surfaces, hard edges, a new waiting screen, centred QR, universal connection colours and a black-and-white GitHub mark
-
-Existing `carnival` state migrates to Shore; `orchard` state migrates to Candy. Your data is preserved.
+- **Build a question set** — add up to 20 poll questions before starting
+- **Per-question settings** — each question has its own answers, timer and tie-breaker choice
+- **Host-controlled progression** — reveal each result, then open the next question
+- **Audience continuity** — phones answer every question in order without rejoining
+- **Progress indicators** — the host and audience see “Question 2 of 4”
+- **Session persistence** — the question set survives a server restart
+- **Final thank-you** — finish the last question and move the room to the closing screen
+- **Live Hands stays separate** — it remains a single-round mode
 
 ## What's new in 2.1
 
@@ -89,8 +84,28 @@ Version 2.1 adds update awareness and a few audience-flow improvements.
 
 The host notice links to the update page. The page works without host login, so anyone running Room Check can check for a release.
 
+## What's new in 2.0
+
+Version 2.0 is the customisation release.
+
+- **Theme customiser** — palette icon in the host header
+- **Six palettes, three dark and three light** — Ocean, Noir, Tokyo Night, Shore, Studio, Candy
+- **Shore default** — morning sand, seagrass and sea glass
+- **Five main colours** — Background, Surface, Ink, Primary and Accent
+- **Flat or gradient background** — dedicated Start and End colours plus angle
+- **Sharp, soft or round corners**
+- **Solid, outline or minimal buttons**
+- **Six answer-colour palettes** — Print, Bright, Cool, Warm, Mono, Garden
+- **Custom logo** — PNG, JPG, WebP or SVG up to 256 KB
+- **Named custom palettes** saved in `.data/palettes.json`
+- **Live audience theming** — save once and every phone updates
+- **Design refresh** — paper/ink surfaces, hard edges, a new waiting screen, centred QR, universal connection colours and a black-and-white GitHub mark
+
+Existing `carnival` state migrates to Shore; `orchard` state migrates to Candy. Your data is preserved.
+
 ## Contents
 
+- [What's new in 2.2](#whats-new-in-22)
 - [What's new in 2.1](#whats-new-in-21)
 - [What's new in 2.0](#whats-new-in-20)
 - [Quick start](#quick-start)
@@ -285,14 +300,19 @@ For a stable URL, run Room Check behind a reverse proxy with HTTPS and set `PUBL
 
 ## 5. Run a poll
 
-1. In the host console, enter a game title, a question, and 2–10 answers.
-2. Choose a voting window: 30, 60, 90, or 120 seconds, or **Manual**.
+1. In the host console, enter a game title and the first question with 2–10 answers.
+2. Choose that question’s voting window: 30, 60, 90, or 120 seconds, or **Manual**.
 3. Leave **If tied, spin the wheel** enabled if you want a tie to be settled by a live random wheel on the big screen. Turn it off to keep the tie as the final result.
-4. Check the audience link under the QR preview. Scan it with a phone to test the audience view.
-5. Press **Open the room**.
-6. Project the screen and let everyone scan the QR code.
-7. Press **Done — reveal results** at any time, or let the timer reveal them automatically.
-8. Choose **Play it again** to reuse the same question, or **New question** to go back to setup.
+4. Use **Add another question** to build a multi-question run. Each question keeps its own answers, timer and tie-breaker setting.
+5. Check the audience link under the QR preview. Scan it with a phone to test the audience view.
+6. Press **Open the room** or **Start N-question session**.
+7. Project the screen and let everyone scan the QR code.
+8. Press **Done — reveal results** at any time, or let the timer reveal them automatically.
+9. For a multi-question run, press **Next question** after each result. The audience stays connected and answers the next question in order.
+10. After the final result, press **Finish session** to show the thank-you screen.
+11. For a single-question poll, choose **Play it again** to reuse it or **New question** to return to setup.
+
+The host controls every transition. Questions are not advanced automatically. Each phone can vote once per question, and can change that vote until that question closes.
 
 If the result is tied and the wheel is enabled, the host screen shows a spinning wheel with all tied answers. The server picks the winner at random, the wheel lands on it, and the final results then show the wheel pick. Phones show a “watch the big screen” message while the wheel is spinning.
 
@@ -326,7 +346,7 @@ Host shortcuts:
 | `R` | Reveal results |
 | `F` | Toggle full screen |
 
-Each browser can cast one vote per round. Voters can change their answer until voting closes; if a change is rejected because the round has closed, their previous vote stays in place. Results are withheld from the audience until the reveal.
+Each browser can cast one vote per question. Voters can change their answer until that question closes; if a change is rejected because voting has closed, their previous vote stays in place. Results are withheld from the audience until the reveal.
 
 The audience sees a waiting screen before a round starts and automatically switches to the voting screen when the host opens the room.
 
