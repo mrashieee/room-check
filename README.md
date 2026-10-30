@@ -75,7 +75,9 @@ Version 2.1 is the update-awareness release.
 - **GitHub Releases check** with a six-hour cache
 - **Current and latest version** shown clearly
 - **Release notes** from the published GitHub Release
-- **Install-specific instructions** for git checkouts and archive installs
+- **Step-by-step install-specific instructions** for git checkouts and archive installs
+- **Copy buttons** for every command and a “Copy all commands” action
+- **Release notes rendered as Markdown**
 - **No automatic updates** — Room Check never executes an update on its own
 - **Config controls** for `UPDATE_CHECK`, `UPDATE_REPO` and `UPDATE_API_URL`
 

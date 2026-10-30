@@ -13,6 +13,8 @@ This is the update-awareness release.
 - GitHub Releases check with a six-hour cache
 - Release notes and a direct link to the GitHub Release
 - Install-specific update instructions for git checkouts and archive installs
+- Step-by-step update commands with per-command copy buttons and a “Copy all commands” action
+- Release notes rendered as Markdown instead of raw text
 - `GET /api/update` endpoint with a forced-check option
 - Config controls: `UPDATE_CHECK`, `UPDATE_REPO`, `UPDATE_API_URL`
 - Update page and host notification documentation
