@@ -684,6 +684,38 @@ html[data-button-style="minimal"] .button--secondary {
   }
 }
 
+.waiting-progress {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  height: 10px;
+  margin: 26px 0 0;
+  overflow: hidden;
+  border: var(--rule-bar) solid var(--color-ink);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-2);
+}
+
+.waiting-progress span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  border-right: var(--rule-bar) solid var(--color-ink);
+  background: var(--color-accent);
+  animation: waiting-sweep 1.8s linear infinite;
+}
+
+@keyframes waiting-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
 .vote-topline {
   align-items: center;
   gap: 16px;
@@ -935,13 +967,15 @@ html[data-button-style="minimal"] .button--secondary {
 
 .vote-meter-track span {
   top: 0;
+  bottom: 0;
   left: 0;
-  width: 14px;
+  width: 40%;
   height: 100%;
-  border-radius: inherit;
+  border-right: var(--rule-bar) solid var(--color-ink);
+  border-radius: 0;
   background: var(--color-accent);
   opacity: 1;
-  animation: waiting-pulse 2.4s ease-in-out infinite;
+  animation: waiting-sweep 1.8s linear infinite;
 }
 
 .vote-meter .microcopy {
@@ -2748,6 +2782,14 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   .waiting-core {
     animation: none;
+  }
+
+  .waiting-progress span,
+  .vote-meter-track span {
+    width: 55%;
+    animation: none;
+    opacity: 0.6;
+    transform: translateX(40%);
   }
 }
 

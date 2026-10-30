@@ -16,6 +16,7 @@ This release adds update awareness and lets voters change their answer until vot
 - Step-by-step update commands with per-command copy buttons and a “Copy all commands” action
 - Cross-platform `npm run backup-data` command instead of requiring `tar`
 - Voters can change their answer until voting closes; rejected changes keep the previous vote
+- Looping waiting progress bars on the audience waiting and voted screens
 - Timestamped progress and elapsed time in `npm run share`
 - Release notes rendered as Markdown instead of raw text
 - Release notes panel matches the How to update height and scrolls long notes internally
