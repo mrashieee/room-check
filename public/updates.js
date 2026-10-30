@@ -281,6 +281,27 @@ function renderInstructions(update) {
   updateInstructions.append(warning);
 }
 
+function matchUpdatePanelHeight() {
+  const panels = document.querySelectorAll(".update-panel");
+  if (panels.length < 2) return;
+  const left = panels[0];
+  const right = panels[1];
+  if (window.matchMedia("(max-width: 760px)").matches) {
+    releaseNotes.style.height = "auto";
+    releaseNotes.style.maxHeight = "none";
+    return;
+  }
+  const panelTop = right.getBoundingClientRect().top;
+  const notesTop = releaseNotes.getBoundingClientRect().top;
+  const paddingBottom = Number.parseFloat(getComputedStyle(right).paddingBottom) || 0;
+  const available = Math.max(
+    160,
+    left.getBoundingClientRect().height - (notesTop - panelTop) - paddingBottom,
+  );
+  releaseNotes.style.maxHeight = "none";
+  releaseNotes.style.height = `${available}px`;
+}
+
 function render(update) {
   currentVersion.textContent = update.currentVersion || "—";
   latestVersion.textContent = update.latestVersion || "—";
@@ -290,6 +311,7 @@ function render(update) {
     ? renderMarkdown(update.releaseNotes)
     : "<p>No release notes were provided for this release.</p>";
   renderInstructions(update);
+  requestAnimationFrame(matchUpdatePanelHeight);
 
   if (update.disabled) {
     setStatus("error", "Update checks are off.", "Enable UPDATE_CHECK to check GitHub Releases.");
@@ -339,5 +361,6 @@ async function checkForUpdates({ force = false } = {}) {
 }
 
 checkAgain.addEventListener("click", () => checkForUpdates({ force: true }));
+window.addEventListener("resize", matchUpdatePanelHeight);
 await loadTheme();
 await checkForUpdates();

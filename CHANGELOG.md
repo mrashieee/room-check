@@ -16,7 +16,7 @@ This is the update-awareness release.
 - Step-by-step update commands with per-command copy buttons and a “Copy all commands” action
 - Cross-platform `npm run backup-data` command instead of requiring `tar`
 - Release notes rendered as Markdown instead of raw text
-- Release notes panel fills its available height
+- Release notes panel matches the How to update height and scrolls long notes internally
 - `GET /api/update` endpoint with a forced-check option
 - Config controls: `UPDATE_CHECK`, `UPDATE_REPO`, `UPDATE_API_URL`
 - Update page and host notification documentation

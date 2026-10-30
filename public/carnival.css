@@ -3753,7 +3753,7 @@ body.customizer-open {
 }
 
 .release-notes {
-  flex: 1;
+  flex: 0 0 auto;
   min-height: 280px;
-  max-height: none;
+  max-height: 360px;
 }
