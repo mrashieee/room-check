@@ -265,7 +265,13 @@ function syncModeUI() {
 
 function normalizeOptions(labels) {
   const source = Array.isArray(labels) && labels.length ? labels : DEFAULT_OPTIONS;
-  return source.slice(0, MAX_OPTIONS).map((label) => ({ label: typeof label === "string" ? label : "" }));
+  return source.slice(0, MAX_OPTIONS).map((label) => {
+    if (typeof label === "string") return { label };
+    if (label && typeof label === "object" && typeof label.label === "string") {
+      return { label: label.label };
+    }
+    return { label: "" };
+  });
 }
 
 function renderOptionEditor(focusIndex = null) {

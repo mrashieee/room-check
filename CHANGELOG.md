@@ -48,6 +48,7 @@ This is the customisation release: a full visual refresh, a host theme customise
 - Gradient Start/End controls now apply to the actual page background
 - Theme selection state now persists correctly across reloads
 - Palette selection indicator updates correctly after server restart
+- Starting over from a live round now restores the saved answer labels
 
 ### Data and compatibility
 
