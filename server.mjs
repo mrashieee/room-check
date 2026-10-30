@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import QRCode from "qrcode";
 import { WebSocketServer, WebSocket } from "ws";
+import { COLOR_KEYS, DEFAULT_THEME, normalizeHex, normalizeTheme } from "./public/theme-config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -22,6 +23,7 @@ const DATA_DIR = process.env.DATA_DIR
 const STATE_FILE = path.join(DATA_DIR, "state.json");
 const AUTH_FILE = path.join(DATA_DIR, "auth.json");
 const SESSION_SECRET_FILE = path.join(DATA_DIR, "session-secret");
+const PALETTES_FILE = path.join(DATA_DIR, "palettes.json");
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST_BIND = process.env.BIND_ADDRESS || "0.0.0.0";
@@ -38,6 +40,13 @@ const SCRYPT = {
 const SETUP_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const TIEBREAK_MS = 9000;
 const PUBLIC_URL = String(process.env.PUBLIC_URL || "").trim().replace(/\/+$/, "");
+const THEME_LOGO_MAX_BYTES = 256 * 1024;
+const THEME_LOGO_TYPES = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/svg+xml": "svg",
+};
 
 const LIMITS = {
   title: 52,
@@ -91,7 +100,8 @@ let setupCode = null;
 let setupInFlight = false;
 
 /** @type {{round: null | {id:string,title:string,question:string,options:{id:string,label:string,color:string}[],durationSec:number,status:"open"|"revealed",startedAt:number,endsAt:number|null,revealedAt:number|null,revealReason:string|null,votes:Record<string,{optionId:string,at:number}>}}} */
-let state = { round: null, sessionClosedAt: null };
+let state = { round: null, sessionClosedAt: null, theme: normalizeTheme(DEFAULT_THEME) };
+let customPalettes = [];
 let revealTimer = null;
 let tieBreakTimer = null;
 let saveTimer = null;
@@ -270,6 +280,7 @@ function publicState() {
     return {
       now: Date.now(),
       round: null,
+      theme: state.theme,
       closed: Boolean(state.sessionClosedAt),
       closedAt: state.sessionClosedAt || null,
     };
@@ -278,6 +289,7 @@ function publicState() {
   if (round.mode === "hands") {
     return {
       now: Date.now(),
+      theme: state.theme,
       closed: false,
       closedAt: null,
       round: {
@@ -297,6 +309,7 @@ function publicState() {
 
   return {
     now: Date.now(),
+    theme: state.theme,
     closed: false,
     closedAt: null,
     round: {
@@ -374,6 +387,7 @@ function persistState() {
       savedAt: Date.now(),
       round: state.round,
       sessionClosedAt: state.sessionClosedAt || null,
+      theme: state.theme,
     },
     null,
     2,
@@ -400,7 +414,17 @@ function persistStateSync() {
     const temp = STATE_FILE + ".tmp";
     fs.writeFileSync(
       temp,
-      JSON.stringify({ version: 1, savedAt: Date.now(), round: state.round, sessionClosedAt: state.sessionClosedAt || null }, null, 2),
+      JSON.stringify(
+        {
+          version: 1,
+          savedAt: Date.now(),
+          round: state.round,
+          sessionClosedAt: state.sessionClosedAt || null,
+          theme: state.theme,
+        },
+        null,
+        2,
+      ),
       { encoding: "utf8", mode: 0o600 },
     );
     try {
@@ -414,6 +438,64 @@ function persistStateSync() {
   }
 }
 
+function normalizeCustomPalette(raw) {
+  const name = cleanString(raw?.name, 32);
+  if (!name) return null;
+  const colors = {};
+  for (const key of COLOR_KEYS) {
+    const value = normalizeHex(raw?.colors?.[key]);
+    if (!value) return null;
+    colors[key] = value;
+  }
+  const id = /^custom-[a-zA-Z0-9-]{1,60}$/.test(raw?.id) ? raw.id : `custom-${crypto.randomUUID()}`;
+  return {
+    id,
+    name,
+    colors,
+    createdAt: Number(raw?.createdAt) || Date.now(),
+  };
+}
+
+function loadCustomPalettes() {
+  if (!fs.existsSync(PALETTES_FILE)) return;
+  try {
+    fs.chmodSync(PALETTES_FILE, 0o600);
+  } catch {
+    // Some filesystems do not support chmod.
+  }
+  try {
+    const raw = JSON.parse(fs.readFileSync(PALETTES_FILE, "utf8"));
+    const list = Array.isArray(raw) ? raw : raw?.palettes;
+    if (!Array.isArray(list)) return;
+    const seen = new Set();
+    customPalettes = list
+      .map((entry) => normalizeCustomPalette(entry))
+      .filter((entry) => entry && !seen.has(entry.id) && seen.add(entry.id))
+      .slice(-30);
+  } catch (error) {
+    console.error("Could not read saved palettes:", error.message);
+  }
+}
+
+function persistCustomPalettes() {
+  try {
+    const temp = PALETTES_FILE + ".tmp";
+    fs.writeFileSync(
+      temp,
+      JSON.stringify({ version: 1, palettes: customPalettes }, null, 2),
+      { encoding: "utf8", mode: 0o600 },
+    );
+    try {
+      fs.chmodSync(temp, 0o600);
+    } catch {
+      // Some filesystems do not support chmod.
+    }
+    fs.renameSync(temp, PALETTES_FILE);
+  } catch (error) {
+    console.error("Could not save custom palettes:", error.message);
+  }
+}
+
 function loadState() {
   if (!fs.existsSync(STATE_FILE)) return;
   try {
@@ -424,6 +506,11 @@ function loadState() {
   try {
     const raw = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
     state.sessionClosedAt = Number(raw?.sessionClosedAt) || null;
+    state.theme = normalizeTheme(raw?.theme);
+    if (state.theme.logo) {
+      const logoPath = path.join(DATA_DIR, `theme-logo.${THEME_LOGO_TYPES[state.theme.logo.type] || "bin"}`);
+      if (!fs.existsSync(logoPath)) state.theme.logo = null;
+    }
     const round = raw?.round;
     if (!round || typeof round !== "object") return;
     state.sessionClosedAt = null;
@@ -910,6 +997,66 @@ function requireHost(req, res, next) {
   next();
 }
 
+function logoPath(ext) {
+  return path.join(DATA_DIR, `theme-logo.${ext}`);
+}
+
+function removeLogoFiles() {
+  for (const ext of new Set(Object.values(THEME_LOGO_TYPES))) {
+    try {
+      fs.unlinkSync(logoPath(ext));
+    } catch {
+      // Nothing to remove.
+    }
+  }
+}
+
+function sanitizeSvgBuffer(buffer) {
+  const text = buffer.toString("utf8").trim();
+  if (!/<svg[\s>]/i.test(text)) {
+    throw new HttpError(400, "That SVG does not contain an SVG root.");
+  }
+  if (
+    /<script\b|<foreignObject\b|\son[a-z]+\s*=|javascript:|<!ENTITY|<!DOCTYPE|href\s*=\s*["']\s*(?:https?:|\/\/|data:text\/html)/i.test(
+      text,
+    )
+  ) {
+    throw new HttpError(400, "That SVG contains something unsafe. Remove scripts, event handlers and external links.");
+  }
+  return Buffer.from(text, "utf8");
+}
+
+function identifyLogo(buffer, mime) {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    throw new HttpError(400, "Choose a logo file.");
+  }
+  if (buffer.length > THEME_LOGO_MAX_BYTES) {
+    throw new HttpError(413, "Keep the logo under 256 KB.");
+  }
+
+  if (mime === "image/png") {
+    const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    if (!buffer.subarray(0, 8).equals(signature)) throw new HttpError(400, "That PNG is not valid.");
+    return { ext: "png", type: mime, buffer };
+  }
+  if (mime === "image/jpeg") {
+    if (buffer[0] !== 0xff || buffer[1] !== 0xd8 || buffer[2] !== 0xff) {
+      throw new HttpError(400, "That JPEG is not valid.");
+    }
+    return { ext: "jpg", type: mime, buffer };
+  }
+  if (mime === "image/webp") {
+    if (buffer.toString("ascii", 0, 4) !== "RIFF" || buffer.toString("ascii", 8, 12) !== "WEBP") {
+      throw new HttpError(400, "That WebP is not valid.");
+    }
+    return { ext: "webp", type: mime, buffer };
+  }
+  if (mime === "image/svg+xml") {
+    return { ext: "svg", type: mime, buffer: sanitizeSvgBuffer(buffer) };
+  }
+  throw new HttpError(415, "Use a PNG, JPEG, WebP or SVG logo.");
+}
+
 const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", true);
@@ -989,6 +1136,27 @@ app.get("/api/state", (req, res) => {
     state: publicState(),
     you: personalState(state.round, validPlayer),
   });
+});
+
+app.get("/api/theme", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ theme: state.theme });
+});
+
+app.get("/api/theme/logo", (req, res) => {
+  const logo = state.theme?.logo;
+  if (!logo) return res.status(404).end();
+  const ext = THEME_LOGO_TYPES[logo.type];
+  if (!ext) return res.status(404).end();
+  try {
+    const buffer = fs.readFileSync(logoPath(ext));
+    res.setHeader("Content-Type", logo.type);
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:");
+    res.send(buffer);
+  } catch {
+    res.status(404).end();
+  }
 });
 
 app.get("/api/qr", async (req, res, next) => {
@@ -1104,6 +1272,100 @@ app.post("/api/host/logout", (req, res) => {
 app.get("/api/host/state", requireHost, (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.json({ state: publicState() });
+});
+
+app.get("/api/host/palettes", requireHost, (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ palettes: customPalettes });
+});
+
+app.post("/api/host/palettes", requireHost, (req, res, next) => {
+  try {
+    const name = cleanString(req.body?.name, 32);
+    if (!name) throw new HttpError(400, "Give the palette a name.");
+    if (customPalettes.some((palette) => palette.name.toLowerCase() === name.toLowerCase())) {
+      throw new HttpError(409, "A palette with that name already exists.");
+    }
+    const colors = {};
+    for (const key of COLOR_KEYS) {
+      const value = normalizeHex(req.body?.colors?.[key]);
+      if (!value) throw new HttpError(400, "The palette needs all five colours.");
+      colors[key] = value;
+    }
+    const palette = {
+      id: `custom-${crypto.randomUUID()}`,
+      name,
+      colors,
+      createdAt: Date.now(),
+    };
+    customPalettes = [...customPalettes, palette].slice(-30);
+    persistCustomPalettes();
+    res.status(201).json({ ok: true, palette });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete("/api/host/palettes/:id", requireHost, (req, res) => {
+  const id = String(req.params.id || "");
+  const next = customPalettes.filter((palette) => palette.id !== id);
+  if (next.length === customPalettes.length) {
+    return res.status(404).json({ error: "That palette was not found." });
+  }
+  customPalettes = next;
+  persistCustomPalettes();
+  res.json({ ok: true });
+});
+
+app.post("/api/host/theme", requireHost, (req, res, next) => {
+  try {
+    const nextTheme = normalizeTheme({
+      ...(req.body?.theme && typeof req.body.theme === "object" ? req.body.theme : {}),
+      logo: state.theme?.logo || null,
+    });
+    state.theme = nextTheme;
+    scheduleSave();
+    broadcastState();
+    res.json({ ok: true, theme: nextTheme, state: publicState() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post(
+  "/api/host/theme/logo",
+  requireHost,
+  express.raw({ type: () => true, limit: "300kb" }),
+  (req, res, next) => {
+    try {
+      const mime = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+      const logo = identifyLogo(req.body, mime);
+      removeLogoFiles();
+      fs.writeFileSync(logoPath(logo.ext), logo.buffer, { mode: 0o600 });
+      try {
+        fs.chmodSync(logoPath(logo.ext), 0o600);
+      } catch {
+        // Some filesystems do not support chmod.
+      }
+      state.theme = normalizeTheme({
+        ...state.theme,
+        logo: { version: Date.now(), type: logo.type },
+      });
+      scheduleSave();
+      broadcastState();
+      res.json({ ok: true, theme: state.theme, state: publicState() });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+app.delete("/api/host/theme/logo", requireHost, (req, res) => {
+  removeLogoFiles();
+  state.theme = normalizeTheme({ ...state.theme, logo: null });
+  scheduleSave();
+  broadcastState();
+  res.json({ ok: true, theme: state.theme, state: publicState() });
 });
 
 app.post("/api/host/open", requireHost, (req, res, next) => {
@@ -1356,6 +1618,7 @@ const heartbeat = setInterval(() => {
 }, 30_000);
 
 initAuth();
+loadCustomPalettes();
 loadState();
 armRevealTimer();
 armTieBreakTimer();

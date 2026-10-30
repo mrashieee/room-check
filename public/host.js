@@ -19,6 +19,9 @@ import {
   renderConnection,
   showToast,
 } from "./common.js";
+import { applyTheme, loadTheme } from "./theme.js";
+import { contrastRatio } from "./theme-config.js";
+import { initCustomizer } from "./customizer.js";
 
 const DRAFT_KEY = "roomcheck.hostDraft.v1";
 const LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
@@ -272,6 +275,7 @@ function renderOptionEditor(focusIndex = null) {
     const row = document.createElement("div");
     row.className = "option-edit";
     row.dataset.color = OPTION_COLORS[index] || "lime";
+    applyChoiceInk(row, row.dataset.color);
 
     const badge = document.createElement("span");
     badge.className = "option-letter";
@@ -324,6 +328,28 @@ function renderOptionEditor(focusIndex = null) {
 function updateAddOptionState() {
   addOptionButton.disabled = options.length >= MAX_OPTIONS;
 }
+
+function applyChoiceInk(element, colorKey) {
+  const color =
+    getComputedStyle(document.documentElement).getPropertyValue(`--data-${colorKey}`).trim() || "#ebc831";
+  const ink = getComputedStyle(document.documentElement).getPropertyValue("--color-ink").trim() || "#1d3b32";
+  const paper = getComputedStyle(document.documentElement).getPropertyValue("--color-paper").trim() || "#f6ecd7";
+  element.style.setProperty(
+    "--accent-ink",
+    contrastRatio(color, ink) >= contrastRatio(color, paper) ? ink : paper,
+  );
+}
+
+function refreshChoiceInks() {
+  for (const row of document.querySelectorAll(".option-edit")) {
+    applyChoiceInk(row, row.dataset.color || "lime");
+  }
+  for (const item of document.querySelectorAll(".wheel-legend-item")) {
+    applyChoiceInk(item, item.dataset.color || "lime");
+  }
+}
+
+document.addEventListener("roomcheck:theme", refreshChoiceInks);
 
 function populateSetup(draft) {
   const source = draft && typeof draft === "object" ? draft : null;
@@ -611,9 +637,16 @@ function buildWheelSvg(tiedOptions) {
       "d",
       `M ${center} ${center} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${radius} ${radius} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`,
     );
-    const color = styles.getPropertyValue(`--${option.color}`).trim() || "#d8ff57";
+    const color =
+      styles.getPropertyValue(`--data-${option.color}`).trim() ||
+      styles.getPropertyValue(`--${option.color}`).trim() ||
+      "#e6b422";
+    const ink = styles.getPropertyValue("--color-ink").trim() || "#1d3b32";
+    const paper = styles.getPropertyValue("--color-paper").trim() || "#f6ecd7";
+    const textInk =
+      contrastRatio(color, ink) >= contrastRatio(color, paper) ? ink : paper;
     path.setAttribute("fill", color);
-    path.setAttribute("stroke", "#0a0c0b");
+    path.setAttribute("stroke", ink);
     path.setAttribute("stroke-width", "1.2");
     svg.append(path);
 
@@ -623,10 +656,10 @@ function buildWheelSvg(tiedOptions) {
     text.setAttribute("y", (center + Math.sin(mid) * radius * 0.64).toFixed(2));
     text.setAttribute("text-anchor", "middle");
     text.setAttribute("dominant-baseline", "central");
-    text.setAttribute("fill", "#101210");
-    text.setAttribute("font-family", "DM Sans, sans-serif");
+    text.setAttribute("fill", textInk);
+    text.setAttribute("font-family", "Golos Text, sans-serif");
     text.setAttribute("font-size", "13");
-    text.setAttribute("font-weight", "700");
+    text.setAttribute("font-weight", "600");
     text.textContent = LETTERS[index] || String(index + 1);
     svg.append(text);
   });
@@ -641,6 +674,7 @@ function renderWheelLegend(tiedOptions) {
     item.className = "wheel-legend-item";
     item.dataset.color = option.color || "lime";
     item.dataset.optionId = option.optionId;
+    applyChoiceInk(item, item.dataset.color);
 
     const letter = document.createElement("span");
     letter.className = "wheel-legend-letter";
@@ -828,6 +862,7 @@ function showEnded() {
 }
 
 function applyState(state) {
+  if (!document.body.classList.contains("customizer-open")) applyTheme(state?.theme);
   const incomingNow = Number(state?.now) || 0;
   if (incomingNow && incomingNow < lastStateNow) return;
   lastStateNow = Math.max(lastStateNow, incomingNow);
@@ -1179,6 +1214,7 @@ async function enterConsole() {
 }
 
 async function init() {
+  await loadTheme();
   let auth;
   try {
     auth = await api("/api/host/me");
@@ -1203,6 +1239,8 @@ async function init() {
 
   showAuth(auth.configured ? "login" : "setup");
 }
+
+initCustomizer();
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
