@@ -25,10 +25,6 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
   </tr>
 </table>
 
-<p align="center">
-  <img src="./docs/customizer.png" alt="Room Check theme customiser with palette, colour and logo controls" width="100%" />
-</p>
-
 ## Features
 
 - Password-protected host console, configured on first launch
@@ -311,6 +307,10 @@ The audience sees a waiting screen before a round starts and automatically switc
 ## Customise the room
 
 Click the palette icon in the host header to open the theme customiser. Changes preview live on the host screen; nothing is sent to the audience until you press **Save changes**.
+
+<p align="center">
+  <img src="./docs/customizer.png" alt="Room Check theme customiser with palette, colour and logo controls" width="88%" />
+</p>
 
 ### Palette
 
