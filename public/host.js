@@ -23,9 +23,11 @@ import { applyTheme, loadTheme } from "./theme.js";
 import { contrastRatio } from "./theme-config.js";
 import { initCustomizer } from "./customizer.js";
 
-const DRAFT_KEY = "roomcheck.hostDraft.v1";
+const DRAFT_KEY = "roomcheck.hostDraft.v2";
+const LEGACY_DRAFT_KEY = "roomcheck.hostDraft.v1";
 const LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
 const MAX_OPTIONS = 10;
+const MAX_QUESTIONS = 20;
 const OPTION_COLORS = ["lime", "coral", "blue", "pink", "violet", "sand", "mint", "ice", "peach", "rose"];
 const DEFAULT_OPTIONS = ["Electric", "Warming up", "Need coffee", "Send help"];
 const TIMER_CIRCUMFERENCE = 2 * Math.PI * 52;
@@ -52,6 +54,12 @@ const resultsStage = $("#results-stage");
 const endedStage = $("#ended-stage");
 const setupForm = $("#setup-form");
 const modeChoices = $("#mode-choices");
+const sessionBuilder = $("#session-builder");
+const sessionCount = $("#session-count");
+const questionList = $("#question-list");
+const addQuestionButton = $("#add-question");
+const removeQuestionButton = $("#remove-question");
+const questionEditorLabel = $("#question-editor-label");
 const modeHint = $("#mode-hint");
 const startButtonLabel = $("#start-button-label");
 const setupSubmitNote = $("#setup-submit-note");
@@ -75,6 +83,7 @@ const stageLede = $("#stage-lede");
 const stageStatLabel = $("#stage-stat-label");
 const stageDetailNote = $("#stage-detail-note");
 const stageShortcuts = $("#stage-shortcuts");
+const stageProgress = $("#stage-progress");
 const handsGlyph = $("#hands-glyph");
 const revealButton = $("#reveal-button");
 const hostConnection = $("#host-connection");
@@ -92,6 +101,10 @@ const updateNoticeTitle = $("#update-notice-title");
 const updateNoticeCopy = $("#update-notice-copy");
 const updateDismiss = $("#update-dismiss");
 const endedBackButton = $("#ended-back-button");
+const resultsEyebrowHost = $("#results-eyebrow-host");
+const nextQuestionButton = $("#next-question-button");
+const againButton = $("#again-button");
+const newQuestionButton = $("#new-question-button");
 const githubQr = $("#github-qr");
 const GITHUB_URL = "https://github.com/mrashieee/room-check";
 const wheelOverlay = $("#wheel-overlay");
@@ -108,6 +121,9 @@ const UPDATE_DISMISSED_KEY = "roomcheck.updateDismissed.v1";
 let roundState = null;
 let currentView = "boot";
 let lastRound = null;
+let lastSession = null;
+let draftQuestions = [];
+let activeQuestionIndex = 0;
 let renderedOpenRoundId = null;
 let renderedResultsSignature = null;
 let celebratedRoundId = null;
@@ -130,6 +146,10 @@ let wheelStopTimer = null;
 let wheelSpinBusy = false;
 let wheelWinnerId = null;
 let wheelIsOpen = false;
+
+function sessionProgressText(session) {
+  return session && session.total > 1 ? `Question ${session.index} of ${session.total}` : "";
+}
 
 function setView(view) {
   currentView = view;
@@ -195,18 +215,58 @@ function debounceSaveDraft() {
   saveDraftTimer = setTimeout(() => saveDraft(), 250);
 }
 
-function currentDraft() {
+function defaultQuestionDraft({ blank = false } = {}) {
   return {
+    question: blank ? "" : "How’s the energy in the room right now?",
+    options: [...DEFAULT_OPTIONS],
+    durationSec: 60,
+    spinOnTie: true,
+  };
+}
+
+function normalizeQuestionDraft(raw) {
+  return {
+    question: typeof raw?.question === "string" ? raw.question : "",
+    options: normalizeOptions(raw?.options).map((option) => option.label),
+    durationSec: Number.isFinite(Number(raw?.durationSec)) ? Number(raw.durationSec) : 60,
+    spinOnTie: raw?.spinOnTie !== false,
+  };
+}
+
+function normalizeQuestionDrafts(rawQuestions, fallback = null) {
+  const source = Array.isArray(rawQuestions) && rawQuestions.length ? rawQuestions : null;
+  if (source) return source.slice(0, MAX_QUESTIONS).map(normalizeQuestionDraft);
+  if (fallback?.question) return [normalizeQuestionDraft(fallback)];
+  return [defaultQuestionDraft()];
+}
+
+function captureActiveQuestion() {
+  const current = draftQuestions[activeQuestionIndex];
+  if (!current) return;
+  current.question = questionInput.value;
+  current.options = options.map((option) => option.label);
+  current.durationSec = readDuration();
+  current.spinOnTie = spinOnTieInput.checked;
+}
+
+function currentDraft() {
+  captureActiveQuestion();
+  return {
+    version: 2,
     mode: readMode(),
     title: titleInput.value.trim(),
-    question: questionInput.value,
-    options: options.map((option) => option.label),
-    durationSec: readDuration(),
-    spinOnTie: spinOnTieInput.checked,
+    questions: draftQuestions.map((question) => ({
+      question: question.question,
+      options: [...question.options],
+      durationSec: question.durationSec,
+      spinOnTie: question.spinOnTie,
+    })),
+    activeIndex: activeQuestionIndex,
   };
 }
 
 function saveDraft() {
+  if (!draftQuestions.length) return;
   try {
     localStorage.setItem(DRAFT_KEY, JSON.stringify(currentDraft()));
   } catch {
@@ -215,15 +275,102 @@ function saveDraft() {
 }
 
 function loadDraft() {
-  try {
-    const raw = localStorage.getItem(DRAFT_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return null;
-    return parsed;
-  } catch {
-    return null;
+  for (const key of [DRAFT_KEY, LEGACY_DRAFT_KEY]) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") continue;
+      if (Array.isArray(parsed.questions)) return parsed;
+      if (typeof parsed.question === "string") {
+        return {
+          version: 2,
+          mode: parsed.mode === "hands" ? "hands" : "poll",
+          title: parsed.title,
+          questions: [normalizeQuestionDraft(parsed)],
+          activeIndex: 0,
+        };
+      }
+    } catch {
+      // Try the next draft format.
+    }
   }
+  return null;
+}
+
+function loadActiveQuestion() {
+  const current = draftQuestions[activeQuestionIndex] || defaultQuestionDraft();
+  options = normalizeOptions(current.options);
+  questionInput.value = current.question || "";
+  setTimerChoice(Number.isFinite(Number(current.durationSec)) ? Number(current.durationSec) : 60);
+  spinOnTieInput.checked = current.spinOnTie !== false;
+  updateQuestionCount();
+  renderOptionEditor();
+  updateQuestionBuilder();
+}
+
+function updateQuestionBuilder() {
+  if (!questionList || !sessionCount || !questionEditorLabel) return;
+  sessionCount.textContent = `${draftQuestions.length} ${pluralize(draftQuestions.length, "question")}`;
+  questionEditorLabel.textContent = `Editing question ${activeQuestionIndex + 1} of ${draftQuestions.length}`;
+  removeQuestionButton.disabled = draftQuestions.length <= 1;
+  addQuestionButton.disabled = draftQuestions.length >= MAX_QUESTIONS;
+
+  questionList.replaceChildren();
+  draftQuestions.forEach((question, index) => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "question-card";
+    card.classList.toggle("is-active", index === activeQuestionIndex);
+    card.dataset.index = String(index);
+    card.setAttribute("aria-label", `Edit question ${index + 1}`);
+
+    const number = document.createElement("span");
+    number.className = "question-card-number";
+    number.textContent = String(index + 1).padStart(2, "0");
+
+    const copy = document.createElement("span");
+    copy.className = "question-card-copy";
+    const title = document.createElement("strong");
+    title.textContent = question.question.trim() || "Untitled question";
+    const meta = document.createElement("small");
+    const timer =
+      question.durationSec > 0 ? `${question.durationSec}s timer` : "manual reveal";
+    meta.textContent = `${question.options.filter(Boolean).length} answers · ${timer}`;
+    copy.append(title, meta);
+
+    card.append(number, copy);
+    card.addEventListener("click", () => switchQuestion(index));
+    questionList.append(card);
+  });
+
+  syncModeUI();
+}
+
+function switchQuestion(index) {
+  if (index === activeQuestionIndex || index < 0 || index >= draftQuestions.length) return;
+  captureActiveQuestion();
+  activeQuestionIndex = index;
+  loadActiveQuestion();
+  saveDraft();
+}
+
+function addQuestion() {
+  if (draftQuestions.length >= MAX_QUESTIONS) return;
+  captureActiveQuestion();
+  draftQuestions.push(defaultQuestionDraft({ blank: true }));
+  activeQuestionIndex = draftQuestions.length - 1;
+  loadActiveQuestion();
+  saveDraft();
+  questionInput.focus();
+}
+
+function removeActiveQuestion() {
+  if (draftQuestions.length <= 1) return;
+  draftQuestions.splice(activeQuestionIndex, 1);
+  activeQuestionIndex = Math.min(activeQuestionIndex, draftQuestions.length - 1);
+  loadActiveQuestion();
+  saveDraft();
 }
 
 function updateQuestionCount() {
@@ -261,11 +408,18 @@ function syncModeUI() {
   });
   modeHint.textContent = hands
     ? "The audience can raise and lower a hand from their phone. The count updates live on this screen."
-    : "Ask a question, collect votes, then reveal the results.";
-  startButtonLabel.textContent = hands ? "Open live hands" : "Open the room";
+    : "Build a run of poll questions. The host reveals each result and moves the room on.";
+  const count = draftQuestions.length || 1;
+  startButtonLabel.textContent = hands
+    ? "Open live hands"
+    : count > 1
+      ? `Start ${count}-question session`
+      : "Open the room";
   setupSubmitNote.textContent = hands
     ? "The raised-hand button goes live instantly. Keep this tab projected."
-    : "The QR code goes live instantly. Keep this tab projected.";
+    : count > 1
+      ? "The room answers each question in order. Keep this tab projected."
+      : "The QR code goes live instantly. Keep this tab projected.";
 }
 
 function normalizeOptions(labels) {
@@ -303,6 +457,10 @@ function renderOptionEditor(focusIndex = null) {
     input.setAttribute("aria-label", `Answer ${index + 1}`);
     input.addEventListener("input", () => {
       options[index].label = input.value;
+      if (draftQuestions[activeQuestionIndex]) {
+        draftQuestions[activeQuestionIndex].options = options.map((option) => option.label);
+      }
+      updateQuestionBuilder();
       debounceSaveDraft();
     });
 
@@ -318,6 +476,10 @@ function renderOptionEditor(focusIndex = null) {
       if (options.length <= 2) return;
       options.splice(index, 1);
       renderOptionEditor(Math.max(0, index - 1));
+      if (draftQuestions[activeQuestionIndex]) {
+        draftQuestions[activeQuestionIndex].options = options.map((option) => option.label);
+      }
+      updateQuestionBuilder();
       debounceSaveDraft();
       updateAddOptionState();
     });
@@ -364,30 +526,32 @@ document.addEventListener("roomcheck:theme", refreshChoiceInks);
 
 function populateSetup(draft) {
   const source = draft && typeof draft === "object" ? draft : null;
-  const loaded = loadDraft();
-  const chosen = source || loaded;
+  const chosen = source || loadDraft();
   titleInput.value = chosen?.title || "Room Check";
-  questionInput.value = chosen?.question || "How’s the energy in the room right now?";
-  options = normalizeOptions(chosen?.options);
-  setTimerChoice(Number.isFinite(Number(chosen?.durationSec)) ? Number(chosen.durationSec) : 60);
-  spinOnTieInput.checked = chosen?.spinOnTie !== false;
+  draftQuestions = normalizeQuestionDrafts(chosen?.questions, chosen);
+  activeQuestionIndex = Math.min(
+    Math.max(Number(chosen?.activeIndex) || 0, 0),
+    draftQuestions.length - 1,
+  );
   setMode(chosen?.mode === "hands" ? "hands" : "poll");
-  updateQuestionCount();
-  renderOptionEditor();
+  loadActiveQuestion();
   applyJoinUrl(joinUrl, { silent: true });
   saveDraft();
 }
 
 function populateSetupFromRound(round) {
   titleInput.value = round.title || "Room Check";
-  questionInput.value = round.question || "";
-  const draftOptions = round.mode === "hands" ? loadDraft()?.options : null;
-  options = normalizeOptions(draftOptions || round.options);
-  setTimerChoice(round.durationSec ?? 60);
-  spinOnTieInput.checked = round.spinOnTie !== false;
+  draftQuestions = [
+    normalizeQuestionDraft({
+      question: round.question || "",
+      options: round.options.map((option) => option.label),
+      durationSec: round.durationSec ?? 60,
+      spinOnTie: round.spinOnTie !== false,
+    }),
+  ];
+  activeQuestionIndex = 0;
   setMode(round.mode === "hands" ? "hands" : "poll");
-  updateQuestionCount();
-  renderOptionEditor();
+  loadActiveQuestion();
   applyJoinUrl(joinUrl, { silent: true });
   saveDraft();
 }
@@ -481,12 +645,18 @@ function showStage(round) {
     stageQuestion.classList.toggle("is-long", round.question.length > 68 && round.question.length <= 112);
     stageQuestion.classList.toggle("is-very-long", round.question.length > 112);
     stageTitle.textContent = round.title || "Room Check";
+    const progress = sessionProgressText(roundState?.session);
+    stageProgress.hidden = !progress;
+    stageProgress.textContent = progress;
     if (joinUrl) {
       stageQr.src = qrImageUrl(joinUrl);
       stageUrl.textContent = joinUrl.replace(/^https?:\/\//, "");
     }
   }
 
+  const progress = sessionProgressText(roundState?.session);
+  stageProgress.hidden = !progress;
+  stageProgress.textContent = progress;
   openStage.classList.toggle("is-hands", isHands);
   openStage.classList.toggle("is-closed", handsClosed);
   stageLiveLabel.textContent = isHands ? (handsClosed ? "Hands closed" : "Hands live") : "Voting live";
@@ -842,6 +1012,27 @@ async function spinWheel() {
   }
 }
 
+function updateSessionControls(round) {
+  const session = roundState?.session;
+  const multi = Boolean(session && session.total > 1);
+  nextQuestionButton.hidden = !multi;
+  againButton.hidden = multi;
+  newQuestionButton.hidden = multi;
+
+  if (!multi) {
+    resultsEyebrowHost.textContent = "That’s a wrap";
+    return;
+  }
+
+  const last = session.index >= session.total;
+  resultsEyebrowHost.textContent = last
+    ? "Final question · that’s a wrap"
+    : `Question ${session.index} of ${session.total}`;
+  nextQuestionButton.textContent = last ? "Finish session" : "Next question";
+  nextQuestionButton.dataset.finish = last ? "1" : "0";
+  nextQuestionButton.disabled = Boolean(round.tieBreak && round.tieBreak.status !== "done");
+}
+
 function showResults(round) {
   setView("results");
   const tieBreak = round.tieBreak;
@@ -856,6 +1047,8 @@ function showResults(round) {
     renderedResultsSignature = signature;
     buildHostResults(round);
   }
+
+  updateSessionControls(round);
 
   if (tieBreak && tieBreak.status !== "done") {
     showWheel(round);
@@ -882,9 +1075,12 @@ function applyState(state) {
   const round = state.round;
   const previousStatus = roundState?.round?.status || null;
   const previousTieStatus = roundState?.round?.tieBreak?.status || null;
+  const previousSession = roundState?.session || lastSession;
+  if (state.session) lastSession = state.session;
 
   if (!round) {
     const hadRound = Boolean(roundState?.round);
+    const wasMultiSession = (previousSession?.total || 0) > 1;
     roundState = state;
 
     if (state.closed) {
@@ -896,7 +1092,9 @@ function applyState(state) {
     endSessionButton.hidden = false;
 
     if (currentView === "boot" || currentView === "ended" || hadRound) {
-      if (lastRound) {
+      if (wasMultiSession) {
+        populateSetup();
+      } else if (lastRound) {
         populateSetupFromRound(lastRound);
       } else {
         populateSetup();
@@ -1029,27 +1227,54 @@ async function revealResults() {
   }
 }
 
+function prepareQuestionForStart(index) {
+  const question = draftQuestions[index];
+  const prompt = question?.question?.trim() || "";
+  const labels = (question?.options || []).map((label) => label.trim()).filter(Boolean);
+
+  if (!prompt) {
+    switchQuestion(index);
+    showToast(toast, `Question ${index + 1} needs a prompt.`, 3500);
+    questionInput.focus();
+    return null;
+  }
+
+  if (labels.length < 2) {
+    switchQuestion(index);
+    showToast(toast, `Question ${index + 1} needs at least two answers.`, 3500);
+    return null;
+  }
+
+  const unique = new Set(labels.map((label) => label.toLocaleLowerCase()));
+  if (unique.size !== labels.length) {
+    switchQuestion(index);
+    showToast(toast, `Question ${index + 1}: each answer needs to be different.`, 3500);
+    return null;
+  }
+
+  return {
+    question: prompt,
+    options: labels,
+    durationSec: Number(question.durationSec) || 0,
+    spinOnTie: question.spinOnTie !== false,
+  };
+}
+
 async function startRound(event) {
   event.preventDefault();
   if (actionInFlight) return;
 
+  captureActiveQuestion();
   const mode = readMode();
-  const labels = mode === "poll" ? options.map((option) => option.label.trim()).filter(Boolean) : [];
+  const prepared = [];
 
   if (mode === "poll") {
-    if (labels.length < 2) {
-      showToast(toast, "Add at least two answers.", 3500);
-      return;
+    for (let index = 0; index < draftQuestions.length; index += 1) {
+      const question = prepareQuestionForStart(index);
+      if (!question) return;
+      prepared.push(question);
     }
-
-    const unique = new Set(labels.map((label) => label.toLocaleLowerCase()));
-    if (unique.size !== labels.length) {
-      showToast(toast, "Each answer needs to be different.", 3500);
-      return;
-    }
-  }
-
-  if (!questionInput.value.trim()) {
+  } else if (!questionInput.value.trim()) {
     showToast(toast, "Write a question for the room.", 3500);
     questionInput.focus();
     return;
@@ -1066,20 +1291,34 @@ async function startRound(event) {
 
   const button = $("#start-button");
   actionInFlight = true;
-  setActionBusy(button, true, "Opening…");
+  setActionBusy(button, true, mode === "poll" && prepared.length > 1 ? "Starting…" : "Opening…");
 
   try {
-    const result = await api("/api/host/open", {
-      method: "POST",
-      body: {
-        mode,
-        title: titleInput.value.trim(),
-        question: questionInput.value,
-        options: labels,
-        durationSec: mode === "poll" ? readDuration() : 0,
-        spinOnTie: mode === "poll" ? spinOnTieInput.checked : false,
-      },
-    });
+    const title = titleInput.value.trim();
+    const result =
+      mode === "poll" && prepared.length > 1
+        ? await api("/api/host/session/start", {
+            method: "POST",
+            body: { title, questions: prepared },
+          })
+        : await api("/api/host/open", {
+            method: "POST",
+            body:
+              mode === "poll"
+                ? {
+                    mode: "poll",
+                    title,
+                    ...prepared[0],
+                  }
+                : {
+                    mode: "hands",
+                    title,
+                    question: questionInput.value.trim(),
+                    options: [],
+                    durationSec: 0,
+                    spinOnTie: false,
+                  },
+          });
     applyState(result.state);
   } catch (error) {
     handleActionError(error);
@@ -1104,9 +1343,12 @@ async function resetToSetup() {
 
 function askReset() {
   const hands = roundState?.round?.mode === "hands";
+  const multi = (roundState?.session?.total || 0) > 1;
   const message = hands
     ? "Close the live-hands round and start over? The raised-hand count will be discarded."
-    : "Close this round and start over? Any votes in this round will be discarded.";
+    : multi
+      ? "Close this multi-question session and start over? The current question’s votes will be discarded."
+      : "Close this round and start over? Any votes in this round will be discarded.";
   if (!window.confirm(message)) return;
   resetToSetup();
 }
@@ -1153,6 +1395,38 @@ async function newQuestion() {
     handleActionError(error);
   } finally {
     actionInFlight = false;
+  }
+}
+
+async function nextSessionQuestion() {
+  if (actionInFlight) return;
+  const session = roundState?.session;
+  if (!session || session.total < 2) return;
+
+  const last = session.index >= session.total;
+  if (last) {
+    if (
+      !window.confirm(
+        "Finish the session? The audience will see the thank-you screen with the GitHub link.",
+      )
+    ) {
+      return;
+    }
+  }
+
+  actionInFlight = true;
+  setActionBusy(nextQuestionButton, true, last ? "Finishing…" : "Opening…");
+  try {
+    const result = last
+      ? await api("/api/host/end", { method: "POST", body: {} })
+      : await api("/api/host/session/next", { method: "POST", body: {} });
+    applyState(result.state);
+  } catch (error) {
+    handleActionError(error);
+  } finally {
+    actionInFlight = false;
+    setActionBusy(nextQuestionButton, false);
+    if (roundState?.round) updateSessionControls(roundState.round);
   }
 }
 
@@ -1394,12 +1668,25 @@ authSetupForm.addEventListener("submit", async (event) => {
 setupForm.addEventListener("submit", startRound);
 questionInput.addEventListener("input", () => {
   updateQuestionCount();
+  if (draftQuestions[activeQuestionIndex]) {
+    draftQuestions[activeQuestionIndex].question = questionInput.value;
+  }
+  updateQuestionBuilder();
   debounceSaveDraft();
 });
 titleInput.addEventListener("input", debounceSaveDraft);
-spinOnTieInput.addEventListener("change", debounceSaveDraft);
+spinOnTieInput.addEventListener("change", () => {
+  if (draftQuestions[activeQuestionIndex]) {
+    draftQuestions[activeQuestionIndex].spinOnTie = spinOnTieInput.checked;
+  }
+  debounceSaveDraft();
+});
 
 $("#timer-choices").addEventListener("change", () => {
+  if (draftQuestions[activeQuestionIndex]) {
+    draftQuestions[activeQuestionIndex].durationSec = readDuration();
+  }
+  updateQuestionBuilder();
   debounceSaveDraft();
 });
 
@@ -1412,8 +1699,15 @@ addOptionButton.addEventListener("click", () => {
   if (options.length >= MAX_OPTIONS) return;
   options.push({ label: "" });
   renderOptionEditor(options.length - 1);
+  if (draftQuestions[activeQuestionIndex]) {
+    draftQuestions[activeQuestionIndex].options = options.map((option) => option.label);
+  }
+  updateQuestionBuilder();
   debounceSaveDraft();
 });
+
+addQuestionButton.addEventListener("click", addQuestion);
+removeQuestionButton.addEventListener("click", removeActiveQuestion);
 
 joinUrlInput.addEventListener("input", scheduleJoinUrlUpdate);
 joinUrlInput.addEventListener("blur", () => {
@@ -1436,8 +1730,9 @@ $("#copy-link-button").addEventListener("click", async () => {
 revealButton.addEventListener("click", revealResults);
 wheelSpinButton.addEventListener("click", spinWheel);
 $("#cancel-round-button").addEventListener("click", askReset);
-$("#again-button").addEventListener("click", playAgain);
-$("#new-question-button").addEventListener("click", newQuestion);
+againButton.addEventListener("click", playAgain);
+newQuestionButton.addEventListener("click", newQuestion);
+nextQuestionButton.addEventListener("click", nextSessionQuestion);
 fullscreenButton.addEventListener("click", toggleFullscreen);
 
 $("#lock-button").addEventListener("click", async () => {

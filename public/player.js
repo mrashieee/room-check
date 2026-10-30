@@ -40,6 +40,8 @@ const voteHelp = $("#vote-help");
 const voteClock = $("#vote-clock");
 const voteClockValue = $("#vote-clock-value");
 const voteClockLabel = $(".vote-clock-label");
+const voteProgress = $("#vote-progress");
+const votedProgress = $("#voted-session-progress");
 const votedOption = $("#voted-option");
 const votedCount = $("#voted-count");
 const votedCountLabel = $("#voted-count-label");
@@ -102,6 +104,10 @@ function announce(message) {
 
 function optionById(optionId) {
   return currentState?.round?.options?.find((option) => option.id === optionId) || null;
+}
+
+function sessionProgressText(session) {
+  return session && session.total > 1 ? `Question ${session.index} of ${session.total}` : "";
 }
 
 function updateSubmitState() {
@@ -198,6 +204,9 @@ function renderVoteScreen(round, { force = false, selected = null } = {}) {
     voteSubmit.disabled = !selectedOption;
     window.scrollTo({ top: 0, behavior: "auto" });
   }
+  const progress = sessionProgressText(currentState?.session);
+  voteProgress.hidden = !progress;
+  voteProgress.textContent = progress;
   const changed = showScreen("vote");
   if (changed) announce(`Voting is open. ${round.question}`);
   updateClock();
@@ -224,6 +233,9 @@ function renderVotedScreen(round) {
     return;
   }
 
+  const progress = sessionProgressText(currentState?.session);
+  votedProgress.hidden = !progress;
+  votedProgress.textContent = progress;
   votedOption.textContent = chosen.label;
   votedCount.textContent = formatVoteCount(round.totalVotes);
   votedCountLabel.textContent = `${pluralize(round.totalVotes, "vote")} in`;
@@ -275,15 +287,17 @@ function renderResults(round) {
   const key = resultKey(round);
 
   resultsTitle.textContent = round.question;
-  resultsEyebrow.textContent = wheelDone
-    ? "Tie breaker · the wheel has spoken"
-    : wheelPending
-      ? tieBreak.status === "spinning"
-        ? "Tie breaker · the wheel is spinning"
-        : "Tie breaker · the room is tied"
-      : round.revealReason === "timer"
-        ? "Time’s up · the room has spoken"
-        : "The room has spoken";
+  const progress = sessionProgressText(currentState?.session);
+  resultsEyebrow.textContent =
+    (wheelDone
+      ? "Tie breaker · the wheel has spoken"
+      : wheelPending
+        ? tieBreak.status === "spinning"
+          ? "Tie breaker · the wheel is spinning"
+          : "Tie breaker · the room is tied"
+        : round.revealReason === "timer"
+          ? "Time’s up · the room has spoken"
+          : "The room has spoken") + (progress ? ` · ${progress}` : "");
 
   if (total === 0) {
     resultsWinner.textContent = "No votes";

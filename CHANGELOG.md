@@ -2,6 +2,27 @@
 
 All notable changes to Room Check are documented here.
 
+## 2.2.0 — 2026-10-31
+
+This release adds multi-question poll sessions.
+
+### Added
+
+- Prepare an ordered set of up to 20 poll questions before starting
+- Per-question answers, voting window and tie-breaker setting
+- Host-controlled progression from one revealed question to the next
+- Audience progress indicators for the current question and total
+- Final “Finish session” action after the last question
+- Session and question-set persistence across server restarts
+- Host question cards with add, edit and remove controls
+- Multi-question session progress on the host stage and results screen
+
+### Changed
+
+- Live Hands remains a separate single-round mode, not part of a poll set
+- Single-question polls keep the existing replay and new-question flow
+- Version updated to 2.2.0
+
 ## 2.1.0 — 2026-10-30
 
 This release adds update awareness and lets voters change their answer until voting closes.

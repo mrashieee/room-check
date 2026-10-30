@@ -75,6 +75,7 @@
       <section class="player-screen player-screen--vote" id="screen-vote" aria-labelledby="vote-question" hidden>
         <div class="vote-topline">
           <p class="eyebrow" id="vote-eyebrow">The room wants to know</p>
+          <span class="session-progress" id="vote-progress" hidden></span>
           <div class="vote-clock" id="vote-clock" aria-live="off">
             <span class="vote-clock-label">Closes in</span>
             <span id="vote-clock-value">—</span>
@@ -125,6 +126,7 @@
         <div class="success-seal" aria-hidden="true">
           <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30"></circle><path d="M19 33l9 9 18-20"></path></svg>
         </div>
+        <p class="session-progress" id="voted-session-progress" hidden></p>
         <p class="eyebrow">Vote saved</p>
         <h1 id="voted-title">You’re in.</h1>
         <p class="lede">Your answer is in. You can change it until voting closes.</p>
@@ -194,7 +196,7 @@
         </a>
         <p class="thanks-url">github.com/mrashieee/room-check</p>
         <p class="thanks-appeal">Every star genuinely helps. Thank you.</p>
-        <p class="screen-note screen-note--quiet">Built by Muhammad Rashid K · v2.1.0</p>
+        <p class="screen-note screen-note--quiet">Built by Muhammad Rashid K · v2.2.0</p>
       </section>
 
       <section class="player-screen player-screen--error" id="screen-error" aria-labelledby="error-title" hidden>
@@ -208,7 +210,7 @@
     <footer class="player-footer">
       <span>One question. One room. One answer.</span>
       <span class="footer-mark">© 2026 Muhammad Rashid K</span>
-      <span class="footer-built">Built by Muhammad Rashid K · v2.1.0</span>
+      <span class="footer-built">Built by Muhammad Rashid K · v2.2.0</span>
     </footer>
 
     <div class="sr-only" id="live-announcer" role="status" aria-live="polite"></div>

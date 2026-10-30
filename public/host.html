@@ -165,7 +165,7 @@
             <div>
               <p class="eyebrow">Host setup / 01</p>
               <h1 id="setup-title">Warm up the room.</h1>
-              <p class="lede">One question. A few answers. Let the room decide.</p>
+              <p class="lede">One question or a full run. Let the room decide.</p>
               <a class="text-button setup-updates-link" href="/updates">Check for updates</a>
             </div>
             <div class="setup-steps" aria-label="How it works">
@@ -194,7 +194,7 @@
                   <label class="mode-choice">
                     <input type="radio" name="mode" value="poll" checked />
                     <span class="mode-choice-body">
-                      <strong>Poll</strong>
+                      <strong>Poll session</strong>
                       <small>Vote and reveal</small>
                     </span>
                   </label>
@@ -212,6 +212,25 @@
               <div class="field">
                 <label class="field-label" for="game-title">Game title</label>
                 <input class="text-input" id="game-title" name="title" type="text" maxlength="52" value="Room Check" autocomplete="off" />
+              </div>
+
+              <div class="session-builder poll-only" id="session-builder">
+                <div class="session-builder-head">
+                  <div>
+                    <p class="eyebrow">Question set</p>
+                    <h2>Build the run.</h2>
+                  </div>
+                  <span class="session-count" id="session-count">1 question</span>
+                </div>
+                <div class="question-list" id="question-list" aria-label="Questions in this session"></div>
+                <button class="add-question-button" id="add-question" type="button">
+                  <span aria-hidden="true">+</span> Add another question
+                </button>
+              </div>
+
+              <div class="question-editor-head poll-only">
+                <span id="question-editor-label">Editing question 1 of 1</span>
+                <button class="text-button text-button--muted" id="remove-question" type="button">Remove question</button>
               </div>
 
               <div class="field">
@@ -302,6 +321,7 @@
             <div class="stage-topline">
               <span class="live-chip"><span class="live-dot" aria-hidden="true"></span><span id="stage-live-label">Voting live</span></span>
               <span class="stage-meta" id="stage-title">Room Check</span>
+              <span class="session-progress" id="stage-progress" hidden></span>
             </div>
 
             <h1 class="stage-question" id="stage-question"></h1>
@@ -369,7 +389,7 @@
         <section class="results-stage" id="results-stage" aria-labelledby="results-heading" hidden>
           <div class="results-head">
             <div>
-              <p class="eyebrow">That’s a wrap</p>
+              <p class="eyebrow" id="results-eyebrow-host">That’s a wrap</p>
               <h1 id="results-heading">The room<br />has spoken.</h1>
             </div>
             <div class="results-summary">
@@ -391,6 +411,7 @@
             </div>
             <div class="results-actions">
               <button class="button button--secondary button--large" id="again-button" type="button">Play it again</button>
+              <button class="button button--primary button--large" id="next-question-button" type="button" hidden>Next question</button>
               <button class="button button--primary button--large" id="new-question-button" type="button">New question</button>
             </div>
           </div>
@@ -418,7 +439,7 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
             </a>
             <p class="thanks-appeal ended-appeal">Every star genuinely helps. Thank you.</p>
-            <p class="ended-version">Built by Muhammad Rashid K · v2.1.0</p>
+            <p class="ended-version">Built by Muhammad Rashid K · v2.2.0</p>
             <button class="text-button text-button--muted ended-back" id="ended-back-button" type="button">Back to setup</button>
           </div>
 

@@ -66,6 +66,7 @@ const LIMITS = {
   maxOptions: 10,
   minDuration: 10,
   maxDuration: 600,
+  maxQuestions: 20,
 };
 
 const OPTION_COLORS = ["lime", "coral", "blue", "pink", "violet", "sand", "mint", "ice", "peach", "rose"];
@@ -110,7 +111,12 @@ let setupCode = null;
 let setupInFlight = false;
 
 /** @type {{round: null | {id:string,title:string,question:string,options:{id:string,label:string,color:string}[],durationSec:number,status:"open"|"revealed",startedAt:number,endsAt:number|null,revealedAt:number|null,revealReason:string|null,votes:Record<string,{optionId:string,at:number}>}}} */
-let state = { round: null, sessionClosedAt: null, theme: normalizeTheme(DEFAULT_THEME) };
+let state = {
+  round: null,
+  session: null,
+  sessionClosedAt: null,
+  theme: normalizeTheme(DEFAULT_THEME),
+};
 let customPalettes = [];
 let updateCache = null;
 let updateCacheAt = 0;
@@ -187,6 +193,41 @@ function validateRoundInput(body) {
     durationSec,
     spinOnTie: body.spinOnTie !== false,
   };
+}
+
+function validateSessionInput(body) {
+  if (!body || typeof body !== "object") {
+    throw new HttpError(400, "Invalid session details.");
+  }
+
+  const title = cleanString(body.title, LIMITS.title) || "Room Check";
+  const rawQuestions = Array.isArray(body.questions) ? body.questions : [];
+  if (rawQuestions.length === 0) {
+    throw new HttpError(400, "Add at least one question to the session.");
+  }
+  if (rawQuestions.length > LIMITS.maxQuestions) {
+    throw new HttpError(400, `Keep the session to ${LIMITS.maxQuestions} questions or fewer.`);
+  }
+
+  const questions = rawQuestions.map((raw, index) => {
+    try {
+      return validateRoundInput({
+        mode: "poll",
+        title,
+        question: raw?.question,
+        options: raw?.options,
+        durationSec: raw?.durationSec,
+        spinOnTie: raw?.spinOnTie,
+      });
+    } catch (error) {
+      throw new HttpError(
+        error instanceof HttpError ? error.status : 400,
+        `Question ${index + 1}: ${error?.message || "Check the question details."}`,
+      );
+    }
+  });
+
+  return { title, questions };
 }
 
 function createRound(details) {
@@ -288,12 +329,26 @@ function publicTieBreak(round, result) {
   };
 }
 
+function publicSession() {
+  const session = state.session;
+  if (!session) return null;
+  return {
+    id: session.id,
+    title: session.title,
+    index: session.index + 1,
+    total: session.questions.length,
+    startedAt: session.startedAt,
+  };
+}
+
 function publicState() {
   const round = state.round;
+  const session = publicSession();
   if (!round) {
     return {
       now: Date.now(),
       round: null,
+      session,
       theme: state.theme,
       closed: Boolean(state.sessionClosedAt),
       closedAt: state.sessionClosedAt || null,
@@ -303,6 +358,7 @@ function publicState() {
   if (round.mode === "hands") {
     return {
       now: Date.now(),
+      session,
       theme: state.theme,
       closed: false,
       closedAt: null,
@@ -323,6 +379,7 @@ function publicState() {
 
   return {
     now: Date.now(),
+    session,
     theme: state.theme,
     closed: false,
     closedAt: null,
@@ -400,6 +457,7 @@ function persistState() {
       version: 1,
       savedAt: Date.now(),
       round: state.round,
+      session: state.session,
       sessionClosedAt: state.sessionClosedAt || null,
       theme: state.theme,
     },
@@ -433,6 +491,7 @@ function persistStateSync() {
           version: 1,
           savedAt: Date.now(),
           round: state.round,
+          session: state.session,
           sessionClosedAt: state.sessionClosedAt || null,
           theme: state.theme,
         },
@@ -510,6 +569,43 @@ function persistCustomPalettes() {
   }
 }
 
+function normalizeStoredSession(raw, round) {
+  if (!raw || typeof raw !== "object" || !round || round.mode !== "poll") return null;
+  if (!Array.isArray(raw.questions) || raw.questions.length === 0) return null;
+  if (raw.questions.length > LIMITS.maxQuestions) return null;
+
+  const title = cleanString(raw.title, LIMITS.title) || round.title || "Room Check";
+  const questions = [];
+  for (const question of raw.questions) {
+    try {
+      questions.push(
+        validateRoundInput({
+          mode: "poll",
+          title,
+          question: question?.question,
+          options: Array.isArray(question?.options)
+            ? question.options.map((option) => (typeof option === "string" ? option : option?.label))
+            : [],
+          durationSec: question?.durationSec,
+          spinOnTie: question?.spinOnTie,
+        }),
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  const index = Number(raw.index);
+  if (!Number.isInteger(index) || index < 0 || index >= questions.length) return null;
+  return {
+    id: typeof raw.id === "string" && raw.id ? raw.id : crypto.randomUUID(),
+    title,
+    questions,
+    index,
+    startedAt: Number(raw.startedAt) || Date.now(),
+  };
+}
+
 function loadState() {
   if (!fs.existsSync(STATE_FILE)) return;
   try {
@@ -519,6 +615,7 @@ function loadState() {
   }
   try {
     const raw = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
+    state.session = null;
     state.sessionClosedAt = Number(raw?.sessionClosedAt) || null;
     state.theme = normalizeTheme(raw?.theme);
     if (state.theme.logo) {
@@ -540,6 +637,7 @@ function loadState() {
           };
         }
       }
+      state.session = null;
       state.round = {
         id: round.id,
         mode: "hands",
@@ -624,6 +722,7 @@ function loadState() {
       revealReason: round.revealReason || null,
       tieBreak: round.status === "open" ? null : cleanTieBreak,
     };
+    state.session = normalizeStoredSession(raw?.session, state.round);
 
     if (state.round.status === "open" && state.round.endsAt && state.round.endsAt <= Date.now()) {
       state.round.status = "revealed";
@@ -709,8 +808,64 @@ function openRound(details) {
     clearTimeout(tieBreakTimer);
     tieBreakTimer = null;
   }
+  state.session = null;
   state.sessionClosedAt = null;
   state.round = createRound(details);
+  armRevealTimer();
+  scheduleSave();
+  broadcastState();
+  return state.round;
+}
+
+function startSession(details) {
+  if (state.round?.status === "open") {
+    throw new HttpError(409, "A round is already open. Finish it before starting another.");
+  }
+  if (tieBreakTimer) {
+    clearTimeout(tieBreakTimer);
+    tieBreakTimer = null;
+  }
+  const startedAt = Date.now();
+  state.sessionClosedAt = null;
+  state.session = {
+    id: crypto.randomUUID(),
+    title: details.title,
+    questions: details.questions,
+    index: 0,
+    startedAt,
+  };
+  state.round = createRound(details.questions[0]);
+  armRevealTimer();
+  scheduleSave();
+  broadcastState();
+  return state.round;
+}
+
+function advanceSession() {
+  const session = state.session;
+  if (!session) {
+    throw new HttpError(409, "There is no multi-question session active.");
+  }
+  if (!state.round || state.round.status !== "revealed") {
+    throw new HttpError(409, "Reveal the current question before moving on.");
+  }
+  if (state.round.tieBreak && state.round.tieBreak.status !== "done") {
+    throw new HttpError(409, "Finish the tie-breaker before moving on.");
+  }
+  if (session.index + 1 >= session.questions.length) {
+    throw new HttpError(409, "This is the last question in the session.");
+  }
+
+  if (revealTimer) {
+    clearTimeout(revealTimer);
+    revealTimer = null;
+  }
+  if (tieBreakTimer) {
+    clearTimeout(tieBreakTimer);
+    tieBreakTimer = null;
+  }
+  session.index += 1;
+  state.round = createRound(session.questions[session.index]);
   armRevealTimer();
   scheduleSave();
   broadcastState();
@@ -727,6 +882,7 @@ function resetRound() {
     tieBreakTimer = null;
   }
   state.round = null;
+  state.session = null;
   state.sessionClosedAt = null;
   scheduleSave();
   broadcastState();
@@ -742,6 +898,7 @@ function endSession() {
     tieBreakTimer = null;
   }
   state.round = null;
+  state.session = null;
   state.sessionClosedAt = Date.now();
   scheduleSave();
   broadcastState();
@@ -1501,6 +1658,25 @@ app.delete("/api/host/theme/logo", requireHost, (req, res) => {
   scheduleSave();
   broadcastState();
   res.json({ ok: true, theme: state.theme, state: publicState() });
+});
+
+app.post("/api/host/session/start", requireHost, (req, res, next) => {
+  try {
+    const details = validateSessionInput(req.body);
+    const round = startSession(details);
+    res.json({ ok: true, roundId: round.id, state: publicState() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/host/session/next", requireHost, (req, res, next) => {
+  try {
+    const round = advanceSession();
+    res.json({ ok: true, roundId: round.id, state: publicState() });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.post("/api/host/open", requireHost, (req, res, next) => {
