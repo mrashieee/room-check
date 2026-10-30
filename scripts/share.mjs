@@ -14,6 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const port = Number(process.env.PORT || 3000);
 const localUrl = `http://localhost:${port}`;
+const startedAt = Date.now();
 
 let tunnel = null;
 let server = null;
@@ -21,6 +22,29 @@ let shuttingDown = false;
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function timestamp() {
+  return new Date().toLocaleTimeString("en-GB", { hour12: false });
+}
+
+function elapsed() {
+  const total = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = String(total % 60).padStart(2, "0");
+  return minutes ? `${minutes}m ${seconds}s` : `${total}s`;
+}
+
+function log(message = "") {
+  console.log(`[${timestamp()} +${elapsed()}] ${message}`);
+}
+
+function warn(message = "") {
+  console.warn(`[${timestamp()} +${elapsed()}] ${message}`);
+}
+
+function logError(message = "") {
+  console.error(`[${timestamp()} +${elapsed()}] ${message}`);
 }
 
 function shutdown(code = 0) {
@@ -45,11 +69,12 @@ process.on("SIGTERM", () => shutdown(0));
 async function ensureCloudflared() {
   if (fs.existsSync(bin)) return;
   console.log("");
-  console.log("Downloading the Cloudflare tunnel helper (one time only)…");
+  log("Downloading the Cloudflare tunnel helper (one time only)…");
   await install(bin);
   if (!fs.existsSync(bin)) {
     throw new Error("Cloudflare tunnel helper did not install.");
   }
+  log("Cloudflare tunnel helper downloaded.");
 }
 
 function waitForTunnel(tunnelProcess) {
@@ -78,11 +103,13 @@ function waitForTunnel(tunnelProcess) {
 
     const onUrl = (value) => {
       url = value;
+      log(`Public URL received: ${value}`);
       finishIfReady();
     };
 
     const onConnected = () => {
       connected = true;
+      log("Tunnel connected to Cloudflare.");
       finishIfReady();
     };
 
@@ -120,16 +147,20 @@ async function publicLinkHealthy(url) {
 
 async function verifyPublicLink(url) {
   console.log("");
-  console.log("Waiting for the public link to propagate…");
+  log("Waiting for the public link to propagate…");
   const deadline = Date.now() + 120_000;
   let successes = 0;
+  let attempt = 0;
 
   while (Date.now() < deadline) {
+    attempt += 1;
     if (await publicLinkHealthy(url)) {
       successes += 1;
+      log(`Health check ${attempt}: ok (${successes}/3).`);
       if (successes >= 3) return true;
     } else {
       successes = 0;
+      log(`Health check ${attempt}: not ready yet.`);
     }
     await delay(2000);
   }
@@ -142,26 +173,24 @@ async function main() {
     await ensureCloudflared();
 
     console.log("");
-    console.log("Opening a temporary public link…");
-    console.log("This can take a few seconds.");
-    console.log("");
+    log("Opening a temporary public link…");
+    log("This can take a few seconds.");
 
     tunnel = Tunnel.quick(localUrl, { "--no-autoupdate": true });
     url = await waitForTunnel(tunnel);
   } catch (error) {
     console.error("");
-    console.error("Could not open a public link.");
-    console.error(error.message);
+    logError("Could not open a public link.");
+    logError(error.message);
     console.error("");
-    console.error("You can still use Room Check on the same Wi-Fi with: npm start");
-    console.error("Or set PUBLIC_URL to a URL you already have.");
+    logError("You can still use Room Check on the same Wi-Fi with: npm start");
+    logError("Or set PUBLIC_URL to a URL you already have.");
     console.error("");
     shutdown(1);
     return;
   }
 
-  console.log("Tunnel connected. Starting Room Check…");
-  console.log("");
+  log(`Tunnel ready. Starting Room Check on ${localUrl}…`);
 
   server = spawn(process.execPath, ["--env-file-if-exists=.env", "server.mjs"], {
     cwd: root,
@@ -174,21 +203,19 @@ async function main() {
 
   server.on("exit", (code) => {
     if (!shuttingDown) {
-      console.log("");
-      console.log("Room Check stopped.");
+      log("Room Check stopped.");
     }
     shutdown(code ?? 0);
   });
 
   server.on("error", (error) => {
-    console.error("Could not start Room Check:", error.message);
+    logError(`Could not start Room Check: ${error.message}`);
     shutdown(1);
   });
 
   tunnel.on("exit", (code) => {
     if (shuttingDown) return;
-    console.error("");
-    console.error("The public tunnel closed unexpectedly. Stop and run npm run share again.");
+    logError("The public tunnel closed unexpectedly. Stop and run npm run share again.");
     if (server && !server.killed) server.kill("SIGTERM");
     shutdown(1);
   });
@@ -197,19 +224,14 @@ async function main() {
   if (shuttingDown) return;
 
   if (verified) {
-    console.log("");
-    console.log("Public link verified and ready:");
+    log("Public link verified and ready:");
     console.log("  " + url);
-    console.log("");
-    console.log("Keep this terminal open for the whole event.");
-    console.log("");
+    log("Keep this terminal open for the whole event.");
   } else {
-    console.warn("");
-    console.warn("The public link is taking longer than expected to come online.");
-    console.warn("It may become available shortly:");
-    console.warn("  " + url);
-    console.warn("If it does not work, restart with: npm run share");
-    console.warn("");
+    warn("The public link is taking longer than expected to come online.");
+    warn("It may become available shortly:");
+    console.log("  " + url);
+    warn("If it does not work, restart with: npm run share");
   }
 }
 

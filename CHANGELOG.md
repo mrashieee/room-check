@@ -4,7 +4,7 @@ All notable changes to Room Check are documented here.
 
 ## 2.1.0 — 2026-10-30
 
-This is the update-awareness release.
+This release adds update awareness and lets voters change their answer until voting closes.
 
 ### Added
 
@@ -15,6 +15,8 @@ This is the update-awareness release.
 - Install-specific update instructions for git checkouts and archive installs
 - Step-by-step update commands with per-command copy buttons and a “Copy all commands” action
 - Cross-platform `npm run backup-data` command instead of requiring `tar`
+- Voters can change their answer until voting closes; rejected changes keep the previous vote
+- Timestamped progress and elapsed time in `npm run share`
 - Release notes rendered as Markdown instead of raw text
 - Release notes panel matches the How to update height and scrolls long notes internally
 - `GET /api/update` endpoint with a forced-check option

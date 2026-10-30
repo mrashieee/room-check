@@ -1650,19 +1650,16 @@ app.post("/api/vote", (req, res, next) => {
       throw new HttpError(400, "Pick one of the answers on screen.");
     }
 
-    if (Object.prototype.hasOwnProperty.call(round.votes, playerId)) {
-      return res.status(409).json({
-        error: "Your vote is already locked in.",
-        code: "already_voted",
-        state: publicState(),
-        you: personalState(round, playerId),
-      });
-    }
-
+    const updated = Object.prototype.hasOwnProperty.call(round.votes, playerId);
     round.votes[playerId] = { optionId, at: Date.now() };
     scheduleSave();
     broadcastState();
-    res.json({ ok: true, state: publicState(), you: personalState(round, playerId) });
+    res.json({
+      ok: true,
+      updated,
+      state: publicState(),
+      you: personalState(round, playerId),
+    });
   } catch (error) {
     next(error);
   }

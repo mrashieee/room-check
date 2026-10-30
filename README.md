@@ -32,6 +32,7 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - Large QR code and live counts for the projector
 - Mobile-first participation page
 - Results hidden until the reveal
+- Change your answer until voting closes
 - Live raised-hand toggle with a presenter-side count
 - End-of-session thank-you screen with a GitHub star link
 - Automatic timer reveal or manual reveal
@@ -267,7 +268,7 @@ npm run share
 
 This creates a temporary Cloudflare quick tunnel and prints an HTTPS address. The QR code and the **Audience** URL use that address automatically.
 
-The first run downloads a small tunnel helper. Cloudflare can take a minute or two to propagate a new hostname; wait for **Public link verified and ready** in the terminal before sharing the QR.
+The first run downloads a small tunnel helper. Cloudflare can take a minute or two to propagate a new hostname; wait for **Public link verified and ready** in the terminal before sharing the QR. Each startup step is timestamped with elapsed time, including the public-link health checks.
 
 Keep the process running for the whole event. The public URL is temporary and generally changes every time you restart `npm run share`.
 
@@ -320,7 +321,7 @@ Host shortcuts:
 | `R` | Reveal results |
 | `F` | Toggle full screen |
 
-Each browser can cast one vote per round. A vote cannot be changed after it is locked in. Results are withheld from the audience until the reveal.
+Each browser can cast one vote per round. Voters can change their answer until voting closes; if a change is rejected because the round has closed, their previous vote stays in place. Results are withheld from the audience until the reveal.
 
 The audience sees a waiting screen before a round starts and automatically switches to the voting screen when the host opens the room.
 

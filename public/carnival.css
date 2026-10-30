@@ -887,6 +887,17 @@ html[data-button-style="minimal"] .button--secondary {
   letter-spacing: 0;
 }
 
+.voted-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.voted-actions .microcopy {
+  margin: 0;
+  text-align: center;
+}
+
 .vote-meter {
   margin-top: 18px;
   padding: 16px;

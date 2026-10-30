@@ -86,7 +86,7 @@
             <legend class="sr-only">Choose one answer</legend>
           </fieldset>
           <div class="vote-actions">
-            <p class="microcopy" id="vote-help">Choose one. You can’t change it after you lock it in.</p>
+            <p class="microcopy" id="vote-help">Choose one. You can change it until voting closes.</p>
             <button class="button button--primary button--wide" id="vote-submit" type="submit" disabled>
               <span>Lock in my answer</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -122,13 +122,21 @@
         <div class="success-seal" aria-hidden="true">
           <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30"></circle><path d="M19 33l9 9 18-20"></path></svg>
         </div>
-        <p class="eyebrow">Vote locked</p>
+        <p class="eyebrow">Vote saved</p>
         <h1 id="voted-title">You’re in.</h1>
-        <p class="lede">That’s your answer. The room’s answer stays under wraps until the reveal.</p>
+        <p class="lede">Your answer is in. You can change it until voting closes.</p>
 
         <div class="your-pick">
           <span class="your-pick-label">You picked</span>
           <strong id="voted-option"></strong>
+        </div>
+
+        <div class="voted-actions">
+          <button class="button button--secondary button--wide" id="change-vote-button" type="button">
+            <span>Change my answer</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
+          <p class="microcopy" id="change-vote-note">You can change this until voting closes.</p>
         </div>
 
         <div class="vote-meter">
