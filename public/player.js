@@ -26,6 +26,8 @@ const screens = {
   vote: $("#screen-vote"),
   hands: $("#screen-hands"),
   voted: $("#screen-voted"),
+  survey: $("#screen-survey"),
+  surveyDone: $("#screen-survey-done"),
   results: $("#screen-results"),
   thanks: $("#screen-thanks"),
   error: $("#screen-error"),
@@ -42,6 +44,17 @@ const voteClockValue = $("#vote-clock-value");
 const voteClockLabel = $(".vote-clock-label");
 const voteProgress = $("#vote-progress");
 const votedProgress = $("#voted-session-progress");
+const surveyEyebrow = $("#survey-eyebrow");
+const surveyProgress = $("#survey-progress");
+const surveyClock = $("#survey-clock");
+const surveyClockLabel = $(".vote-clock-label", surveyClock);
+const surveyClockValue = $("#survey-clock-value");
+const surveyQuestion = $("#survey-question");
+const surveyOptions = $("#survey-options");
+const surveyBack = $("#survey-back");
+const surveySaveStatus = $("#survey-save-status");
+const surveyDoneProgress = $("#survey-done-progress");
+const surveyReview = $("#survey-review");
 const votedOption = $("#voted-option");
 const votedCount = $("#voted-count");
 const votedCountLabel = $("#voted-count-label");
@@ -69,6 +82,11 @@ const handsFootnote = $("#hands-footnote");
 let currentScreen = "connecting";
 let currentState = null;
 let currentRoundId = null;
+let currentSurveyId = null;
+let surveyIndex = 0;
+let surveyAnswers = {};
+let surveyBusy = false;
+let surveyReturnToReview = false;
 let renderedRoundId = null;
 let renderedResultsKey = null;
 let myVote = null;
@@ -256,6 +274,151 @@ function renderVotedScreen(round) {
   }
   voteWasUpdated = false;
   updateChangeVoteState();
+}
+
+function surveyFirstUnanswered(survey) {
+  const index = survey.questions.findIndex((question) => !surveyAnswers[question.id]);
+  return index === -1 ? survey.questions.length : index;
+}
+
+function buildSurveyOptions(question) {
+  surveyOptions.replaceChildren();
+  question.options.forEach((option, index) => {
+    const label = document.createElement("label");
+    label.className = "vote-option";
+    label.dataset.color = option.color || "lime";
+    label.style.setProperty("--i", String(index));
+    applyChoiceInk(label, label.dataset.color);
+
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "survey-answer";
+    input.value = option.id;
+    input.checked = surveyAnswers[question.id] === option.id;
+    label.classList.toggle("is-selected", input.checked);
+
+    const letter = document.createElement("span");
+    letter.className = "option-letter";
+    letter.setAttribute("aria-hidden", "true");
+    letter.textContent = LETTERS[index] || String(index + 1);
+
+    const text = document.createElement("span");
+    text.className = "option-text";
+    text.textContent = option.label;
+
+    const check = document.createElement("span");
+    check.className = "option-check";
+    check.setAttribute("aria-hidden", "true");
+    check.innerHTML =
+      '<svg viewBox="0 0 20 20"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+
+    label.append(input, letter, text, check);
+    surveyOptions.append(label);
+  });
+}
+
+function renderSurveyQuestion(statusMessage = "") {
+  const survey = currentState?.survey;
+  if (!survey || surveyIndex >= survey.questions.length) {
+    renderSurveyDone();
+    return;
+  }
+  const question = survey.questions[surveyIndex];
+  surveyEyebrow.textContent = survey.title || "Room Check survey";
+  surveyQuestion.textContent = question.question;
+  surveyProgress.hidden = false;
+  surveyProgress.textContent = `Question ${surveyIndex + 1} of ${survey.questions.length}`;
+  surveyBack.disabled = surveyIndex === 0 || surveyBusy;
+  surveySaveStatus.textContent = statusMessage || "Your answer saves as you go.";
+  buildSurveyOptions(question);
+  const changed = showScreen("survey");
+  if (changed) {
+    announce(
+      `Question ${surveyIndex + 1} of ${survey.questions.length}. ${question.question}`,
+    );
+  }
+  updateClock();
+}
+
+function renderSurveyDone() {
+  const survey = currentState?.survey;
+  if (!survey) {
+    renderScreen();
+    return;
+  }
+  surveyDoneProgress.hidden = false;
+  surveyDoneProgress.textContent = `${survey.questions.length} ${pluralize(survey.questions.length, "question")} answered`;
+  surveyReview.replaceChildren();
+
+  survey.questions.forEach((question, index) => {
+    const answerId = surveyAnswers[question.id];
+    const answer = question.options.find((option) => option.id === answerId);
+    const row = document.createElement("div");
+    row.className = "survey-review-row";
+
+    const copy = document.createElement("div");
+    copy.className = "survey-review-copy";
+    const questionLabel = document.createElement("strong");
+    questionLabel.textContent = `${index + 1}. ${question.question}`;
+    const answerLabel = document.createElement("span");
+    answerLabel.textContent = answer?.label || "Not answered";
+    copy.append(questionLabel, answerLabel);
+
+    const change = document.createElement("button");
+    change.className = "text-button";
+    change.type = "button";
+    change.textContent = "Change";
+    change.addEventListener("click", () => {
+      if (surveyBusy) return;
+      surveyIndex = index;
+      surveyReturnToReview = true;
+      renderSurveyQuestion();
+    });
+
+    row.append(copy, change);
+    surveyReview.append(row);
+  });
+
+  const changed = showScreen("surveyDone");
+  if (changed) announce("Survey complete. You can change any answer until the survey closes.");
+  updateClock();
+}
+
+async function saveSurveyAnswer(questionId, optionId) {
+  const survey = currentState?.survey;
+  if (!survey || survey.status !== "open" || surveyBusy) return;
+  surveyBusy = true;
+  surveyBack.disabled = true;
+  surveySaveStatus.textContent = "Saving…";
+  surveyOptions.querySelectorAll("input").forEach((input) => {
+    input.disabled = true;
+  });
+
+  try {
+    const result = await api("/api/survey/answer", {
+      method: "POST",
+      body: { playerId, questionId, optionId },
+    });
+    surveyAnswers = { ...(result.you?.answers || {}) };
+    if (surveyReturnToReview) {
+      surveyIndex = survey.questions.length;
+      surveyReturnToReview = false;
+    } else if (surveyIndex >= survey.questions.length - 1) {
+      surveyIndex = survey.questions.length;
+    } else {
+      surveyIndex += 1;
+    }
+    surveyBusy = false;
+    handleState(result.state, result.you);
+    surveySaveStatus.textContent = "Saved.";
+  } catch (error) {
+    surveyBusy = false;
+    const message =
+      error.status === 409
+        ? "The survey is closed."
+        : error?.message || "Could not save that answer.";
+    if (currentState?.survey?.status === "open") renderSurveyQuestion(message);
+  }
 }
 
 function resultKey(round) {
@@ -480,6 +643,18 @@ function renderHands(round) {
 }
 
 function renderScreen() {
+  const survey = currentState?.survey;
+  if (survey) {
+    if (survey.status !== "open" || currentState.closed) {
+      renderThanks();
+    } else if (surveyIndex >= survey.questions.length) {
+      renderSurveyDone();
+    } else {
+      renderSurveyQuestion();
+    }
+    return;
+  }
+
   const round = currentState?.round;
   if (!round) {
     if (currentState?.closed) {
@@ -515,8 +690,27 @@ function handleState(state, you) {
   if (connection) connection.syncServerTime(state);
 
   const previousRoundId = currentRoundId;
+  const previousSurveyId = currentSurveyId;
   currentState = state;
   currentRoundId = state.round?.id || null;
+  currentSurveyId = state.survey?.id || null;
+
+  if (currentSurveyId) {
+    if (previousSurveyId !== currentSurveyId) {
+      surveyAnswers =
+        you?.surveyId === currentSurveyId && you.answers ? { ...you.answers } : {};
+      surveyIndex = surveyFirstUnanswered(state.survey);
+      surveyReturnToReview = false;
+      surveyBusy = false;
+    } else if (you?.surveyId === currentSurveyId && you.answers) {
+      surveyAnswers = { ...you.answers };
+    }
+  } else {
+    surveyAnswers = {};
+    surveyIndex = 0;
+    surveyBusy = false;
+    surveyReturnToReview = false;
+  }
 
   if (state.round?.status !== "open") {
     changingVote = false;
@@ -563,6 +757,25 @@ function handleState(state, you) {
 
 function updateClock() {
   updateChangeVoteState();
+  if (currentState?.survey) {
+    const survey = currentState.survey;
+    if (survey.status !== "open" || currentScreen !== "survey") {
+      surveyClock.hidden = true;
+      return;
+    }
+    surveyClock.hidden = false;
+    if (!survey.endsAt) {
+      surveyClock.classList.remove("is-urgent");
+      surveyClockLabel.textContent = "Survey";
+      surveyClockValue.textContent = "Open";
+    } else {
+      const remaining = survey.endsAt - (connection?.serverNow() ?? Date.now());
+      surveyClock.classList.toggle("is-urgent", remaining <= 10_000);
+      surveyClockLabel.textContent = remaining <= 0 ? "Survey" : "Survey closes in";
+      surveyClockValue.textContent = remaining <= 0 ? "Closed" : formatClock(remaining);
+    }
+    return;
+  }
   if (currentState?.round?.mode === "hands") {
     voteClock.hidden = true;
     return;
@@ -627,6 +840,21 @@ handsToggle.addEventListener("click", async () => {
     renderHands(round);
     handsFootnote.textContent = error?.message || "Could not update your hand. Try again.";
   }
+});
+
+surveyOptions.addEventListener("change", (event) => {
+  const input = event.target.closest('input[name="survey-answer"]');
+  const survey = currentState?.survey;
+  const question = survey?.questions?.[surveyIndex];
+  if (!input || !question || surveyBusy) return;
+  saveSurveyAnswer(question.id, input.value);
+});
+
+surveyBack.addEventListener("click", () => {
+  if (surveyBusy || surveyIndex <= 0) return;
+  surveyIndex -= 1;
+  surveyReturnToReview = false;
+  renderSurveyQuestion();
 });
 
 voteOptions.addEventListener("change", (event) => {

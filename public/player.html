@@ -157,6 +157,51 @@
         </div>
       </section>
 
+      <section class="player-screen player-screen--survey" id="screen-survey" aria-labelledby="survey-question" hidden>
+        <div class="vote-topline">
+          <p class="eyebrow" id="survey-eyebrow">Room Check survey</p>
+          <span class="session-progress" id="survey-progress" hidden></span>
+          <div class="vote-clock" id="survey-clock" aria-live="off">
+            <span class="vote-clock-label">Survey closes in</span>
+            <span id="survey-clock-value">—</span>
+          </div>
+        </div>
+
+        <h1 class="vote-question" id="survey-question"></h1>
+        <p class="vote-subhead" id="survey-subhead">Answer each question. You can go back and change it.</p>
+
+        <fieldset class="vote-options" id="survey-options">
+          <legend class="sr-only">Choose one answer</legend>
+        </fieldset>
+
+        <div class="survey-actions">
+          <button class="text-button" id="survey-back" type="button">Back</button>
+          <span class="microcopy" id="survey-save-status" role="status" aria-live="polite"></span>
+        </div>
+
+        <div class="screen-note">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>The host sees the room’s response count</span>
+        </div>
+      </section>
+
+      <section class="player-screen player-screen--survey-done" id="screen-survey-done" aria-labelledby="survey-done-title" hidden>
+        <div class="success-seal" aria-hidden="true">
+          <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30"></circle><path d="M19 33l9 9 18-20"></path></svg>
+        </div>
+        <p class="session-progress" id="survey-done-progress" hidden></p>
+        <p class="eyebrow">Survey complete</p>
+        <h1 id="survey-done-title">You’re done.</h1>
+        <p class="lede">Your answers are in. You can change them until the survey closes.</p>
+
+        <div class="survey-review" id="survey-review" aria-label="Your answers"></div>
+
+        <div class="screen-note screen-note--big">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>Eyes on the big screen</span>
+        </div>
+      </section>
+
       <section class="player-screen player-screen--results" id="screen-results" aria-labelledby="results-title" hidden>
         <p class="eyebrow" id="results-eyebrow">The room has spoken</p>
         <h1 class="results-title" id="results-title"></h1>
@@ -196,7 +241,7 @@
         </a>
         <p class="thanks-url">github.com/mrashieee/room-check</p>
         <p class="thanks-appeal">Every star genuinely helps. Thank you.</p>
-        <p class="screen-note screen-note--quiet">Built by Muhammad Rashid K · v2.3.0</p>
+        <p class="screen-note screen-note--quiet">Built by Muhammad Rashid K · v2.4.0</p>
       </section>
 
       <section class="player-screen player-screen--error" id="screen-error" aria-labelledby="error-title" hidden>
@@ -210,7 +255,7 @@
     <footer class="player-footer">
       <span>One question. One room. One answer.</span>
       <span class="footer-mark">© 2026 Muhammad Rashid K</span>
-      <span class="footer-built">Built by Muhammad Rashid K · v2.3.0</span>
+      <span class="footer-built">Built by Muhammad Rashid K · v2.4.0</span>
     </footer>
 
     <div class="sr-only" id="live-announcer" role="status" aria-live="polite"></div>

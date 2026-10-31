@@ -2,6 +2,28 @@
 
 All notable changes to Room Check are documented here.
 
+## 2.4.0 — 2026-10-31
+
+This release turns multi-question sets into live surveys.
+
+### Added
+
+- Audience-driven question progression; voters answer each question in order automatically
+- Back navigation and a review screen for changing answers
+- Host live dashboard with each question name and respondent count
+- Overall survey timer options: Manual, 1, 2, 5, 10, 15 or 30 minutes
+- Host-controlled **Finish survey** action
+- Final response counts retained after the survey closes
+- Survey state and responses persist across server restarts
+
+### Changed
+
+- Multi-question mode no longer uses host **Next question** progression
+- Survey hosts see respondent counts only, not answer breakdowns
+- Per-question timers and tie-breakers apply only to single polls
+- Single-question polls and Live Hands keep their existing flows
+- Version updated to 2.4.0
+
 ## 2.3.0 — 2026-10-31
 
 This release makes question sets easier to prepare and import.

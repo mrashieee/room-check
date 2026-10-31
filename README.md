@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-d8ff57?style=for-the-badge&amp;labelColor=101210" /></a>
-  <img alt="Version 2.3.0" src="https://img.shields.io/badge/version-2.3.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
+  <img alt="Version 2.4.0" src="https://img.shields.io/badge/version-2.4.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Node.js 22.9 or newer" src="https://img.shields.io/badge/node-%E2%89%A522.9-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Realtime WebSocket updates" src="https://img.shields.io/badge/realtime-WebSocket-ff6e4a?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Self-hosted" src="https://img.shields.io/badge/deploy-self--hosted-72dff2?style=for-the-badge&amp;labelColor=101210" />
@@ -31,8 +31,8 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - Two modes: **Poll** and **Live Hands**
 - Large QR code and live counts for the projector
 - Mobile-first participation page
-- Results hidden until the reveal
-- Multi-question poll sessions with host-controlled progression
+- Single-poll results hidden until the reveal
+- Multi-question live surveys with audience-driven progression and live response counts
 - Import question sets from JSON files
 - Change your answer until voting closes
 - Looping waiting progress on audience screens
@@ -51,6 +51,18 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - Update page with release notes and copyable update instructions
 - Host notification when a newer GitHub release is available
 
+## What's new in 2.4
+
+Version 2.4 turns a multi-question set into a live survey.
+
+- **Audience-driven progression** — voters answer each question in order automatically; the host does not advance them
+- **Back and review** — voters can go back or use the review screen to change any answer until the survey closes
+- **Host live counts** — each question shows its name and how many people answered it
+- **Counts only** — the host dashboard deliberately does not reveal answer breakdowns
+- **Overall survey timer** — choose 1, 2, 5, 10, 15 or 30 minutes, or finish manually
+- **Host finish** — close the survey and send the audience to the thank-you screen
+- **Single poll and Live Hands stay separate** — their existing flows are unchanged
+
 ## What's new in 2.3
 
 Version 2.3 makes question sets easier to prepare and import.
@@ -63,16 +75,7 @@ Version 2.3 makes question sets easier to prepare and import.
 
 ## What's new in 2.2
 
-Version 2.2 adds multi-question poll sessions.
-
-- **Build a question set** — add up to 20 poll questions before starting
-- **Per-question settings** — each question has its own answers, timer and tie-breaker choice
-- **Host-controlled progression** — reveal each result, then open the next question
-- **Audience continuity** — phones answer every question in order without rejoining
-- **Progress indicators** — the host and audience see “Question 2 of 4”
-- **Session persistence** — the question set survives a server restart
-- **Final thank-you** — finish the last question and move the room to the closing screen
-- **Live Hands stays separate** — it remains a single-round mode
+Version 2.2 introduced the first multi-question poll support and session persistence. Version 2.4 replaced the host-advanced progression with the audience-driven live survey flow.
 
 ## What's new in 2.1
 
@@ -116,6 +119,7 @@ Existing `carnival` state migrates to Shore; `orchard` state migrates to Candy. 
 
 ## Contents
 
+- [What's new in 2.4](#whats-new-in-24)
 - [What's new in 2.3](#whats-new-in-23)
 - [What's new in 2.2](#whats-new-in-22)
 - [What's new in 2.1](#whats-new-in-21)
@@ -127,7 +131,7 @@ Existing `carnival` state migrates to Shore; `orchard` state migrates to Candy. 
 - [2. Install](#2-install)
 - [3. Start and secure the host console](#3-start-and-secure-the-host-console)
 - [4. Connect the audience](#4-connect-the-audience)
-- [5. Run a poll](#5-run-a-poll)
+- [5. Run a poll or survey](#5-run-a-poll-or-survey)
 - [Customise the room](#customise-the-room)
 - [Configuration](#configuration)
 - [Data, backups, and password resets](#data-backups-and-password-resets)
@@ -310,23 +314,36 @@ Do not run `npm start` and `npm run share` at the same time — both use port 30
 
 For a stable URL, run Room Check behind a reverse proxy with HTTPS and set `PUBLIC_URL`. See [Permanent hosting and HTTPS](#permanent-hosting-and-https).
 
-## 5. Run a poll
+## 5. Run a poll or survey
 
-1. In the host console, enter a game title and the first question with 2–10 answers.
-2. Choose that question’s voting window: 30, 60, 90, or 120 seconds, or **Manual**.
-3. Leave **If tied, spin the wheel** enabled if you want a tie to be settled by a live random wheel on the big screen. Turn it off to keep the tie as the final result.
-4. Turn on **Multiple questions** and use **Add another question** to build a run. Each question keeps its own answers, timer and tie-breaker setting. You can also use **Import JSON**.
-5. Check the audience link under the QR preview. Scan it with a phone to test the audience view.
-6. Press **Open the room** or **Start N-question session**.
-7. Project the screen and let everyone scan the QR code.
-8. Press **Done — reveal results** at any time, or let the timer reveal them automatically.
-9. For a multi-question run, press **Next question** after each result. The audience stays connected and answers the next question in order.
-10. After the final result, press **Finish session** to show the thank-you screen.
-11. For a single-question poll, choose **Play it again** to reuse it or **New question** to return to setup.
+### Single-question poll
 
-The host controls every transition. Questions are not advanced automatically. Each phone can vote once per question, and can change that vote until that question closes.
+1. Leave **Multiple questions** off.
+2. Enter a game title, a question and 2–10 answers.
+3. Choose a voting window: 30, 60, 90 or 120 seconds, or **Manual**.
+4. Leave **If tied, spin the wheel** enabled if you want a tie settled by the live wheel.
+5. Check the audience link under the QR preview.
+6. Press **Open the room**.
+7. Press **Done — reveal results** or let the timer reveal automatically.
+8. Choose **Play it again** or **New question**.
 
-If the result is tied and the wheel is enabled, the host screen shows a spinning wheel with all tied answers. The server picks the winner at random, the wheel lands on it, and the final results then show the wheel pick. Phones show a “watch the big screen” message while the wheel is spinning.
+Single-poll results stay hidden from the audience until the reveal.
+
+### Multi-question live survey
+
+1. Turn on **Multiple questions**.
+2. Add up to 20 questions, or use **Import JSON**.
+3. Give each question 2–10 answers. Each question has its own answers; the survey has one overall timer.
+4. Choose a **Survey window**: Manual, 1, 2, 5, 10, 15 or 30 minutes.
+5. Check the audience link, then press **Start N-question survey**.
+6. The audience answers the questions in order automatically. They can go **Back** or use the review screen to change answers until the survey closes.
+7. The host dashboard shows each question name and how many people answered it, updating live.
+8. Press **Finish survey** when the room is done, or let the overall timer close it.
+9. The audience moves to the thank-you screen. The host keeps the final response counts.
+
+The host does not advance questions and does not see answer breakdowns in survey mode.
+
+If a single poll is tied and the wheel is enabled, the host screen shows a spinning wheel with all tied answers. The server picks the winner at random, the wheel lands on it, and the final results then show the wheel pick. Phones show a “watch the big screen” message while the wheel is spinning.
 
 ### Import questions from JSON
 
@@ -337,15 +354,13 @@ Turn on **Multiple questions**, then choose **Import JSON** in the question set 
   "questions": [
     {
       "question": "What should we build next?",
-      "answers": ["Electric", "Warming up", "Need coffee", "Send help"],
-      "durationSec": 60,
-      "spinOnTie": true
+      "answers": ["Electric", "Warming up", "Need coffee", "Send help"]
     }
   ]
 }
 ```
 
-`question` and `answers` are required. `answers` needs 2–10 entries. `durationSec` is optional and must be `0`, `30`, `60`, `90` or `120`; `spinOnTie` is optional and defaults to `true`.
+`question` and `answers` are required. `answers` needs 2–10 entries. The survey uses the overall **Survey window**, not per-question timers.
 
 A ready-to-import example is available at [`examples/questions.json`](./examples/questions.json).
 
@@ -379,7 +394,7 @@ Host shortcuts:
 | `R` | Reveal results |
 | `F` | Toggle full screen |
 
-Each browser can cast one vote per question. Voters can change their answer until that question closes; if a change is rejected because voting has closed, their previous vote stays in place. Results are withheld from the audience until the reveal.
+Each browser can answer each question once. Voters can change answers until the survey closes. Single-poll results are withheld from the audience until the reveal; survey hosts see response counts only, not answer breakdowns.
 
 The audience sees a waiting screen before a round starts and automatically switches to the voting screen when the host opens the room.
 

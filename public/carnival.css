@@ -1,6 +1,6 @@
 /* Hallmark · checked: 2026-10-30 · genre: editorial (Carnival)
  * floor: visual test · fixed: atmosphere, eyebrows, tracked labels, soft depth, neon palette, rounded chrome
- * built: the project · redesign: restyle · v2.3.0
+ * built: the project · redesign: restyle · v2.4.0
  */
 
 @font-face {
@@ -1005,6 +1005,75 @@ html[data-button-style="minimal"] .button--secondary {
 
 .vote-meter .microcopy {
   margin-top: 10px;
+}
+
+.player-screen--survey .vote-question {
+  max-width: 18ch;
+}
+
+.survey-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.survey-actions .microcopy {
+  margin: 0;
+  text-align: right;
+}
+
+.survey-actions .text-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.survey-review {
+  display: grid;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.survey-review-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border: var(--rule-bar) solid var(--color-ink);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-2);
+}
+
+.survey-review-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.survey-review-copy strong {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.survey-review-copy span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.survey-review-row .text-button {
+  flex: 0 0 auto;
+}
+
+.player-screen--survey-done {
+  text-align: left;
+}
+
+.player-screen--survey-done .success-seal {
+  margin-inline: 0;
 }
 
 .player-screen--results {
@@ -2207,6 +2276,139 @@ kbd {
   letter-spacing: 0;
   line-height: 1.3;
   text-transform: none;
+}
+
+.survey-stage {
+  min-height: calc(100dvh - 76px);
+  padding: clamp(28px, 5vh, 56px) 0 40px;
+}
+
+.survey-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  margin-bottom: 28px;
+}
+
+#survey-stage-eyebrow {
+  display: block !important;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.3;
+  text-transform: none;
+}
+
+.survey-head h1 {
+  margin: 0;
+  font-size: 72px;
+  letter-spacing: var(--tracking-display);
+  line-height: 0.94;
+}
+
+.survey-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 13px;
+}
+
+.survey-summary strong {
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 72px;
+  letter-spacing: var(--tracking-display);
+  line-height: 0.9;
+}
+
+.survey-timer {
+  margin-top: 8px;
+  padding: 5px 7px;
+  border: var(--rule-bar) solid var(--color-ink);
+  border-radius: var(--radius-card);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.survey-question-list {
+  display: grid;
+  gap: 8px;
+}
+
+.survey-question-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: var(--rule-bar) solid var(--color-ink);
+  border-radius: var(--radius-card);
+  background: var(--color-paper);
+  box-shadow: 3px 3px 0 var(--color-shadow);
+}
+
+.survey-question-number {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.survey-question-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.survey-question-copy strong {
+  overflow: hidden;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.survey-question-copy span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.survey-question-count {
+  flex: 0 0 auto;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 30px;
+  letter-spacing: var(--tracking-display);
+  line-height: 1;
+}
+
+.survey-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: var(--rule-bar) solid var(--color-ink);
+}
+
+.survey-footer .microcopy {
+  max-width: 46ch;
+  margin: 0;
 }
 
 .results-head {

@@ -51,6 +51,7 @@ const authSetupSubmit = $("#setup-submit");
 const setupView = $("#setup-view");
 const openStage = $("#open-stage");
 const resultsStage = $("#results-stage");
+const surveyStage = $("#survey-stage");
 const endedStage = $("#ended-stage");
 const setupForm = $("#setup-form");
 const modeChoices = $("#mode-choices");
@@ -63,6 +64,10 @@ const addQuestionButton = $("#add-question");
 const removeQuestionButton = $("#remove-question");
 const questionEditorLabel = $("#question-editor-label");
 const questionEditorHead = $(".question-editor-head");
+const questionTimerField = $("#question-timer-field");
+const questionTieField = $("#question-tie-field");
+const surveyTimerField = $("#survey-timer-field");
+const surveyTimerChoices = $("#survey-timer-choices");
 const modeHint = $("#mode-hint");
 const startButtonLabel = $("#start-button-label");
 const setupSubmitNote = $("#setup-submit-note");
@@ -87,6 +92,15 @@ const stageStatLabel = $("#stage-stat-label");
 const stageDetailNote = $("#stage-detail-note");
 const stageShortcuts = $("#stage-shortcuts");
 const stageProgress = $("#stage-progress");
+const surveyStageEyebrow = $("#survey-stage-eyebrow");
+const surveyStageTitle = $("#survey-stage-title");
+const surveyTotal = $("#survey-total");
+const surveyTotalLabel = $("#survey-total-label");
+const surveyTimer = $("#survey-timer");
+const surveyQuestionList = $("#survey-question-list");
+const surveyFootnote = $("#survey-footnote");
+const surveyBackButton = $("#survey-back-button");
+const surveyFinishButton = $("#survey-finish-button");
 const handsGlyph = $("#hands-glyph");
 const revealButton = $("#reveal-button");
 const hostConnection = $("#host-connection");
@@ -159,6 +173,7 @@ function setView(view) {
   setupView.hidden = view !== "setup";
   openStage.hidden = view !== "open";
   resultsStage.hidden = view !== "results";
+  surveyStage.hidden = view !== "survey";
   endedStage.hidden = view !== "ended";
 }
 
@@ -258,6 +273,7 @@ function currentDraft() {
     version: 2,
     mode: readMode(),
     multi: multiQuestionToggle.checked,
+    surveyDurationSec: readSurveyDuration(),
     title: titleInput.value.trim(),
     questions: draftQuestions.map((question) => ({
       question: question.question,
@@ -340,7 +356,10 @@ function updateQuestionBuilder() {
     const meta = document.createElement("small");
     const timer =
       question.durationSec > 0 ? `${question.durationSec}s timer` : "manual reveal";
-    meta.textContent = `${question.options.filter(Boolean).length} answers · ${timer}`;
+    const answers = question.options.filter(Boolean).length;
+    meta.textContent = multiQuestionToggle.checked
+      ? `${answers} answers`
+      : `${answers} answers · ${timer}`;
     copy.append(title, meta);
 
     card.append(number, copy);
@@ -487,6 +506,17 @@ function readDuration() {
   return checked ? Number(checked.value) : 60;
 }
 
+function setSurveyTimerChoice(seconds) {
+  const value = String(seconds);
+  const input = $$('input[name="surveyDuration"]').find((radio) => radio.value === value);
+  if (input) input.checked = true;
+}
+
+function readSurveyDuration() {
+  const checked = $('input[name="surveyDuration"]:checked');
+  return checked ? Number(checked.value) : 0;
+}
+
 function readMode() {
   const checked = $('input[name="mode"]:checked', setupForm);
   return checked?.value === "hands" ? "hands" : "poll";
@@ -508,6 +538,9 @@ function syncModeUI() {
   });
   sessionBuilder.hidden = !multi;
   questionEditorHead.hidden = !multi;
+  questionTimerField.hidden = hands || multi;
+  questionTieField.hidden = hands || multi;
+  surveyTimerField.hidden = hands || !multi;
   modeHint.textContent = hands
     ? "The audience can raise and lower a hand from their phone. The count updates live on this screen."
     : multi
@@ -516,13 +549,13 @@ function syncModeUI() {
   const count = multi ? draftQuestions.length || 1 : 1;
   startButtonLabel.textContent = hands
     ? "Open live hands"
-    : multi && count > 1
-      ? `Start ${count}-question session`
+    : multi
+      ? `Start ${count}-question survey`
       : "Open the room";
   setupSubmitNote.textContent = hands
     ? "The raised-hand button goes live instantly. Keep this tab projected."
-    : multi && count > 1
-      ? "The room answers each question in order. Keep this tab projected."
+    : multi
+      ? "People answer each question in order. Counts update live."
       : "The QR code goes live instantly. Keep this tab projected.";
 }
 
@@ -639,6 +672,7 @@ function populateSetup(draft) {
   );
   const multi = typeof chosen?.multi === "boolean" ? chosen.multi : draftQuestions.length > 1;
   multiQuestionToggle.checked = multi;
+  setSurveyTimerChoice(Number(chosen?.surveyDurationSec) || 0);
   setMode(chosen?.mode === "hands" ? "hands" : "poll");
   loadActiveQuestion();
   applyJoinUrl(joinUrl, { silent: true });
@@ -657,6 +691,7 @@ function populateSetupFromRound(round) {
   ];
   activeQuestionIndex = 0;
   multiQuestionToggle.checked = false;
+  setSurveyTimerChoice(0);
   setMode(round.mode === "hands" ? "hands" : "poll");
   loadActiveQuestion();
   applyJoinUrl(joinUrl, { silent: true });
@@ -1164,6 +1199,62 @@ function showResults(round) {
   }
 }
 
+function updateSurveyTimer(survey) {
+  if (!survey) return;
+  if (survey.status === "closed") {
+    surveyTimer.textContent = "Closed";
+    return;
+  }
+  if (!survey.endsAt) {
+    surveyTimer.textContent = "Manual";
+    return;
+  }
+  const remaining = Math.max(0, survey.endsAt - (connection?.serverNow() ?? Date.now()));
+  surveyTimer.textContent = remaining > 0 ? `Closes in ${formatClock(remaining)}` : "Closing…";
+}
+
+function showSurvey(survey) {
+  setView("survey");
+  const closed = survey.status === "closed";
+  surveyStageEyebrow.textContent = closed ? "Survey closed" : "Live survey";
+  surveyStageTitle.textContent = survey.title || "Room Check survey";
+  const totalRespondents = survey.counts?.totalRespondents || 0;
+  surveyTotal.textContent = formatVoteCount(totalRespondents);
+  surveyTotalLabel.textContent = `${pluralize(totalRespondents, "person", "people")} answered`;
+  surveyFinishButton.hidden = closed;
+  surveyBackButton.textContent = closed ? "Back to setup" : "Start over";
+  surveyFootnote.textContent = closed
+    ? "Final response counts. The audience is on the thank-you screen."
+    : "Counts update as people answer. No answer breakdown is shown here.";
+  updateSurveyTimer(survey);
+
+  surveyQuestionList.replaceChildren();
+  survey.questions.forEach((question, index) => {
+    const count = survey.counts?.questions?.[question.id] || 0;
+    const row = document.createElement("div");
+    row.className = "survey-question-row";
+
+    const number = document.createElement("span");
+    number.className = "survey-question-number";
+    number.textContent = String(index + 1).padStart(2, "0");
+
+    const copy = document.createElement("div");
+    copy.className = "survey-question-copy";
+    const label = document.createElement("strong");
+    label.textContent = question.question;
+    const meta = document.createElement("span");
+    meta.textContent = `${formatVoteCount(count)} ${pluralize(count, "person", "people")} answered`;
+    copy.append(label, meta);
+
+    const countLabel = document.createElement("strong");
+    countLabel.className = "survey-question-count";
+    countLabel.textContent = formatVoteCount(count);
+
+    row.append(number, copy, countLabel);
+    surveyQuestionList.append(row);
+  });
+}
+
 function showEnded() {
   hideWheel();
   endSessionButton.hidden = true;
@@ -1178,6 +1269,14 @@ function applyState(state) {
   if (incomingNow && incomingNow < lastStateNow) return;
   lastStateNow = Math.max(lastStateNow, incomingNow);
   if (connection) connection.syncServerTime(state);
+
+  if (state.survey) {
+    hideWheel();
+    roundState = state;
+    endSessionButton.hidden = state.survey.status !== "open";
+    showSurvey(state.survey);
+    return;
+  }
 
   const round = state.round;
   const previousStatus = roundState?.round?.status || null;
@@ -1198,7 +1297,12 @@ function applyState(state) {
     hideWheel();
     endSessionButton.hidden = false;
 
-    if (currentView === "boot" || currentView === "ended" || hadRound) {
+    if (
+      currentView === "boot" ||
+      currentView === "ended" ||
+      currentView === "survey" ||
+      hadRound
+    ) {
       if (wasMultiSession) {
         populateSetup();
       } else if (lastRound) {
@@ -1249,6 +1353,10 @@ function applyState(state) {
 function startClock() {
   stopClock();
   clockTimer = setInterval(() => {
+    if (roundState?.survey) {
+      updateSurveyTimer(roundState.survey);
+      return;
+    }
     if (roundState?.round?.status === "open" && roundState?.round?.mode !== "hands") {
       updateTimer(roundState.round);
     }
@@ -1402,15 +1510,15 @@ async function startRound(event) {
 
   const button = $("#start-button");
   actionInFlight = true;
-  setActionBusy(button, true, mode === "poll" && prepared.length > 1 ? "Starting…" : "Opening…");
+  setActionBusy(button, true, mode === "poll" && multi ? "Starting…" : "Opening…");
 
   try {
     const title = titleInput.value.trim();
     const result =
-      mode === "poll" && prepared.length > 1
-        ? await api("/api/host/session/start", {
+      mode === "poll" && multi
+        ? await api("/api/host/survey/start", {
             method: "POST",
-            body: { title, questions: prepared },
+            body: { title, questions: prepared, durationSec: readSurveyDuration() },
           })
         : await api("/api/host/open", {
             method: "POST",
@@ -1507,6 +1615,33 @@ async function newQuestion() {
   } finally {
     actionInFlight = false;
   }
+}
+
+async function finishSurvey() {
+  if (actionInFlight || !roundState?.survey || roundState.survey.status !== "open") return;
+  if (!window.confirm("Finish the survey? The audience will see the thank-you screen.")) return;
+  actionInFlight = true;
+  setActionBusy(surveyFinishButton, true, "Finishing…");
+  try {
+    const result = await api("/api/host/end", { method: "POST", body: {} });
+    applyState(result.state);
+  } catch (error) {
+    handleActionError(error);
+  } finally {
+    actionInFlight = false;
+    setActionBusy(surveyFinishButton, false);
+  }
+}
+
+async function surveyBackToSetup() {
+  if (actionInFlight) return;
+  if (
+    roundState?.survey?.status === "open" &&
+    !window.confirm("Close this survey and discard the responses?")
+  ) {
+    return;
+  }
+  await resetToSetup();
 }
 
 async function nextSessionQuestion() {
@@ -1801,6 +1936,10 @@ $("#timer-choices").addEventListener("change", () => {
   debounceSaveDraft();
 });
 
+surveyTimerChoices.addEventListener("change", () => {
+  debounceSaveDraft();
+});
+
 modeChoices.addEventListener("change", () => {
   syncModeUI();
   debounceSaveDraft();
@@ -1860,6 +1999,8 @@ $("#cancel-round-button").addEventListener("click", askReset);
 againButton.addEventListener("click", playAgain);
 newQuestionButton.addEventListener("click", newQuestion);
 nextQuestionButton.addEventListener("click", nextSessionQuestion);
+surveyFinishButton.addEventListener("click", finishSurvey);
+surveyBackButton.addEventListener("click", surveyBackToSetup);
 fullscreenButton.addEventListener("click", toggleFullscreen);
 
 $("#lock-button").addEventListener("click", async () => {
