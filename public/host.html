@@ -468,8 +468,44 @@
             <p class="microcopy" id="survey-footnote">Counts update as people answer. No answer breakdown is shown here.</p>
             <div class="results-actions">
               <button class="button button--secondary button--large" id="survey-back-button" type="button">Back to setup</button>
+              <button class="button button--primary button--large" id="survey-results-button" type="button" hidden>View results</button>
               <button class="button button--primary button--large" id="survey-finish-button" type="button">Finish survey</button>
             </div>
+          </div>
+
+          <aside class="stage-qr-panel survey-qr-panel" id="survey-qr-panel" aria-label="Audience QR code">
+            <div class="stage-qr-top">
+              <span class="eyebrow">Join the survey</span>
+              <span class="live-chip live-chip--warm"><span class="scan-pulse" aria-hidden="true"></span> Scan me</span>
+            </div>
+            <div class="qr-frame qr-frame--stage">
+              <img id="survey-qr" alt="QR code to join the live survey" width="440" height="440" />
+              <span class="qr-corner qr-corner--tl" aria-hidden="true"></span>
+              <span class="qr-corner qr-corner--tr" aria-hidden="true"></span>
+              <span class="qr-corner qr-corner--bl" aria-hidden="true"></span>
+              <span class="qr-corner qr-corner--br" aria-hidden="true"></span>
+            </div>
+            <p class="stage-url" id="survey-url">—</p>
+            <p class="stage-qr-note">Open your camera.<br />Point. Tap. Answer.</p>
+          </aside>
+        </section>
+
+        <section class="survey-results-stage" id="survey-results-stage" aria-labelledby="survey-results-question" hidden>
+          <div class="survey-results-head">
+            <div>
+              <p class="eyebrow">Survey results</p>
+              <h1 id="survey-results-question">Question</h1>
+            </div>
+            <div class="survey-results-nav">
+              <button class="icon-button" id="survey-results-prev" type="button" aria-label="Previous question">←</button>
+              <span id="survey-results-index">1 / 1</span>
+              <button class="icon-button" id="survey-results-next" type="button" aria-label="Next question">→</button>
+            </div>
+          </div>
+          <p class="survey-results-total" id="survey-results-total"></p>
+          <div class="host-result-bars" id="survey-result-bars" aria-label="Survey answer results"></div>
+          <div class="survey-results-footer">
+            <button class="text-button text-button--muted" id="survey-results-back" type="button">Back to counts</button>
           </div>
         </section>
 
@@ -495,7 +531,7 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
             </a>
             <p class="thanks-appeal ended-appeal">Every star genuinely helps. Thank you.</p>
-            <p class="ended-version">Built by Muhammad Rashid K · v2.4.0</p>
+            <p class="ended-version">Built by Muhammad Rashid K · v2.5.0</p>
             <button class="text-button text-button--muted ended-back" id="ended-back-button" type="button">Back to setup</button>
           </div>
 

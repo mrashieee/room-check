@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-d8ff57?style=for-the-badge&amp;labelColor=101210" /></a>
-  <img alt="Version 2.4.0" src="https://img.shields.io/badge/version-2.4.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
+  <img alt="Version 2.5.0" src="https://img.shields.io/badge/version-2.5.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Node.js 22.9 or newer" src="https://img.shields.io/badge/node-%E2%89%A522.9-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Realtime WebSocket updates" src="https://img.shields.io/badge/realtime-WebSocket-ff6e4a?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Self-hosted" src="https://img.shields.io/badge/deploy-self--hosted-72dff2?style=for-the-badge&amp;labelColor=101210" />
@@ -32,7 +32,7 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - Large QR code and live counts for the projector
 - Mobile-first participation page
 - Single-poll results hidden until the reveal
-- Multi-question live surveys with audience-driven progression and live response counts
+- Multi-question live surveys with audience-driven progression, QR joining, live response counts and post-survey graphs
 - Import question sets from JSON files
 - Change your answer until voting closes
 - Looping waiting progress on audience screens
@@ -50,6 +50,16 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - Named custom palettes saved locally in `.data/palettes.json`
 - Update page with release notes and copyable update instructions
 - Host notification when a newer GitHub release is available
+
+## What's new in 2.5
+
+Version 2.5 adds the final survey presentation pieces.
+
+- **QR on the live survey screen** — late joiners can scan while the survey is open
+- **Post-survey graphs** — after **Finish survey**, the host can open results and move through one question graph at a time
+- **Answer breakdowns only after closing** — live counts stay count-only during the survey
+- **Previous and next controls** — navigate survey graphs without leaving the results view
+- **Back to counts** — return to the live/final response dashboard
 
 ## What's new in 2.4
 
@@ -119,6 +129,7 @@ Existing `carnival` state migrates to Shore; `orchard` state migrates to Candy. 
 
 ## Contents
 
+- [What's new in 2.5](#whats-new-in-25)
 - [What's new in 2.4](#whats-new-in-24)
 - [What's new in 2.3](#whats-new-in-23)
 - [What's new in 2.2](#whats-new-in-22)
@@ -336,12 +347,24 @@ Single-poll results stay hidden from the audience until the reveal.
 3. Give each question 2–10 answers. Each question has its own answers; the survey has one overall timer.
 4. Choose a **Survey window**: Manual, 1, 2, 5, 10, 15 or 30 minutes.
 5. Check the audience link, then press **Start N-question survey**.
-6. The audience answers the questions in order automatically. They can go **Back** or use the review screen to change answers until the survey closes.
-7. The host dashboard shows each question name and how many people answered it, updating live.
-8. Press **Finish survey** when the room is done, or let the overall timer close it.
-9. The audience moves to the thank-you screen. The host keeps the final response counts.
+6. The survey screen shows the QR code so late joiners can scan while it is open.
+7. The audience answers the questions in order automatically. They can go **Back** or use the review screen to change answers until the survey closes.
+8. The host dashboard shows each question name and how many people answered it, updating live.
+9. Press **Finish survey** when the room is done, or let the overall timer close it.
+10. The audience moves to the thank-you screen. The host keeps the final response counts.
+11. Press **View results** to open the answer graphs one question at a time. Use the arrows to move between questions, or **Back to counts** to return.
 
 The host does not advance questions and does not see answer breakdowns in survey mode.
+
+<p align="center">
+  <img src="./docs/survey-host.png" alt="Live survey host dashboard with QR code and per-question response counts" width="100%" />
+</p>
+
+After **Finish survey**, choose **View results** to see the answer graph for each question one at a time.
+
+<p align="center">
+  <img src="./docs/survey-results.png" alt="Survey answer graph for one question with previous and next controls" width="100%" />
+</p>
 
 If a single poll is tied and the wheel is enabled, the host screen shows a spinning wheel with all tied answers. The server picks the winner at random, the wheel lands on it, and the final results then show the wheel pick. Phones show a “watch the big screen” message while the wheel is spinning.
 

@@ -81,7 +81,10 @@ const joinUrlInput = $("#join-url-input");
 const setupUrl = $("#setup-url");
 const setupQr = $("#setup-qr");
 const stageQr = $("#stage-qr");
+const surveyQr = $("#survey-qr");
 const stageUrl = $("#stage-url");
+const surveyUrl = $("#survey-url");
+const surveyQrPanel = $("#survey-qr-panel");
 const stageTitle = $("#stage-title");
 const stageQuestion = $("#stage-question");
 const stageVoteCount = $("#stage-vote-count");
@@ -101,6 +104,15 @@ const surveyQuestionList = $("#survey-question-list");
 const surveyFootnote = $("#survey-footnote");
 const surveyBackButton = $("#survey-back-button");
 const surveyFinishButton = $("#survey-finish-button");
+const surveyResultsButton = $("#survey-results-button");
+const surveyResultsStage = $("#survey-results-stage");
+const surveyResultsQuestion = $("#survey-results-question");
+const surveyResultsIndexLabel = $("#survey-results-index");
+const surveyResultsTotal = $("#survey-results-total");
+const surveyResultBars = $("#survey-result-bars");
+const surveyResultsPrev = $("#survey-results-prev");
+const surveyResultsNext = $("#survey-results-next");
+const surveyResultsBack = $("#survey-results-back");
 const handsGlyph = $("#hands-glyph");
 const revealButton = $("#reveal-button");
 const hostConnection = $("#host-connection");
@@ -163,6 +175,7 @@ let wheelStopTimer = null;
 let wheelSpinBusy = false;
 let wheelWinnerId = null;
 let wheelIsOpen = false;
+let surveyResultsIndex = 0;
 
 function sessionProgressText(session) {
   return session && session.total > 1 ? `Question ${session.index} of ${session.total}` : "";
@@ -174,6 +187,7 @@ function setView(view) {
   openStage.hidden = view !== "open";
   resultsStage.hidden = view !== "results";
   surveyStage.hidden = view !== "survey";
+  surveyResultsStage.hidden = view !== "surveyResults";
   endedStage.hidden = view !== "ended";
 }
 
@@ -722,6 +736,10 @@ function applyJoinUrl(value, { silent = false } = {}) {
   const label = joinUrl.replace(/^https?:\/\//, "");
   setupUrl.textContent = label;
   stageUrl.textContent = label;
+  surveyUrl.textContent = label;
+  if (surveyQr.src !== new URL(qrImageUrl(joinUrl), location.href).href) {
+    surveyQr.src = qrImageUrl(joinUrl);
+  }
   if (setupQr.src !== new URL(qrImageUrl(joinUrl), location.href).href) {
     setupQr.src = qrImageUrl(joinUrl);
   }
@@ -1222,10 +1240,17 @@ function showSurvey(survey) {
   surveyTotal.textContent = formatVoteCount(totalRespondents);
   surveyTotalLabel.textContent = `${pluralize(totalRespondents, "person", "people")} answered`;
   surveyFinishButton.hidden = closed;
+  surveyResultsButton.hidden = !closed || !survey.results;
   surveyBackButton.textContent = closed ? "Back to setup" : "Start over";
   surveyFootnote.textContent = closed
     ? "Final response counts. The audience is on the thank-you screen."
     : "Counts update as people answer. No answer breakdown is shown here.";
+  surveyStage.classList.toggle("is-closed", closed);
+  surveyQrPanel.hidden = closed;
+  if (joinUrl) {
+    surveyQr.src = qrImageUrl(joinUrl);
+    surveyUrl.textContent = joinUrl.replace(/^https?:\/\//, "");
+  }
   updateSurveyTimer(survey);
 
   surveyQuestionList.replaceChildren();
@@ -1255,6 +1280,64 @@ function showSurvey(survey) {
   });
 }
 
+function showSurveyResults(index = surveyResultsIndex) {
+  const survey = roundState?.survey;
+  const results = survey?.results;
+  if (!results?.length) {
+    if (survey) showSurvey(survey);
+    return;
+  }
+  surveyResultsIndex = Math.min(Math.max(index, 0), results.length - 1);
+  const result = results[surveyResultsIndex];
+  setView("surveyResults");
+  surveyResultsQuestion.textContent = result.question;
+  surveyResultsIndexLabel.textContent = `${surveyResultsIndex + 1} / ${results.length}`;
+  const respondents = survey.counts?.totalRespondents || 0;
+  surveyResultsTotal.textContent = `${formatVoteCount(result.total)} ${pluralize(result.total, "answer")} · ${formatVoteCount(respondents)} ${pluralize(respondents, "person", "people")}`;
+  surveyResultsPrev.disabled = surveyResultsIndex === 0;
+  surveyResultsNext.disabled = surveyResultsIndex >= results.length - 1;
+
+  surveyResultBars.replaceChildren();
+  surveyResultBars.classList.toggle("is-many", result.options.length > 4);
+  const ordered = [...result.options].sort((a, b) => b.count - a.count);
+  ordered.forEach((option, optionIndex) => {
+    const row = document.createElement("div");
+    row.className = "host-result";
+    row.dataset.color = option.color || "lime";
+    row.style.setProperty("--i", String(optionIndex));
+
+    const top = document.createElement("div");
+    top.className = "host-result-top";
+    const rank = document.createElement("span");
+    rank.className = "result-rank";
+    rank.textContent = String(optionIndex + 1).padStart(2, "0");
+    const label = document.createElement("span");
+    label.className = "result-label";
+    label.textContent = option.label;
+    const percent = document.createElement("span");
+    percent.className = "result-percent";
+    percent.textContent = `${option.percent}%`;
+    const count = document.createElement("span");
+    count.className = "result-count";
+    count.textContent = `${formatVoteCount(option.count)} ${pluralize(option.count, "vote")}`;
+    top.append(rank, label, percent, count);
+
+    const track = document.createElement("div");
+    track.className = "host-result-track";
+    const fill = document.createElement("span");
+    fill.className = "host-result-fill";
+    track.append(fill);
+    row.append(top, track);
+    surveyResultBars.append(row);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        row.style.setProperty("--bar-width", `${option.percent}%`);
+      });
+    });
+  });
+}
+
 function showEnded() {
   hideWheel();
   endSessionButton.hidden = true;
@@ -1274,7 +1357,15 @@ function applyState(state) {
     hideWheel();
     roundState = state;
     endSessionButton.hidden = state.survey.status !== "open";
-    showSurvey(state.survey);
+    if (
+      currentView === "surveyResults" &&
+      state.survey.status === "closed" &&
+      state.survey.results
+    ) {
+      showSurveyResults(surveyResultsIndex);
+    } else {
+      showSurvey(state.survey);
+    }
     return;
   }
 
@@ -1301,6 +1392,7 @@ function applyState(state) {
       currentView === "boot" ||
       currentView === "ended" ||
       currentView === "survey" ||
+      currentView === "surveyResults" ||
       hadRound
     ) {
       if (wasMultiSession) {
@@ -2001,6 +2093,20 @@ newQuestionButton.addEventListener("click", newQuestion);
 nextQuestionButton.addEventListener("click", nextSessionQuestion);
 surveyFinishButton.addEventListener("click", finishSurvey);
 surveyBackButton.addEventListener("click", surveyBackToSetup);
+surveyResultsButton.addEventListener("click", () => {
+  surveyResultsIndex = 0;
+  showSurveyResults(0);
+});
+surveyResultsPrev.addEventListener("click", () => {
+  if (surveyResultsIndex > 0) showSurveyResults(surveyResultsIndex - 1);
+});
+surveyResultsNext.addEventListener("click", () => {
+  const total = roundState?.survey?.results?.length || 0;
+  if (surveyResultsIndex < total - 1) showSurveyResults(surveyResultsIndex + 1);
+});
+surveyResultsBack.addEventListener("click", () => {
+  if (roundState?.survey) showSurvey(roundState.survey);
+});
 fullscreenButton.addEventListener("click", toggleFullscreen);
 
 $("#lock-button").addEventListener("click", async () => {
