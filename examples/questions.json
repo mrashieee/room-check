@@ -1,0 +1,16 @@
+{
+  "questions": [
+    {
+      "question": "What should we build next?",
+      "answers": ["Electric", "Warming up", "Need coffee", "Send help"],
+      "durationSec": 60,
+      "spinOnTie": true
+    },
+    {
+      "question": "What should we ship first?",
+      "answers": ["The map", "The radio", "The lights"],
+      "durationSec": 60,
+      "spinOnTie": false
+    }
+  ]
+}

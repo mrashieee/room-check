@@ -55,11 +55,14 @@ const endedStage = $("#ended-stage");
 const setupForm = $("#setup-form");
 const modeChoices = $("#mode-choices");
 const sessionBuilder = $("#session-builder");
+const multiQuestionToggle = $("#multi-question-toggle");
+const importQuestionsInput = $("#import-questions-input");
 const sessionCount = $("#session-count");
 const questionList = $("#question-list");
 const addQuestionButton = $("#add-question");
 const removeQuestionButton = $("#remove-question");
 const questionEditorLabel = $("#question-editor-label");
+const questionEditorHead = $(".question-editor-head");
 const modeHint = $("#mode-hint");
 const startButtonLabel = $("#start-button-label");
 const setupSubmitNote = $("#setup-submit-note");
@@ -254,6 +257,7 @@ function currentDraft() {
   return {
     version: 2,
     mode: readMode(),
+    multi: multiQuestionToggle.checked,
     title: titleInput.value.trim(),
     questions: draftQuestions.map((question) => ({
       question: question.question,
@@ -373,6 +377,101 @@ function removeActiveQuestion() {
   saveDraft();
 }
 
+const IMPORT_DURATIONS = new Set([0, 30, 60, 90, 120]);
+
+function importedAnswerLabels(item) {
+  const raw = item?.answers ?? item?.options ?? item?.answer;
+  if (typeof raw === "string") return [raw];
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((answer) => (typeof answer === "string" ? answer : answer?.label))
+    .filter((answer) => typeof answer === "string")
+    .map((answer) => answer.trim())
+    .filter(Boolean);
+}
+
+function parseImportedQuestions(payload) {
+  const list = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.questions)
+      ? payload.questions
+      : payload && typeof payload === "object"
+        ? [payload]
+        : null;
+
+  if (!list || list.length === 0) {
+    throw new Error('Use a JSON array or an object with a "questions" array.');
+  }
+  if (list.length > MAX_QUESTIONS) {
+    throw new Error(`Keep the import to ${MAX_QUESTIONS} questions or fewer.`);
+  }
+
+  return list.map((item, index) => {
+    const label = `Question ${index + 1}`;
+    const question = typeof item?.question === "string" ? item.question.trim() : "";
+    if (!question) throw new Error(`${label}: add a "question" attribute.`);
+    if (question.length > 160) throw new Error(`${label}: keep the question under 160 characters.`);
+
+    const answers = importedAnswerLabels(item);
+    if (answers.length < 2) throw new Error(`${label}: add at least two answers.`);
+    if (answers.length > MAX_OPTIONS) throw new Error(`${label}: keep it to ten answers or fewer.`);
+    if (answers.some((answer) => answer.length > 52)) {
+      throw new Error(`${label}: keep each answer under 52 characters.`);
+    }
+    const unique = new Set(answers.map((answer) => answer.toLocaleLowerCase()));
+    if (unique.size !== answers.length) {
+      throw new Error(`${label}: each answer needs to be different.`);
+    }
+
+    const rawDuration = item?.durationSec ?? item?.duration ?? item?.timer ?? 60;
+    const durationSec = Number(rawDuration);
+    if (!IMPORT_DURATIONS.has(durationSec)) {
+      throw new Error(`${label}: use a duration of 0, 30, 60, 90 or 120 seconds.`);
+    }
+
+    return {
+      question,
+      options: answers,
+      durationSec,
+      spinOnTie: item?.spinOnTie !== false && item?.tieBreaker !== false,
+    };
+  });
+}
+
+async function importQuestionsFile(file) {
+  if (!file) return;
+  if (file.size > 256 * 1024) {
+    showToast(toast, "Keep the JSON file under 256 KB.", 4200);
+    return;
+  }
+
+  try {
+    const payload = JSON.parse(await file.text());
+    const imported = parseImportedQuestions(payload);
+    if (
+      draftQuestions.length > 1 &&
+      !window.confirm("Replace the current question set with the imported questions?")
+    ) {
+      return;
+    }
+    setMode("poll");
+    draftQuestions = imported;
+    activeQuestionIndex = 0;
+    multiQuestionToggle.checked = imported.length > 1;
+    loadActiveQuestion();
+    saveDraft();
+    showToast(
+      toast,
+      `Imported ${imported.length} ${pluralize(imported.length, "question")}.`,
+      3200,
+    );
+  } catch (error) {
+    showToast(toast, error?.message || "Could not read that JSON file.", 5200);
+  } finally {
+    importQuestionsInput.value = "";
+  }
+}
+
 function updateQuestionCount() {
   questionCount.textContent = `${questionInput.value.length} / 160`;
 }
@@ -402,22 +501,27 @@ function setMode(mode) {
 function syncModeUI() {
   const mode = readMode();
   const hands = mode === "hands";
+  const multi = !hands && multiQuestionToggle.checked;
   setupForm.dataset.mode = mode;
   $$(".poll-only", setupForm).forEach((element) => {
     element.hidden = hands;
   });
+  sessionBuilder.hidden = !multi;
+  questionEditorHead.hidden = !multi;
   modeHint.textContent = hands
     ? "The audience can raise and lower a hand from their phone. The count updates live on this screen."
-    : "Build a run of poll questions. The host reveals each result and moves the room on.";
-  const count = draftQuestions.length || 1;
+    : multi
+      ? "Build a run of poll questions. The host reveals each result and moves the room on."
+      : "Ask one question, collect votes, then reveal the results.";
+  const count = multi ? draftQuestions.length || 1 : 1;
   startButtonLabel.textContent = hands
     ? "Open live hands"
-    : count > 1
+    : multi && count > 1
       ? `Start ${count}-question session`
       : "Open the room";
   setupSubmitNote.textContent = hands
     ? "The raised-hand button goes live instantly. Keep this tab projected."
-    : count > 1
+    : multi && count > 1
       ? "The room answers each question in order. Keep this tab projected."
       : "The QR code goes live instantly. Keep this tab projected.";
 }
@@ -533,6 +637,8 @@ function populateSetup(draft) {
     Math.max(Number(chosen?.activeIndex) || 0, 0),
     draftQuestions.length - 1,
   );
+  const multi = typeof chosen?.multi === "boolean" ? chosen.multi : draftQuestions.length > 1;
+  multiQuestionToggle.checked = multi;
   setMode(chosen?.mode === "hands" ? "hands" : "poll");
   loadActiveQuestion();
   applyJoinUrl(joinUrl, { silent: true });
@@ -550,6 +656,7 @@ function populateSetupFromRound(round) {
     }),
   ];
   activeQuestionIndex = 0;
+  multiQuestionToggle.checked = false;
   setMode(round.mode === "hands" ? "hands" : "poll");
   loadActiveQuestion();
   applyJoinUrl(joinUrl, { silent: true });
@@ -1266,10 +1373,14 @@ async function startRound(event) {
 
   captureActiveQuestion();
   const mode = readMode();
+  const multi = mode === "poll" && multiQuestionToggle.checked;
   const prepared = [];
 
   if (mode === "poll") {
-    for (let index = 0; index < draftQuestions.length; index += 1) {
+    const indexes = multi
+      ? draftQuestions.map((_, index) => index)
+      : [activeQuestionIndex];
+    for (const index of indexes) {
       const question = prepareQuestionForStart(index);
       if (!question) return;
       prepared.push(question);
@@ -1693,6 +1804,22 @@ $("#timer-choices").addEventListener("change", () => {
 modeChoices.addEventListener("change", () => {
   syncModeUI();
   debounceSaveDraft();
+});
+
+multiQuestionToggle.addEventListener("change", () => {
+  if (!multiQuestionToggle.checked) {
+    captureActiveQuestion();
+    if (activeQuestionIndex !== 0) {
+      activeQuestionIndex = 0;
+      loadActiveQuestion();
+    }
+  }
+  updateQuestionBuilder();
+  saveDraft();
+});
+
+importQuestionsInput.addEventListener("change", () => {
+  importQuestionsFile(importQuestionsInput.files?.[0]);
 });
 
 addOptionButton.addEventListener("click", () => {
