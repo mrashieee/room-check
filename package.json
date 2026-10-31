@@ -1,6 +1,6 @@
 {
   "name": "room-check",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "description": "A self-hosted live QR audience poll with a big-screen reveal.",
   "private": true,
   "type": "module",

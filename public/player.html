@@ -177,6 +177,10 @@
         <div class="survey-actions">
           <button class="text-button" id="survey-back" type="button">Back</button>
           <span class="microcopy" id="survey-save-status" role="status" aria-live="polite"></span>
+          <button class="button button--primary" id="survey-next" type="button" disabled>
+            <span>Next question</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
         </div>
 
         <div class="screen-note">
@@ -200,6 +204,14 @@
           <span class="status-dot" aria-hidden="true"></span>
           <span>Eyes on the big screen</span>
         </div>
+      </section>
+
+      <section class="player-screen player-screen--survey-results" id="screen-survey-results" aria-labelledby="survey-results-title" hidden>
+        <p class="eyebrow">Survey results</p>
+        <h1 id="survey-results-title">The room has spoken.</h1>
+        <p class="lede">Here’s how the room answered every question.</p>
+        <div class="survey-results-list" id="survey-results-list"></div>
+        <p class="screen-note screen-note--quiet">Thanks for taking part.</p>
       </section>
 
       <section class="player-screen player-screen--results" id="screen-results" aria-labelledby="results-title" hidden>
@@ -241,7 +253,7 @@
         </a>
         <p class="thanks-url">github.com/mrashieee/room-check</p>
         <p class="thanks-appeal">Every star genuinely helps. Thank you.</p>
-        <p class="screen-note screen-note--quiet">Built by Muhammad Rashid K · v2.5.0</p>
+        <p class="screen-note screen-note--quiet">Built by Muhammad Rashid K · v2.5.1</p>
       </section>
 
       <section class="player-screen player-screen--error" id="screen-error" aria-labelledby="error-title" hidden>
@@ -255,7 +267,7 @@
     <footer class="player-footer">
       <span>One question. One room. One answer.</span>
       <span class="footer-mark">© 2026 Muhammad Rashid K</span>
-      <span class="footer-built">Built by Muhammad Rashid K · v2.5.0</span>
+      <span class="footer-built">Built by Muhammad Rashid K · v2.5.1</span>
     </footer>
 
     <div class="sr-only" id="live-announcer" role="status" aria-live="polite"></div>

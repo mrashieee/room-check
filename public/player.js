@@ -28,6 +28,7 @@ const screens = {
   voted: $("#screen-voted"),
   survey: $("#screen-survey"),
   surveyDone: $("#screen-survey-done"),
+  surveyResults: $("#screen-survey-results"),
   results: $("#screen-results"),
   thanks: $("#screen-thanks"),
   error: $("#screen-error"),
@@ -52,9 +53,12 @@ const surveyClockValue = $("#survey-clock-value");
 const surveyQuestion = $("#survey-question");
 const surveyOptions = $("#survey-options");
 const surveyBack = $("#survey-back");
+const surveyNext = $("#survey-next");
 const surveySaveStatus = $("#survey-save-status");
 const surveyDoneProgress = $("#survey-done-progress");
 const surveyReview = $("#survey-review");
+const surveyResultsTitle = $("#survey-results-title");
+const surveyResultsList = $("#survey-results-list");
 const votedOption = $("#voted-option");
 const votedCount = $("#voted-count");
 const votedCountLabel = $("#voted-count-label");
@@ -317,6 +321,23 @@ function buildSurveyOptions(question) {
   });
 }
 
+function updateSurveyNextState() {
+  const survey = currentState?.survey;
+  const question = survey?.questions?.[surveyIndex];
+  if (!survey || !question) return;
+  const hasAnswer = Boolean(surveyAnswers[question.id]);
+  surveyNext.disabled = !hasAnswer || surveyBusy;
+  const last = surveyIndex >= survey.questions.length - 1;
+  const label = surveyNext.querySelector("span");
+  if (label) {
+    label.textContent = surveyReturnToReview
+      ? "Save answer"
+      : last
+        ? "Finish"
+        : "Next question";
+  }
+}
+
 function renderSurveyQuestion(statusMessage = "") {
   const survey = currentState?.survey;
   if (!survey || surveyIndex >= survey.questions.length) {
@@ -329,8 +350,9 @@ function renderSurveyQuestion(statusMessage = "") {
   surveyProgress.hidden = false;
   surveyProgress.textContent = `Question ${surveyIndex + 1} of ${survey.questions.length}`;
   surveyBack.disabled = surveyIndex === 0 || surveyBusy;
-  surveySaveStatus.textContent = statusMessage || "Your answer saves as you go.";
+  surveySaveStatus.textContent = statusMessage || "Choose one answer, then continue.";
   buildSurveyOptions(question);
+  updateSurveyNextState();
   const changed = showScreen("survey");
   if (changed) {
     announce(
@@ -389,6 +411,7 @@ async function saveSurveyAnswer(questionId, optionId) {
   if (!survey || survey.status !== "open" || surveyBusy) return;
   surveyBusy = true;
   surveyBack.disabled = true;
+  surveyNext.disabled = true;
   surveySaveStatus.textContent = "Saving…";
   surveyOptions.querySelectorAll("input").forEach((input) => {
     input.disabled = true;
@@ -419,6 +442,70 @@ async function saveSurveyAnswer(questionId, optionId) {
         : error?.message || "Could not save that answer.";
     if (currentState?.survey?.status === "open") renderSurveyQuestion(message);
   }
+}
+
+function renderSurveyResults() {
+  const survey = currentState?.survey;
+  const results = survey?.results;
+  if (!survey || !results?.length) {
+    renderThanks();
+    return;
+  }
+
+  surveyResultsTitle.textContent = survey.title || "The room has spoken.";
+  surveyResultsList.replaceChildren();
+  results.forEach((result, questionIndex) => {
+    const card = document.createElement("article");
+    card.className = "survey-result-card";
+
+    const heading = document.createElement("h2");
+    heading.textContent = `${questionIndex + 1}. ${result.question}`;
+    const total = document.createElement("p");
+    total.className = "survey-result-total";
+    total.textContent = `${formatVoteCount(result.total)} ${pluralize(result.total, "answer")}`;
+    const bars = document.createElement("div");
+    bars.className = "result-bars";
+    bars.setAttribute("aria-label", `Results for ${result.question}`);
+
+    const ordered = [...result.options].sort((a, b) => b.count - a.count);
+    ordered.forEach((option) => {
+      const bar = document.createElement("div");
+      bar.className = "result-bar";
+      bar.dataset.color = option.color || "lime";
+
+      const top = document.createElement("div");
+      top.className = "result-bar-top";
+      const dot = document.createElement("span");
+      dot.className = "result-bar-dot";
+      dot.setAttribute("aria-hidden", "true");
+      const label = document.createElement("span");
+      label.className = "result-bar-label";
+      label.textContent = option.label;
+      const percent = document.createElement("span");
+      percent.className = "result-bar-percent";
+      percent.textContent = `${option.percent}%`;
+      const track = document.createElement("div");
+      track.className = "result-bar-track";
+      const fill = document.createElement("span");
+      track.append(fill);
+      top.append(dot, label, percent);
+      bar.append(top, track);
+      bars.append(bar);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          bar.style.setProperty("--bar-width", `${option.percent}%`);
+        });
+      });
+    });
+
+    card.append(heading, total, bars);
+    surveyResultsList.append(card);
+  });
+
+  const changed = showScreen("surveyResults");
+  if (changed) announce("Survey results are ready.");
+  updateClock();
 }
 
 function resultKey(round) {
@@ -646,7 +733,11 @@ function renderScreen() {
   const survey = currentState?.survey;
   if (survey) {
     if (survey.status !== "open" || currentState.closed) {
-      renderThanks();
+      if (survey.results?.length) {
+        renderSurveyResults();
+      } else {
+        renderThanks();
+      }
     } else if (surveyIndex >= survey.questions.length) {
       renderSurveyDone();
     } else {
@@ -847,7 +938,13 @@ surveyOptions.addEventListener("change", (event) => {
   const survey = currentState?.survey;
   const question = survey?.questions?.[surveyIndex];
   if (!input || !question || surveyBusy) return;
-  saveSurveyAnswer(question.id, input.value);
+  surveyAnswers[question.id] = input.value;
+  surveyOptions.querySelectorAll(".vote-option").forEach((option) => {
+    const optionInput = option.querySelector("input");
+    option.classList.toggle("is-selected", optionInput?.checked || false);
+  });
+  surveySaveStatus.textContent = "Ready when you are.";
+  updateSurveyNextState();
 });
 
 surveyBack.addEventListener("click", () => {
@@ -855,6 +952,13 @@ surveyBack.addEventListener("click", () => {
   surveyIndex -= 1;
   surveyReturnToReview = false;
   renderSurveyQuestion();
+});
+
+surveyNext.addEventListener("click", () => {
+  const survey = currentState?.survey;
+  const question = survey?.questions?.[surveyIndex];
+  if (!survey || !question || !surveyAnswers[question.id] || surveyBusy) return;
+  saveSurveyAnswer(question.id, surveyAnswers[question.id]);
 });
 
 voteOptions.addEventListener("change", (event) => {

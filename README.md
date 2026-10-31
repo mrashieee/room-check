@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-d8ff57?style=for-the-badge&amp;labelColor=101210" /></a>
-  <img alt="Version 2.5.0" src="https://img.shields.io/badge/version-2.5.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
+  <img alt="Version 2.5.1" src="https://img.shields.io/badge/version-2.5.1-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Node.js 22.9 or newer" src="https://img.shields.io/badge/node-%E2%89%A522.9-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Realtime WebSocket updates" src="https://img.shields.io/badge/realtime-WebSocket-ff6e4a?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Self-hosted" src="https://img.shields.io/badge/deploy-self--hosted-72dff2?style=for-the-badge&amp;labelColor=101210" />
@@ -50,6 +50,14 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - Named custom palettes saved locally in `.data/palettes.json`
 - Update page with release notes and copyable update instructions
 - Host notification when a newer GitHub release is available
+
+## What's new in 2.5.1
+
+Version 2.5.1 is a bug-fix release for the live survey flow.
+
+- Voters choose **Next question** instead of being advanced automatically
+- After the survey closes, the audience sees the results instead of the thank-you screen
+- Survey results are shown to the audience as question cards with answer bars
 
 ## What's new in 2.5
 
@@ -129,6 +137,7 @@ Existing `carnival` state migrates to Shore; `orchard` state migrates to Candy. 
 
 ## Contents
 
+- [What's new in 2.5.1](#whats-new-in-251)
 - [What's new in 2.5](#whats-new-in-25)
 - [What's new in 2.4](#whats-new-in-24)
 - [What's new in 2.3](#whats-new-in-23)
@@ -348,11 +357,11 @@ Single-poll results stay hidden from the audience until the reveal.
 4. Choose a **Survey window**: Manual, 1, 2, 5, 10, 15 or 30 minutes.
 5. Check the audience link, then press **Start N-question survey**.
 6. The survey screen shows the QR code so late joiners can scan while it is open.
-7. The audience answers the questions in order automatically. They can go **Back** or use the review screen to change answers until the survey closes.
+7. The audience chooses an answer, then presses **Next question** to continue. They can go **Back** or use the review screen to change answers until the survey closes.
 8. The host dashboard shows each question name and how many people answered it, updating live.
 9. Press **Finish survey** when the room is done, or let the overall timer close it.
-10. The audience moves to the thank-you screen. The host keeps the final response counts.
-11. Press **View results** to open the answer graphs one question at a time. Use the arrows to move between questions, or **Back to counts** to return.
+10. The audience sees the survey results themselves. The host keeps the final response counts.
+11. Press **View results** on the host dashboard to open the answer graphs one question at a time. Use the arrows to move between questions, or **Back to counts** to return.
 
 The host does not advance questions and does not see answer breakdowns in survey mode.
 
@@ -404,11 +413,11 @@ Live Hands has no answer choices, timer, results reveal, or tie-breaker. It is i
 
 Use **End session** in the host header to close the event.
 
-- The audience sees a **Thanks for joining** screen with a button to star Room Check on GitHub.
-- The host screen shows the same thank-you message and a QR code for the GitHub repository.
+- For single polls and Live Hands, the audience sees a **Thanks for joining** screen with a button to star Room Check on GitHub.
+- For surveys, the audience sees the survey results. The host keeps the response counts and graph view.
 - **Back to setup** clears the closed session and returns to the host setup.
 
-The session ends even if the browser host page stays open. The thank-you state is stored on the server, so reloading either side keeps showing it until the host returns to setup or starts a new round.
+The session ends even if the browser host page stays open. The closed state is stored on the server, so reloading either side keeps showing the result until the host returns to setup or starts a new round.
 
 Host shortcuts:
 
