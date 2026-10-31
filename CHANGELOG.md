@@ -2,6 +2,26 @@
 
 All notable changes to Room Check are documented here.
 
+## 2.5.0 — 2026-10-31
+
+This release adds QR joining and post-survey graphs.
+
+### Added
+
+- QR code and audience URL on the live survey host screen
+- Late joiners can scan the survey QR while it is open
+- **View results** action after the host finishes a survey
+- Answer graphs shown one question at a time
+- Previous and next controls for survey graphs
+- Back to counts action from the graph view
+- Answer breakdowns are exposed to the host only after the survey closes
+
+### Changed
+
+- Live survey remains count-only until the host finishes
+- The QR panel hides once the survey closes
+- Version updated to 2.5.0
+
 ## 2.4.0 — 2026-10-31
 
 This release turns multi-question sets into live surveys.

@@ -413,6 +413,35 @@ function surveyCounts(survey) {
   return { totalRespondents, questions };
 }
 
+function surveyResults(survey) {
+  return survey.questions.map((question) => {
+    const counts = new Map(question.options.map((option) => [option.id, 0]));
+    let total = 0;
+    for (const response of Object.values(survey.responses || {})) {
+      const optionId = response?.answers?.[question.id];
+      if (counts.has(optionId)) {
+        counts.set(optionId, counts.get(optionId) + 1);
+        total += 1;
+      }
+    }
+    return {
+      questionId: question.id,
+      question: question.question,
+      total,
+      options: question.options.map((option) => {
+        const count = counts.get(option.id) || 0;
+        return {
+          optionId: option.id,
+          label: option.label,
+          color: option.color,
+          count,
+          percent: total > 0 ? Math.round((count / total) * 100) : 0,
+        };
+      }),
+    };
+  });
+}
+
 function publicSurvey(survey, { includeCounts = false } = {}) {
   return {
     id: survey.id,
@@ -427,7 +456,12 @@ function publicSurvey(survey, { includeCounts = false } = {}) {
       question: question.question,
       options: question.options.map(({ id, label, color }) => ({ id, label, color })),
     })),
-    ...(includeCounts ? { counts: surveyCounts(survey) } : {}),
+    ...(includeCounts
+      ? {
+          counts: surveyCounts(survey),
+          ...(survey.status === "closed" ? { results: surveyResults(survey) } : {}),
+        }
+      : {}),
   };
 }
 

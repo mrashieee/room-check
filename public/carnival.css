@@ -1,6 +1,6 @@
 /* Hallmark · checked: 2026-10-30 · genre: editorial (Carnival)
  * floor: visual test · fixed: atmosphere, eyebrows, tracked labels, soft depth, neon palette, rounded chrome
- * built: the project · redesign: restyle · v2.4.0
+ * built: the project · redesign: restyle · v2.5.0
  */
 
 @font-face {
@@ -2279,11 +2279,39 @@ kbd {
 }
 
 .survey-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 390px);
+  grid-template-areas:
+    "head qr"
+    "list qr"
+    "footer qr";
+  gap: 24px clamp(36px, 6vw, 90px);
+  align-items: start;
   min-height: calc(100dvh - 76px);
   padding: clamp(28px, 5vh, 56px) 0 40px;
 }
 
+.survey-stage.is-closed {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "head"
+    "list"
+    "footer";
+}
+
+.survey-stage.is-closed .survey-qr-panel {
+  display: none;
+}
+
+.survey-qr-panel {
+  grid-area: qr;
+  align-self: start;
+  position: sticky;
+  top: 92px;
+}
+
 .survey-head {
+  grid-area: head;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -2343,6 +2371,7 @@ kbd {
 
 .survey-question-list {
   display: grid;
+  grid-area: list;
   gap: 8px;
 }
 
@@ -2396,7 +2425,62 @@ kbd {
   line-height: 1;
 }
 
+.survey-results-stage {
+  min-height: calc(100dvh - 76px);
+  padding: clamp(28px, 5vh, 56px) 0 40px;
+}
+
+#survey-results-stage .eyebrow {
+  display: block !important;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.3;
+  text-transform: none;
+}
+
+.survey-results-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  margin-bottom: 12px;
+}
+
+.survey-results-head h1 {
+  margin: 0;
+  font-size: 64px;
+  letter-spacing: var(--tracking-display);
+  line-height: 0.94;
+}
+
+.survey-results-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.survey-results-total {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.survey-results-footer {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: var(--rule-bar) solid var(--color-ink);
+}
+
 .survey-footer {
+  grid-area: footer;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2879,6 +2963,30 @@ kbd {
 
   .timer-dial {
     justify-self: start;
+  }
+
+  .survey-stage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "head"
+      "list"
+      "footer"
+      "qr";
+  }
+
+  .survey-qr-panel {
+    position: static;
+    width: min(100%, 420px);
+  }
+
+  .survey-results-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .survey-results-head h1 {
+    font-size: 46px;
   }
 
   .results-head {
