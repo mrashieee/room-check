@@ -2,6 +2,25 @@
 
 All notable changes to Room Check are documented here.
 
+## 2.3.0 — 2026-10-31
+
+This release makes question sets easier to prepare and import.
+
+### Added
+
+- Multiple-questions toggle; single-question mode remains the default
+- JSON import for question sets using `question` and `answers` attributes
+- Support for a top-level array, a `questions` array, or a single question object
+- Import validation for question text, answer count, duplicate answers, timer values and file size
+- Ready-to-import example at `examples/questions.json`
+- Import replaces the current set after confirmation when more than one question is present
+
+### Changed
+
+- The question-set builder is hidden when multiple questions are turned off
+- Start button and helper copy adapt to single or multi-question mode
+- Version updated to 2.3.0
+
 ## 2.2.0 — 2026-10-31
 
 This release adds multi-question poll sessions.

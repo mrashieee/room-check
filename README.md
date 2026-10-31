@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-d8ff57?style=for-the-badge&amp;labelColor=101210" /></a>
-  <img alt="Version 2.2.0" src="https://img.shields.io/badge/version-2.2.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
+  <img alt="Version 2.3.0" src="https://img.shields.io/badge/version-2.3.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Node.js 22.9 or newer" src="https://img.shields.io/badge/node-%E2%89%A522.9-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Realtime WebSocket updates" src="https://img.shields.io/badge/realtime-WebSocket-ff6e4a?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Self-hosted" src="https://img.shields.io/badge/deploy-self--hosted-72dff2?style=for-the-badge&amp;labelColor=101210" />
@@ -33,6 +33,7 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - Mobile-first participation page
 - Results hidden until the reveal
 - Multi-question poll sessions with host-controlled progression
+- Import question sets from JSON files
 - Change your answer until voting closes
 - Looping waiting progress on audience screens
 - Live raised-hand toggle with a presenter-side count
@@ -49,6 +50,16 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - Named custom palettes saved locally in `.data/palettes.json`
 - Update page with release notes and copyable update instructions
 - Host notification when a newer GitHub release is available
+
+## What's new in 2.3
+
+Version 2.3 makes question sets easier to prepare and import.
+
+- **Multiple questions toggle** — turn the question set on only when you need it
+- **JSON import** — load questions with `question` and `answers` attributes from a file
+- **Example file** — start from `examples/questions.json`
+- **Validation** — bad questions, answers, timers or duplicate answers are rejected with a clear message
+- **Single-question default** — turn the toggle off for the original one-question flow
 
 ## What's new in 2.2
 
@@ -105,6 +116,7 @@ Existing `carnival` state migrates to Shore; `orchard` state migrates to Candy. 
 
 ## Contents
 
+- [What's new in 2.3](#whats-new-in-23)
 - [What's new in 2.2](#whats-new-in-22)
 - [What's new in 2.1](#whats-new-in-21)
 - [What's new in 2.0](#whats-new-in-20)
@@ -303,7 +315,7 @@ For a stable URL, run Room Check behind a reverse proxy with HTTPS and set `PUBL
 1. In the host console, enter a game title and the first question with 2–10 answers.
 2. Choose that question’s voting window: 30, 60, 90, or 120 seconds, or **Manual**.
 3. Leave **If tied, spin the wheel** enabled if you want a tie to be settled by a live random wheel on the big screen. Turn it off to keep the tie as the final result.
-4. Use **Add another question** to build a multi-question run. Each question keeps its own answers, timer and tie-breaker setting.
+4. Turn on **Multiple questions** and use **Add another question** to build a run. Each question keeps its own answers, timer and tie-breaker setting. You can also use **Import JSON**.
 5. Check the audience link under the QR preview. Scan it with a phone to test the audience view.
 6. Press **Open the room** or **Start N-question session**.
 7. Project the screen and let everyone scan the QR code.
@@ -315,6 +327,27 @@ For a stable URL, run Room Check behind a reverse proxy with HTTPS and set `PUBL
 The host controls every transition. Questions are not advanced automatically. Each phone can vote once per question, and can change that vote until that question closes.
 
 If the result is tied and the wheel is enabled, the host screen shows a spinning wheel with all tied answers. The server picks the winner at random, the wheel lands on it, and the final results then show the wheel pick. Phones show a “watch the big screen” message while the wheel is spinning.
+
+### Import questions from JSON
+
+Turn on **Multiple questions**, then choose **Import JSON** in the question set panel. The file can contain an array or a `questions` array:
+
+```json
+{
+  "questions": [
+    {
+      "question": "What should we build next?",
+      "answers": ["Electric", "Warming up", "Need coffee", "Send help"],
+      "durationSec": 60,
+      "spinOnTie": true
+    }
+  ]
+}
+```
+
+`question` and `answers` are required. `answers` needs 2–10 entries. `durationSec` is optional and must be `0`, `30`, `60`, `90` or `120`; `spinOnTie` is optional and defaults to `true`.
+
+A ready-to-import example is available at [`examples/questions.json`](./examples/questions.json).
 
 ### Live Hands mode
 

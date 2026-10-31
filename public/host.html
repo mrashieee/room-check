@@ -209,6 +209,19 @@
                 <p class="field-hint" id="mode-hint">Ask a question, collect votes, then reveal the results.</p>
               </fieldset>
 
+              <div class="field poll-only">
+                <label class="setting-toggle multi-question-toggle">
+                  <span class="setting-toggle-copy">
+                    <span class="setting-toggle-title">Multiple questions</span>
+                    <span class="setting-toggle-note">Build a sequence and reveal one question at a time.</span>
+                  </span>
+                  <span class="toggle-switch">
+                    <input type="checkbox" id="multi-question-toggle" />
+                    <span class="toggle-track" aria-hidden="true"><span></span></span>
+                  </span>
+                </label>
+              </div>
+
               <div class="field">
                 <label class="field-label" for="game-title">Game title</label>
                 <input class="text-input" id="game-title" name="title" type="text" maxlength="52" value="Room Check" autocomplete="off" />
@@ -220,12 +233,19 @@
                     <p class="eyebrow">Question set</p>
                     <h2>Build the run.</h2>
                   </div>
-                  <span class="session-count" id="session-count">1 question</span>
+                  <div class="session-builder-actions">
+                    <span class="session-count" id="session-count">1 question</span>
+                    <label class="button button--secondary import-questions">
+                      <span>Import JSON</span>
+                      <input id="import-questions-input" type="file" accept=".json,application/json" hidden />
+                    </label>
+                  </div>
                 </div>
                 <div class="question-list" id="question-list" aria-label="Questions in this session"></div>
                 <button class="add-question-button" id="add-question" type="button">
                   <span aria-hidden="true">+</span> Add another question
                 </button>
+                <p class="field-hint session-import-hint">JSON: <code>question</code> and <code>answers</code> attributes. Max 20 questions.</p>
               </div>
 
               <div class="question-editor-head poll-only">
@@ -439,7 +459,7 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
             </a>
             <p class="thanks-appeal ended-appeal">Every star genuinely helps. Thank you.</p>
-            <p class="ended-version">Built by Muhammad Rashid K · v2.2.0</p>
+            <p class="ended-version">Built by Muhammad Rashid K · v2.3.0</p>
             <button class="text-button text-button--muted ended-back" id="ended-back-button" type="button">Back to setup</button>
           </div>
 

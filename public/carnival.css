@@ -1,6 +1,6 @@
 /* Hallmark · checked: 2026-10-30 · genre: editorial (Carnival)
  * floor: visual test · fixed: atmosphere, eyebrows, tracked labels, soft depth, neon palette, rounded chrome
- * built: the project · redesign: restyle · v2.2.0
+ * built: the project · redesign: restyle · v2.3.0
  */
 
 @font-face {
@@ -1546,6 +1546,29 @@ html[data-button-style="minimal"] .button--secondary {
   font-size: 28px;
   letter-spacing: var(--tracking-display);
   line-height: 0.95;
+}
+
+.session-builder-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+}
+
+.import-questions {
+  min-height: 32px;
+  padding: 6px 9px;
+  font-size: 12px;
+  box-shadow: none;
+}
+
+.session-import-hint {
+  margin-top: 8px;
+}
+
+.multi-question-toggle {
+  margin-bottom: 0;
 }
 
 .session-count {
