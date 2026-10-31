@@ -2,6 +2,18 @@
 
 All notable changes to Room Check are documented here.
 
+## 2.5.1 — 2026-10-31
+
+Bug-fix release for the live survey flow.
+
+### Fixed
+
+- Survey voters choose **Next question** instead of being advanced automatically
+- The audience sees survey results after the survey closes instead of the thank-you screen
+- Audience survey results are rendered as per-question answer cards
+- Survey Next and Back controls now respect the voter’s selected answer
+- Version updated to 2.5.1
+
 ## 2.5.0 — 2026-10-31
 
 This release adds QR joining and post-survey graphs.

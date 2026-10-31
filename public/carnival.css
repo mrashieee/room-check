@@ -1,6 +1,6 @@
 /* Hallmark · checked: 2026-10-30 · genre: editorial (Carnival)
  * floor: visual test · fixed: atmosphere, eyebrows, tracked labels, soft depth, neon palette, rounded chrome
- * built: the project · redesign: restyle · v2.5.0
+ * built: the project · redesign: restyle · v2.5.1
  */
 
 @font-face {
@@ -1015,13 +1015,21 @@ html[data-button-style="minimal"] .button--secondary {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   margin-top: 18px;
 }
 
+.survey-actions .button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding-inline: 16px;
+  white-space: nowrap;
+}
+
 .survey-actions .microcopy {
+  flex: 1;
   margin: 0;
-  text-align: right;
+  text-align: center;
 }
 
 .survey-actions .text-button:disabled {
@@ -1066,6 +1074,39 @@ html[data-button-style="minimal"] .button--secondary {
 
 .survey-review-row .text-button {
   flex: 0 0 auto;
+}
+
+.survey-results-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.survey-result-card {
+  padding: 14px;
+  border: var(--rule-bar) solid var(--color-ink);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-2);
+}
+
+.survey-result-card h2 {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.35;
+  text-transform: none;
+}
+
+.survey-result-total {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.survey-result-card .result-bars {
+  margin-top: 10px;
 }
 
 .player-screen--survey-done {

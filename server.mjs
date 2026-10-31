@@ -456,12 +456,8 @@ function publicSurvey(survey, { includeCounts = false } = {}) {
       question: question.question,
       options: question.options.map(({ id, label, color }) => ({ id, label, color })),
     })),
-    ...(includeCounts
-      ? {
-          counts: surveyCounts(survey),
-          ...(survey.status === "closed" ? { results: surveyResults(survey) } : {}),
-        }
-      : {}),
+    ...(survey.status === "closed" ? { results: surveyResults(survey) } : {}),
+    ...(includeCounts ? { counts: surveyCounts(survey) } : {}),
   };
 }
 
