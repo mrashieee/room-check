@@ -379,7 +379,9 @@ If a single poll is tied and the wheel is enabled, the host screen shows a spinn
 
 ### Import questions from JSON
 
-Turn on **Multiple questions**, then choose **Import JSON** in the question set panel. The file can contain an array or a `questions` array:
+Turn on **Multiple questions**, choose **Import JSON** in the question set panel, and select a `.json` file. The survey uses one overall **Survey window**; per-question timers are not part of the file.
+
+#### Recommended format
 
 ```json
 {
@@ -387,12 +389,57 @@ Turn on **Multiple questions**, then choose **Import JSON** in the question set 
     {
       "question": "What should we build next?",
       "answers": ["Electric", "Warming up", "Need coffee", "Send help"]
+    },
+    {
+      "question": "What should we ship first?",
+      "answers": ["The map", "The radio", "The lights"]
+    },
+    {
+      "question": "Who should lead it?",
+      "answers": ["Design", "Engineering", "Everyone"]
     }
   ]
 }
 ```
 
-`question` and `answers` are required. `answers` needs 2–10 entries. The survey uses the overall **Survey window**, not per-question timers.
+Each question object has two required fields:
+
+| Field | Required | Rules |
+| --- | --- | --- |
+| `question` | Yes | Text, up to 160 characters |
+| `answers` | Yes | Array of 2–10 different answers, each up to 52 characters |
+
+The top-level file can also be:
+
+- A plain array of question objects:
+
+```json
+[
+  {
+    "question": "What should we build next?",
+    "answers": ["Electric", "Warming up", "Need coffee"]
+  }
+]
+```
+
+- A single question object, if you only have one question:
+
+```json
+{
+  "question": "What should we build next?",
+  "answers": ["Electric", "Warming up", "Need coffee"]
+}
+```
+
+#### Import rules
+
+- Maximum 20 questions.
+- Each question needs at least 2 answers and no more than 10.
+- Answers must be different within the same question.
+- The file must be valid JSON and no larger than 256 KB.
+- Importing replaces the current question set. If the current set has more than one question, Room Check asks for confirmation first.
+- The **Survey window** controls the whole survey; it is not read from the JSON file.
+- Choose the survey time in the host UI: **Manual**, **1**, **2**, **5**, **10**, **15** or **30 minutes**.
 
 A ready-to-import example is available at [`examples/questions.json`](./examples/questions.json).
 
