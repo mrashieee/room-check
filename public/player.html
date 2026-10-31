@@ -89,6 +89,14 @@
           <fieldset class="vote-options" id="vote-options">
             <legend class="sr-only">Choose one answer</legend>
           </fieldset>
+          <div class="write-in" id="vote-write-in">
+            <label class="field-label" for="vote-write-in-input">Add your own option</label>
+            <div class="write-in-row">
+              <input class="text-input" id="vote-write-in-input" type="text" maxlength="52" autocomplete="off" placeholder="Type an answer" />
+              <button class="button button--secondary" id="vote-write-in-submit" type="button">Add &amp; vote</button>
+            </div>
+            <p class="microcopy" id="vote-write-in-note">Only you and the host can see this option while voting.</p>
+          </div>
           <div class="vote-actions">
             <p class="microcopy" id="vote-help">Choose one. You can change it until voting closes.</p>
             <button class="button button--primary button--wide" id="vote-submit" type="submit" disabled>
@@ -173,6 +181,15 @@
         <fieldset class="vote-options" id="survey-options">
           <legend class="sr-only">Choose one answer</legend>
         </fieldset>
+
+        <div class="write-in" id="survey-write-in">
+          <label class="field-label" for="survey-write-in-input">Add your own answer</label>
+          <div class="write-in-row">
+            <input class="text-input" id="survey-write-in-input" type="text" maxlength="52" autocomplete="off" placeholder="Type an answer" />
+            <button class="button button--secondary" id="survey-write-in-submit" type="button">Add answer</button>
+          </div>
+          <p class="microcopy" id="survey-write-in-note">Only you and the host can see this while the survey is open.</p>
+        </div>
 
         <div class="survey-actions">
           <button class="text-button" id="survey-back" type="button">Back</button>

@@ -95,6 +95,7 @@ const stageStatLabel = $("#stage-stat-label");
 const stageDetailNote = $("#stage-detail-note");
 const stageShortcuts = $("#stage-shortcuts");
 const stageProgress = $("#stage-progress");
+const stageCustomOptions = $("#stage-custom-options");
 const surveyStageEyebrow = $("#survey-stage-eyebrow");
 const surveyStageTitle = $("#survey-stage-title");
 const surveyTotal = $("#survey-total");
@@ -817,6 +818,11 @@ function showStage(round) {
   const progress = sessionProgressText(roundState?.session);
   stageProgress.hidden = !progress;
   stageProgress.textContent = progress;
+  const customOptions = round.customOptions || [];
+  stageCustomOptions.hidden = customOptions.length === 0;
+  stageCustomOptions.textContent = customOptions.length
+    ? `Added: ${customOptions.map((option) => option.label).join(", ")}`
+    : "";
   openStage.classList.toggle("is-hands", isHands);
   openStage.classList.toggle("is-closed", handsClosed);
   stageLiveLabel.textContent = isHands ? (handsClosed ? "Hands closed" : "Hands live") : "Voting live";
@@ -1270,6 +1276,12 @@ function showSurvey(survey) {
     const meta = document.createElement("span");
     meta.textContent = `${formatVoteCount(count)} ${pluralize(count, "person", "people")} answered`;
     copy.append(label, meta);
+    if (question.customOptions?.length) {
+      const custom = document.createElement("span");
+      custom.className = "survey-custom-options";
+      custom.textContent = `Added: ${question.customOptions.map((option) => option.label).join(", ")}`;
+      copy.append(custom);
+    }
 
     const countLabel = document.createElement("strong");
     countLabel.className = "survey-question-count";

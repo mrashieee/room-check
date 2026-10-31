@@ -68,6 +68,7 @@ const LIMITS = {
   maxDuration: 600,
   maxSurveyDuration: 3600,
   maxQuestions: 20,
+  maxCustomOptions: 100,
 };
 
 const OPTION_COLORS = ["lime", "coral", "blue", "pink", "violet", "sand", "mint", "ice", "peach", "rose"];
@@ -261,6 +262,7 @@ function validateSurveyInput(body) {
         id: crypto.randomUUID(),
         question: question.question,
         options: question.options,
+        customOptions: [],
       };
     } catch (error) {
       throw new HttpError(
@@ -315,6 +317,7 @@ function createRound(details) {
   return {
     ...base,
     options: details.options,
+    customOptions: [],
     durationSec: details.durationSec,
     spinOnTie: Boolean(details.spinOnTie),
     endsAt: details.durationSec > 0 ? startedAt + details.durationSec * 1000 : null,
@@ -325,18 +328,122 @@ function createRound(details) {
   };
 }
 
+function capitalizeFirstLetter(value) {
+  const text = String(value || "");
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+}
+
+function normalizeOptionText(value) {
+  return String(value || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean)
+    .sort()
+    .join(" ");
+}
+
+function levenshteinDistance(left, right) {
+  if (left === right) return 0;
+  if (!left.length) return right.length;
+  if (!right.length) return left.length;
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= left.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= right.length; j += 1) {
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        current[j - 1] + 1,
+        previous[j] + 1,
+        previous[j - 1] + cost,
+      );
+    }
+    previous = current;
+  }
+  return previous[right.length];
+}
+
+function optionSignature(value) {
+  const normalized = normalizeOptionText(value);
+  const digits = (normalized.match(/\d+/g) || []).join(",");
+  const singleLetters = normalized
+    .split(" ")
+    .filter((token) => token.length === 1)
+    .sort()
+    .join("");
+  return `${digits}|${singleLetters}`;
+}
+
+function similarOptionText(left, right) {
+  const a = normalizeOptionText(left);
+  const b = normalizeOptionText(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (optionSignature(left) !== optionSignature(right)) return false;
+  const maxLength = Math.max(a.length, b.length);
+  if (Math.min(a.length, b.length) < 3) return false;
+  const allowed = maxLength <= 5 ? 1 : maxLength <= 10 ? 2 : 3;
+  const distance = levenshteinDistance(a, b);
+  return distance <= allowed && distance / maxLength <= 0.34;
+}
+
+function findMatchingOption(label, options) {
+  return (options || []).find((option) => similarOptionText(label, option.label)) || null;
+}
+
+function resolveCustomOption(container, playerId, label) {
+  const cleaned = capitalizeFirstLetter(cleanString(label, LIMITS.option));
+  if (!cleaned) throw new HttpError(400, "Write an option first.");
+  const customOptions = Array.isArray(container.customOptions) ? container.customOptions : [];
+  if (customOptions.some((option) => option.createdBy === playerId)) {
+    throw new HttpError(409, "You can only add one option.");
+  }
+
+  const hostMatch = findMatchingOption(cleaned, container.options);
+  if (hostMatch) return hostMatch;
+  const customMatch = findMatchingOption(cleaned, customOptions);
+  if (customMatch) return customMatch;
+
+  if (customOptions.length >= LIMITS.maxCustomOptions) {
+    throw new HttpError(409, "The room has reached the custom option limit.");
+  }
+
+  const option = {
+    id: `custom-${crypto.randomUUID()}`,
+    label: cleaned,
+    color: OPTION_COLORS[(container.options.length + customOptions.length) % OPTION_COLORS.length],
+    createdBy: playerId,
+    normalized: normalizeOptionText(cleaned),
+  };
+  customOptions.push(option);
+  container.customOptions = customOptions;
+  return option;
+}
+
+function allOptions(container) {
+  return [...(container.options || []), ...(container.customOptions || [])];
+}
+
 function voteCount(round) {
   return Object.keys(round.votes || {}).length;
 }
 
 function buildResults(round) {
   const total = voteCount(round);
-  const counts = round.options.map((option) => ({
-    optionId: option.id,
-    label: option.label,
-    color: option.color,
-    count: 0,
-  }));
+  const customIds = new Set((round.customOptions || []).map((option) => option.id));
+  const counts = allOptions(round)
+    .map((option) => ({
+      optionId: option.id,
+      label: option.label,
+      color: option.color,
+      count: 0,
+      custom: customIds.has(option.id),
+    }))
+    .filter((entry) => !entry.custom || (round.votes && Object.values(round.votes).some((vote) => vote.optionId === entry.optionId)));
 
   for (const vote of Object.values(round.votes || {})) {
     const target = counts.find((entry) => entry.optionId === vote.optionId);
@@ -415,7 +522,9 @@ function surveyCounts(survey) {
 
 function surveyResults(survey) {
   return survey.questions.map((question) => {
-    const counts = new Map(question.options.map((option) => [option.id, 0]));
+    const customIds = new Set((question.customOptions || []).map((option) => option.id));
+    const options = allOptions(question);
+    const counts = new Map(options.map((option) => [option.id, 0]));
     let total = 0;
     for (const response of Object.values(survey.responses || {})) {
       const optionId = response?.answers?.[question.id];
@@ -428,16 +537,19 @@ function surveyResults(survey) {
       questionId: question.id,
       question: question.question,
       total,
-      options: question.options.map((option) => {
-        const count = counts.get(option.id) || 0;
-        return {
-          optionId: option.id,
-          label: option.label,
-          color: option.color,
-          count,
-          percent: total > 0 ? Math.round((count / total) * 100) : 0,
-        };
-      }),
+      options: options
+        .map((option) => {
+          const count = counts.get(option.id) || 0;
+          return {
+            optionId: option.id,
+            label: option.label,
+            color: option.color,
+            count,
+            custom: customIds.has(option.id),
+            percent: total > 0 ? Math.round((count / total) * 100) : 0,
+          };
+        })
+        .filter((option) => !option.custom || option.count > 0),
     };
   });
 }
@@ -455,6 +567,11 @@ function publicSurvey(survey, { includeCounts = false } = {}) {
       id: question.id,
       question: question.question,
       options: question.options.map(({ id, label, color }) => ({ id, label, color })),
+      ...(includeCounts
+        ? {
+            customOptions: (question.customOptions || []).map(({ id, label }) => ({ id, label })),
+          }
+        : {}),
     })),
     ...(survey.status === "closed" ? { results: surveyResults(survey) } : {}),
     ...(includeCounts ? { counts: surveyCounts(survey) } : {}),
@@ -525,6 +642,11 @@ function publicState({ includeCounts = false } = {}) {
       title: round.title,
       question: round.question,
       options: round.options.map(({ id, label, color }) => ({ id, label, color })),
+      ...(includeCounts
+        ? {
+            customOptions: (round.customOptions || []).map(({ id, label }) => ({ id, label })),
+          }
+        : {}),
       status: round.status,
       durationSec: round.durationSec,
       spinOnTie: Boolean(round.spinOnTie),
@@ -544,9 +666,28 @@ function personalState(round, playerId, survey = null) {
     const response = playerId && Object.prototype.hasOwnProperty.call(survey.responses, playerId)
       ? survey.responses[playerId]
       : null;
+    const answers = response?.answers ? { ...response.answers } : {};
+    const customOptions = {};
+    const createdCustomOptions = {};
+    for (const question of survey.questions) {
+      const selected = (question.customOptions || []).find(
+        (option) => option.id === answers[question.id],
+      );
+      if (selected) {
+        customOptions[question.id] = { id: selected.id, label: selected.label };
+      }
+      const created = (question.customOptions || []).find(
+        (option) => option.createdBy === playerId,
+      );
+      if (created) {
+        createdCustomOptions[question.id] = { id: created.id, label: created.label };
+      }
+    }
     return {
       surveyId: survey.id,
-      answers: response?.answers ? { ...response.answers } : {},
+      answers,
+      customOptions,
+      createdCustomOptions,
       updatedAt: response?.updatedAt || null,
     };
   }
@@ -562,10 +703,20 @@ function personalState(round, playerId, survey = null) {
     playerId && Object.prototype.hasOwnProperty.call(round.votes, playerId)
       ? round.votes[playerId]
       : null;
+  const createdCustom = playerId
+    ? (round.customOptions || []).find((option) => option.createdBy === playerId)
+    : null;
+  const selectedCustom = hasVote
+    ? (round.customOptions || []).find((option) => option.id === hasVote.optionId)
+    : null;
   return {
     roundId: round.id,
     optionId: hasVote ? hasVote.optionId : null,
     raised: null,
+    customOption: createdCustom ? { id: createdCustom.id, label: createdCustom.label } : null,
+    selectedCustomOption: selectedCustom
+      ? { id: selectedCustom.id, label: selectedCustom.label }
+      : null,
   };
 }
 
@@ -758,6 +909,31 @@ function normalizeStoredSession(raw, round) {
   };
 }
 
+function normalizeStoredCustomOptions(rawOptions, baseOptions, limit = LIMITS.maxCustomOptions) {
+  if (!Array.isArray(rawOptions)) return [];
+  const seenIds = new Set((baseOptions || []).map((option) => option.id));
+  const seenCreators = new Set();
+  const options = [];
+  for (const raw of rawOptions) {
+    if (options.length >= limit) break;
+    const id = typeof raw?.id === "string" && raw.id ? raw.id : "";
+    const label = capitalizeFirstLetter(cleanString(raw?.label, LIMITS.option));
+    const createdBy = typeof raw?.createdBy === "string" ? raw.createdBy : "";
+    if (!id || !label || !/^[a-zA-Z0-9_-]{16,64}$/.test(createdBy)) continue;
+    if (seenIds.has(id) || seenCreators.has(createdBy)) continue;
+    seenIds.add(id);
+    seenCreators.add(createdBy);
+    options.push({
+      id,
+      label,
+      color: raw.color || OPTION_COLORS[options.length % OPTION_COLORS.length],
+      createdBy,
+      normalized: normalizeOptionText(label),
+    });
+  }
+  return options;
+}
+
 function normalizeStoredSurvey(raw) {
   if (!raw || typeof raw !== "object") return null;
   if (typeof raw.id !== "string" || !raw.id) return null;
@@ -796,7 +972,8 @@ function normalizeStoredSurvey(raw) {
       });
     }
     if (options.length < LIMITS.minOptions || options.length > LIMITS.maxOptions) return null;
-    questions.push({ id: questionId, question: questionText, options });
+    const customOptions = normalizeStoredCustomOptions(rawQuestion.customOptions, options);
+    questions.push({ id: questionId, question: questionText, options, customOptions });
   }
 
   const responses = {};
@@ -807,7 +984,7 @@ function normalizeStoredSurvey(raw) {
     const answers = {};
     for (const [questionId, optionId] of Object.entries(response.answers || {})) {
       const question = questions.find((entry) => entry.id === questionId);
-      if (question && question.options.some((option) => option.id === optionId)) {
+      if (question && allOptions(question).some((option) => option.id === optionId)) {
         answers[questionId] = optionId;
       }
     }
@@ -922,7 +1099,16 @@ function loadState() {
     if (!Array.isArray(round.options) || round.options.length < LIMITS.minOptions) return;
     if (round.status !== "open" && round.status !== "revealed") return;
 
-    const validOptions = new Set(round.options.map((option) => option.id));
+    const cleanHostOptions = round.options.map((option, index) => ({
+      id: option.id,
+      label: cleanString(option.label, LIMITS.option),
+      color: option.color || OPTION_COLORS[index % OPTION_COLORS.length],
+    }));
+    const cleanCustomOptions = normalizeStoredCustomOptions(round.customOptions, cleanHostOptions);
+    const validOptions = new Set([
+      ...cleanHostOptions.map((option) => option.id),
+      ...cleanCustomOptions.map((option) => option.id),
+    ]);
     const cleanVotes = {};
     for (const [playerId, vote] of Object.entries(round.votes || {})) {
       if (
@@ -969,11 +1155,8 @@ function loadState() {
       mode: "poll",
       title: cleanString(round.title, LIMITS.title) || "Room Check",
       question: normalizeQuestion(round.question),
-      options: round.options.map((option, index) => ({
-        id: option.id,
-        label: cleanString(option.label, LIMITS.option),
-        color: option.color || OPTION_COLORS[index % OPTION_COLORS.length],
-      })),
+      options: cleanHostOptions,
+      customOptions: cleanCustomOptions,
       votes: cleanVotes,
       spinOnTie: Boolean(round.spinOnTie),
       durationSec: Number(round.durationSec) || 0,
@@ -1181,7 +1364,7 @@ function closeSurvey(reason = "host") {
   return true;
 }
 
-function submitSurveyAnswer(playerId, questionId, optionId) {
+function submitSurveyAnswer(playerId, questionId, optionId, customLabel = "") {
   const survey = state.survey;
   if (!survey || survey.status !== "open") {
     throw new HttpError(409, "The survey is closed.");
@@ -1193,7 +1376,9 @@ function submitSurveyAnswer(playerId, questionId, optionId) {
 
   const question = survey.questions.find((entry) => entry.id === questionId);
   if (!question) throw new HttpError(400, "That question is not part of this survey.");
-  if (!question.options.some((option) => option.id === optionId)) {
+  if (customLabel.trim()) {
+    optionId = resolveCustomOption(question, playerId, customLabel).id;
+  } else if (!allOptions(question).some((option) => option.id === optionId)) {
     throw new HttpError(400, "Pick one of the answers on screen.");
   }
 
@@ -2052,7 +2237,8 @@ app.post("/api/survey/answer", (req, res, next) => {
     }
     const questionId = typeof req.body?.questionId === "string" ? req.body.questionId : "";
     const optionId = typeof req.body?.optionId === "string" ? req.body.optionId : "";
-    const survey = submitSurveyAnswer(playerId, questionId, optionId);
+    const customLabel = typeof req.body?.customLabel === "string" ? req.body.customLabel : "";
+    const survey = submitSurveyAnswer(playerId, questionId, optionId, customLabel);
     res.json({
       ok: true,
       state: publicState(),
@@ -2224,8 +2410,11 @@ app.post("/api/vote", (req, res, next) => {
       throw new HttpError(400, "This browser could not be identified. Reload and try again.");
     }
 
-    const optionId = typeof req.body?.optionId === "string" ? req.body.optionId : "";
-    if (!round.options.some((option) => option.id === optionId)) {
+    let optionId = typeof req.body?.optionId === "string" ? req.body.optionId : "";
+    const customLabel = typeof req.body?.customLabel === "string" ? req.body.customLabel : "";
+    if (customLabel.trim()) {
+      optionId = resolveCustomOption(round, playerId, customLabel).id;
+    } else if (!allOptions(round).some((option) => option.id === optionId)) {
       throw new HttpError(400, "Pick one of the answers on screen.");
     }
 

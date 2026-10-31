@@ -2,17 +2,42 @@
 
 All notable changes to Room Check are documented here.
 
+## Unreleased
+
+### Added
+
+- Audience write-in options for single polls and survey questions
+- One private write-in option per voter per poll/question
+- Spelling, punctuation, spacing and small-typo merging
+- Merged custom options in final poll/survey results
+- Support for result lists larger than 10 options
+- Custom option labels capitalize the first letter automatically
+- Button style now covers primary, secondary, icon and add-action controls
+
+### Privacy
+
+- A write-in option is visible only to its creator and the host while voting
+- Other voters see host options and their own write-in only
+- Merged write-in results become visible to everyone after the poll reveal or survey close
+
 ## 2.5.1 — 2026-10-31
 
 Bug-fix release for the live survey flow.
 
-### Fixed
+### Survey flow
 
-- Survey voters choose **Next question** instead of being advanced automatically
-- The audience sees survey results after the survey closes instead of the thank-you screen
-- Audience survey results are rendered as per-question answer cards
-- Survey Next and Back controls now respect the voter’s selected answer
-- Version updated to 2.5.1
+- Questions no longer advance automatically. Voters choose **Next question** when they are ready.
+- **Back** returns to the previous question, and the final question shows **Finish**.
+- Answers can be changed from the review screen with **Save answer**.
+- When a survey closes, the audience sees the survey results instead of the thank-you screen.
+- Audience results show each question with answer bars and percentages.
+- The host still sees live respondent counts and can view answer graphs after finishing.
+- Version updated to 2.5.1.
+
+### Unchanged
+
+- Single polls and Live Hands keep their existing flows.
+- Survey QR joining and the overall survey timer remain available.
 
 ## 2.5.0 — 2026-10-31
 

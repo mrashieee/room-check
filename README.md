@@ -35,6 +35,7 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - Multi-question live surveys with audience-driven progression, QR joining, live response counts and post-survey graphs
 - Import question sets from JSON files
 - Change your answer until voting closes
+- Private audience write-in options with spelling/typo merging
 - Looping waiting progress on audience screens
 - Live raised-hand toggle with a presenter-side count
 - End-of-session thank-you screen with a GitHub star link
@@ -50,6 +51,17 @@ A self-hosted, real-time audience poll for presentations. Run a vote with a big-
 - Named custom palettes saved locally in `.data/palettes.json`
 - Update page with release notes and copyable update instructions
 - Host notification when a newer GitHub release is available
+
+## Unreleased
+
+- Audience write-in options for single polls and survey questions
+- Each voter can add one private option per poll or question
+- The creator and host can see it while voting; other voters do not
+- Similar spellings and small typos merge into one option
+- Merged custom options appear in final results
+- Result lists can now contain more than 10 options
+- Custom labels capitalize the first letter automatically
+- Solid, outline and minimal button styles now cover action buttons, icon buttons and add controls across host and audience screens
 
 ## What's new in 2.5.1
 
@@ -264,8 +276,10 @@ For a stable URL, run Room Check behind a reverse proxy with HTTPS and set `PUBL
 4. Leave **If tied, spin the wheel** enabled if you want a tie settled by the live wheel.
 5. Check the audience link under the QR preview.
 6. Press **Open the room**.
-7. Press **Done — reveal results** or let the timer reveal automatically.
-8. Choose **Play it again** or **New question**.
+7. Voters can choose a host answer or add one private write-in option of their own.
+8. Press **Done — reveal results** or let the timer reveal automatically.
+9. Merged write-in options appear in the final results.
+10. Choose **Play it again** or **New question**.
 
 Single-poll results stay hidden from the audience until the reveal.
 
@@ -277,10 +291,10 @@ Single-poll results stay hidden from the audience until the reveal.
 4. Choose a **Survey window**: Manual, 1, 2, 5, 10, 15 or 30 minutes.
 5. Check the audience link, then press **Start N-question survey**.
 6. The survey screen shows the QR code so late joiners can scan while it is open.
-7. The audience chooses an answer, then presses **Next question** to continue. They can go **Back** or use the review screen to change answers until the survey closes.
+7. The audience chooses an answer, then presses **Next question** to continue. They can go **Back** or use the review screen to change answers until the survey closes. Each voter can add one private write-in answer per question.
 8. The host dashboard shows each question name and how many people answered it, updating live.
 9. Press **Finish survey** when the room is done, or let the overall timer close it.
-10. The audience sees the survey results themselves. The host keeps the final response counts.
+10. The audience sees the survey results themselves, including merged write-in answers. The host keeps the final response counts.
 11. Press **View results** on the host dashboard to open the answer graphs one question at a time. Use the arrows to move between questions, or **Back to counts** to return.
 
 The host does not advance questions and does not see answer breakdowns in survey mode.
@@ -393,7 +407,7 @@ Host shortcuts:
 | `R` | Reveal results |
 | `F` | Toggle full screen |
 
-Each browser can answer each question once. Voters can change answers until the survey closes. Single-poll results are withheld from the audience until the reveal; survey hosts see response counts only, not answer breakdowns.
+Each browser can answer each question once. Voters can change answers until the survey closes. Write-in options are private to their creator and host while voting; similar spellings merge and appear in final results. Single-poll results are withheld from the audience until the reveal; survey hosts see response counts only during the survey, then answer graphs after finishing.
 
 The audience sees a waiting screen before a round starts and automatically switches to the voting screen when the host opens the room.
 
