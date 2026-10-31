@@ -66,6 +66,7 @@ const LIMITS = {
   maxOptions: 10,
   minDuration: 10,
   maxDuration: 600,
+  maxSurveyDuration: 3600,
   maxQuestions: 20,
 };
 
@@ -113,6 +114,7 @@ let setupInFlight = false;
 /** @type {{round: null | {id:string,title:string,question:string,options:{id:string,label:string,color:string}[],durationSec:number,status:"open"|"revealed",startedAt:number,endsAt:number|null,revealedAt:number|null,revealReason:string|null,votes:Record<string,{optionId:string,at:number}>}}} */
 let state = {
   round: null,
+  survey: null,
   session: null,
   sessionClosedAt: null,
   theme: normalizeTheme(DEFAULT_THEME),
@@ -124,6 +126,7 @@ let updateCheckPromise = null;
 let updateLastForceAt = 0;
 let revealTimer = null;
 let tieBreakTimer = null;
+let surveyTimer = null;
 let saveTimer = null;
 let saveChain = Promise.resolve();
 
@@ -228,6 +231,59 @@ function validateSessionInput(body) {
   });
 
   return { title, questions };
+}
+
+function validateSurveyInput(body) {
+  if (!body || typeof body !== "object") {
+    throw new HttpError(400, "Invalid survey details.");
+  }
+
+  const title = cleanString(body.title, LIMITS.title) || "Room Check";
+  const rawQuestions = Array.isArray(body.questions) ? body.questions : [];
+  if (rawQuestions.length === 0) {
+    throw new HttpError(400, "Add at least one question to the survey.");
+  }
+  if (rawQuestions.length > LIMITS.maxQuestions) {
+    throw new HttpError(400, `Keep the survey to ${LIMITS.maxQuestions} questions or fewer.`);
+  }
+
+  const questions = rawQuestions.map((raw, index) => {
+    try {
+      const question = validateRoundInput({
+        mode: "poll",
+        title,
+        question: raw?.question,
+        options: raw?.options,
+        durationSec: 0,
+        spinOnTie: false,
+      });
+      return {
+        id: crypto.randomUUID(),
+        question: question.question,
+        options: question.options,
+      };
+    } catch (error) {
+      throw new HttpError(
+        error instanceof HttpError ? error.status : 400,
+        `Question ${index + 1}: ${error?.message || "Check the question details."}`,
+      );
+    }
+  });
+
+  let durationSec = Number(body.durationSec);
+  if (!Number.isFinite(durationSec)) durationSec = 0;
+  durationSec = Math.round(durationSec);
+  if (
+    durationSec !== 0 &&
+    (durationSec < 60 || durationSec > LIMITS.maxSurveyDuration)
+  ) {
+    throw new HttpError(
+      400,
+      `Choose a survey timer between 1 and ${LIMITS.maxSurveyDuration / 60} minutes, or turn it off.`,
+    );
+  }
+
+  return { title, questions, durationSec };
 }
 
 function createRound(details) {
@@ -341,7 +397,54 @@ function publicSession() {
   };
 }
 
-function publicState() {
+function surveyCounts(survey) {
+  const questions = {};
+  let totalRespondents = 0;
+  for (const response of Object.values(survey.responses || {})) {
+    let answeredAny = false;
+    for (const question of survey.questions) {
+      if (response?.answers?.[question.id]) {
+        questions[question.id] = (questions[question.id] || 0) + 1;
+        answeredAny = true;
+      }
+    }
+    if (answeredAny) totalRespondents += 1;
+  }
+  return { totalRespondents, questions };
+}
+
+function publicSurvey(survey, { includeCounts = false } = {}) {
+  return {
+    id: survey.id,
+    title: survey.title,
+    status: survey.status,
+    durationSec: survey.durationSec,
+    startedAt: survey.startedAt,
+    endsAt: survey.endsAt,
+    closedAt: survey.closedAt || null,
+    questions: survey.questions.map((question) => ({
+      id: question.id,
+      question: question.question,
+      options: question.options.map(({ id, label, color }) => ({ id, label, color })),
+    })),
+    ...(includeCounts ? { counts: surveyCounts(survey) } : {}),
+  };
+}
+
+function publicState({ includeCounts = false } = {}) {
+  if (state.survey) {
+    const survey = state.survey;
+    return {
+      now: Date.now(),
+      round: null,
+      session: null,
+      survey: publicSurvey(survey, { includeCounts }),
+      theme: state.theme,
+      closed: survey.status === "closed",
+      closedAt: survey.closedAt || null,
+    };
+  }
+
   const round = state.round;
   const session = publicSession();
   if (!round) {
@@ -349,6 +452,7 @@ function publicState() {
       now: Date.now(),
       round: null,
       session,
+      survey: null,
       theme: state.theme,
       closed: Boolean(state.sessionClosedAt),
       closedAt: state.sessionClosedAt || null,
@@ -359,6 +463,7 @@ function publicState() {
     return {
       now: Date.now(),
       session,
+      survey: null,
       theme: state.theme,
       closed: false,
       closedAt: null,
@@ -380,6 +485,7 @@ function publicState() {
   return {
     now: Date.now(),
     session,
+    survey: null,
     theme: state.theme,
     closed: false,
     closedAt: null,
@@ -403,7 +509,17 @@ function publicState() {
   };
 }
 
-function personalState(round, playerId) {
+function personalState(round, playerId, survey = null) {
+  if (survey) {
+    const response = playerId && Object.prototype.hasOwnProperty.call(survey.responses, playerId)
+      ? survey.responses[playerId]
+      : null;
+    return {
+      surveyId: survey.id,
+      answers: response?.answers ? { ...response.answers } : {},
+      updatedAt: response?.updatedAt || null,
+    };
+  }
   if (!round) return null;
   if (round.mode === "hands") {
     return {
@@ -430,14 +546,18 @@ function sendJson(ws, payload) {
 }
 
 function broadcastState() {
-  const publicPayload = publicState();
+  const playerPayload = publicState();
+  const hostPayload = publicState({ includeCounts: true });
   for (const client of wss.clients) {
     if (client.readyState !== WebSocket.OPEN) continue;
     client.send(
       JSON.stringify({
         type: "state",
-        state: publicPayload,
-        you: client.role === "host" ? null : personalState(state.round, client.playerId),
+        state: client.role === "host" ? hostPayload : playerPayload,
+        you:
+          client.role === "host"
+            ? null
+            : personalState(state.round, client.playerId, state.survey),
       }),
     );
   }
@@ -457,6 +577,7 @@ function persistState() {
       version: 1,
       savedAt: Date.now(),
       round: state.round,
+      survey: state.survey,
       session: state.session,
       sessionClosedAt: state.sessionClosedAt || null,
       theme: state.theme,
@@ -491,6 +612,7 @@ function persistStateSync() {
           version: 1,
           savedAt: Date.now(),
           round: state.round,
+          survey: state.survey,
           session: state.session,
           sessionClosedAt: state.sessionClosedAt || null,
           theme: state.theme,
@@ -606,6 +728,95 @@ function normalizeStoredSession(raw, round) {
   };
 }
 
+function normalizeStoredSurvey(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  if (typeof raw.id !== "string" || !raw.id) return null;
+  if (raw.status !== "open" && raw.status !== "closed") return null;
+  if (!Array.isArray(raw.questions) || raw.questions.length === 0) return null;
+  if (raw.questions.length > LIMITS.maxQuestions) return null;
+
+  const title = cleanString(raw.title, LIMITS.title) || "Room Check";
+  const questions = [];
+  const questionIds = new Set();
+  for (const rawQuestion of raw.questions) {
+    const questionText = normalizeQuestion(rawQuestion?.question);
+    if (!questionText) return null;
+    const questionId =
+      typeof rawQuestion?.id === "string" && rawQuestion.id
+        ? rawQuestion.id
+        : crypto.randomUUID();
+    if (questionIds.has(questionId)) return null;
+    questionIds.add(questionId);
+
+    if (!Array.isArray(rawQuestion.options)) return null;
+    const options = [];
+    const optionIds = new Set();
+    for (const rawOption of rawQuestion.options) {
+      const label = cleanString(rawOption?.label, LIMITS.option);
+      const optionId =
+        typeof rawOption?.id === "string" && rawOption.id
+          ? rawOption.id
+          : "o" + (options.length + 1);
+      if (!label || optionIds.has(optionId)) return null;
+      optionIds.add(optionId);
+      options.push({
+        id: optionId,
+        label,
+        color: rawOption.color || OPTION_COLORS[options.length % OPTION_COLORS.length],
+      });
+    }
+    if (options.length < LIMITS.minOptions || options.length > LIMITS.maxOptions) return null;
+    questions.push({ id: questionId, question: questionText, options });
+  }
+
+  const responses = {};
+  for (const [playerId, response] of Object.entries(raw.responses || {})) {
+    if (!/^[a-zA-Z0-9_-]{16,64}$/.test(playerId) || !response || typeof response !== "object") {
+      continue;
+    }
+    const answers = {};
+    for (const [questionId, optionId] of Object.entries(response.answers || {})) {
+      const question = questions.find((entry) => entry.id === questionId);
+      if (question && question.options.some((option) => option.id === optionId)) {
+        answers[questionId] = optionId;
+      }
+    }
+    if (Object.keys(answers).length > 0) {
+      responses[playerId] = {
+        answers,
+        updatedAt: Number(response.updatedAt) || Date.now(),
+      };
+    }
+  }
+
+  let durationSec = Number(raw.durationSec) || 0;
+  if (durationSec !== 0 && (durationSec < 60 || durationSec > LIMITS.maxSurveyDuration)) {
+    durationSec = 0;
+  }
+  const startedAt = Number(raw.startedAt) || Date.now();
+  let endsAt = Number(raw.endsAt) || null;
+  if (durationSec > 0) {
+    endsAt = endsAt || startedAt + durationSec * 1000;
+  } else {
+    endsAt = null;
+  }
+  const status = raw.status;
+  const closedAt = status === "closed" ? Number(raw.closedAt) || Date.now() : null;
+
+  return {
+    id: raw.id,
+    title,
+    questions,
+    responses,
+    status,
+    durationSec,
+    startedAt,
+    endsAt,
+    closedAt,
+    revealReason: raw.revealReason || null,
+  };
+}
+
 function loadState() {
   if (!fs.existsSync(STATE_FILE)) return;
   try {
@@ -622,6 +833,26 @@ function loadState() {
       const logoPath = path.join(DATA_DIR, `theme-logo.${THEME_LOGO_TYPES[state.theme.logo.type] || "bin"}`);
       if (!fs.existsSync(logoPath)) state.theme.logo = null;
     }
+
+    const survey = normalizeStoredSurvey(raw?.survey);
+    if (survey) {
+      if (
+        survey.status === "open" &&
+        survey.endsAt &&
+        survey.endsAt <= Date.now()
+      ) {
+        survey.status = "closed";
+        survey.closedAt = Date.now();
+        survey.revealReason = "timer";
+      }
+      state.round = null;
+      state.session = null;
+      state.survey = survey;
+      state.sessionClosedAt = survey.closedAt || null;
+      return;
+    }
+    state.survey = null;
+
     const round = raw?.round;
     if (!round || typeof round !== "object") return;
     state.sessionClosedAt = null;
@@ -808,6 +1039,11 @@ function openRound(details) {
     clearTimeout(tieBreakTimer);
     tieBreakTimer = null;
   }
+  if (surveyTimer) {
+    clearTimeout(surveyTimer);
+    surveyTimer = null;
+  }
+  state.survey = null;
   state.session = null;
   state.sessionClosedAt = null;
   state.round = createRound(details);
@@ -826,6 +1062,11 @@ function startSession(details) {
     tieBreakTimer = null;
   }
   const startedAt = Date.now();
+  if (surveyTimer) {
+    clearTimeout(surveyTimer);
+    surveyTimer = null;
+  }
+  state.survey = null;
   state.sessionClosedAt = null;
   state.session = {
     id: crypto.randomUUID(),
@@ -839,6 +1080,100 @@ function startSession(details) {
   scheduleSave();
   broadcastState();
   return state.round;
+}
+
+function armSurveyTimer() {
+  if (surveyTimer) {
+    clearTimeout(surveyTimer);
+    surveyTimer = null;
+  }
+  const survey = state.survey;
+  if (!survey || survey.status !== "open" || !survey.endsAt) return;
+  const remaining = Math.max(0, survey.endsAt - Date.now());
+  surveyTimer = setTimeout(() => {
+    surveyTimer = null;
+    closeSurvey("timer");
+  }, remaining);
+}
+
+function startSurvey(details) {
+  if (state.round?.status === "open") {
+    throw new HttpError(409, "A round is already open. Finish it before starting another.");
+  }
+  if (revealTimer) {
+    clearTimeout(revealTimer);
+    revealTimer = null;
+  }
+  if (tieBreakTimer) {
+    clearTimeout(tieBreakTimer);
+    tieBreakTimer = null;
+  }
+  if (surveyTimer) {
+    clearTimeout(surveyTimer);
+    surveyTimer = null;
+  }
+
+  const startedAt = Date.now();
+  state.round = null;
+  state.session = null;
+  state.sessionClosedAt = null;
+  state.survey = {
+    id: crypto.randomUUID(),
+    title: details.title,
+    questions: details.questions,
+    responses: {},
+    status: "open",
+    durationSec: details.durationSec,
+    startedAt,
+    endsAt: details.durationSec > 0 ? startedAt + details.durationSec * 1000 : null,
+    closedAt: null,
+    revealReason: null,
+  };
+  armSurveyTimer();
+  scheduleSave();
+  broadcastState();
+  return state.survey;
+}
+
+function closeSurvey(reason = "host") {
+  const survey = state.survey;
+  if (!survey || survey.status !== "open") return false;
+  survey.status = "closed";
+  survey.closedAt = Date.now();
+  survey.revealReason = reason;
+  state.sessionClosedAt = survey.closedAt;
+  if (surveyTimer) {
+    clearTimeout(surveyTimer);
+    surveyTimer = null;
+  }
+  scheduleSave();
+  broadcastState();
+  return true;
+}
+
+function submitSurveyAnswer(playerId, questionId, optionId) {
+  const survey = state.survey;
+  if (!survey || survey.status !== "open") {
+    throw new HttpError(409, "The survey is closed.");
+  }
+  if (survey.endsAt && Date.now() >= survey.endsAt) {
+    closeSurvey("timer");
+    throw new HttpError(409, "Time is up. The survey is closed.");
+  }
+
+  const question = survey.questions.find((entry) => entry.id === questionId);
+  if (!question) throw new HttpError(400, "That question is not part of this survey.");
+  if (!question.options.some((option) => option.id === optionId)) {
+    throw new HttpError(400, "Pick one of the answers on screen.");
+  }
+
+  const existing = survey.responses[playerId] || { answers: {}, updatedAt: null };
+  existing.answers = { ...(existing.answers || {}), [questionId]: optionId };
+  existing.updatedAt = Date.now();
+  survey.responses[playerId] = existing;
+  scheduleSave();
+  broadcastState();
+  return survey;
 }
 
 function advanceSession() {
@@ -881,7 +1216,12 @@ function resetRound() {
     clearTimeout(tieBreakTimer);
     tieBreakTimer = null;
   }
+  if (surveyTimer) {
+    clearTimeout(surveyTimer);
+    surveyTimer = null;
+  }
   state.round = null;
+  state.survey = null;
   state.session = null;
   state.sessionClosedAt = null;
   scheduleSave();
@@ -889,6 +1229,10 @@ function resetRound() {
 }
 
 function endSession() {
+  if (state.survey) {
+    closeSurvey("host");
+    return;
+  }
   if (revealTimer) {
     clearTimeout(revealTimer);
     revealTimer = null;
@@ -1416,7 +1760,7 @@ app.get("/api/state", (req, res) => {
   const validPlayer = /^[a-zA-Z0-9_-]{16,64}$/.test(playerId) ? playerId : "";
   res.json({
     state: publicState(),
-    you: personalState(state.round, validPlayer),
+    you: personalState(state.round, validPlayer, state.survey),
   });
 });
 
@@ -1563,7 +1907,7 @@ app.post("/api/host/logout", (req, res) => {
 
 app.get("/api/host/state", requireHost, (req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.json({ state: publicState() });
+  res.json({ state: publicState({ includeCounts: true }) });
 });
 
 app.get("/api/host/palettes", requireHost, (req, res) => {
@@ -1660,6 +2004,35 @@ app.delete("/api/host/theme/logo", requireHost, (req, res) => {
   res.json({ ok: true, theme: state.theme, state: publicState() });
 });
 
+app.post("/api/host/survey/start", requireHost, (req, res, next) => {
+  try {
+    const details = validateSurveyInput(req.body);
+    const survey = startSurvey(details);
+    res.json({ ok: true, surveyId: survey.id, state: publicState({ includeCounts: true }) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/survey/answer", (req, res, next) => {
+  try {
+    const playerId = typeof req.body?.playerId === "string" ? req.body.playerId : "";
+    if (!/^[a-zA-Z0-9_-]{16,64}$/.test(playerId)) {
+      throw new HttpError(400, "This browser could not be identified. Reload and try again.");
+    }
+    const questionId = typeof req.body?.questionId === "string" ? req.body.questionId : "";
+    const optionId = typeof req.body?.optionId === "string" ? req.body.optionId : "";
+    const survey = submitSurveyAnswer(playerId, questionId, optionId);
+    res.json({
+      ok: true,
+      state: publicState(),
+      you: personalState(null, playerId, survey),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post("/api/host/session/start", requireHost, (req, res, next) => {
   try {
     const details = validateSessionInput(req.body);
@@ -1748,7 +2121,7 @@ app.post("/api/host/reset", requireHost, (req, res) => {
 
 app.post("/api/host/end", requireHost, (req, res) => {
   endSession();
-  res.json({ ok: true, state: publicState() });
+  res.json({ ok: true, state: publicState({ includeCounts: true }) });
 });
 
 app.post("/api/host/hands/close", requireHost, (req, res) => {
@@ -1897,8 +2270,11 @@ wss.on("connection", (ws) => {
   const currentState = publicState();
   sendJson(ws, {
     type: "state",
-    state: currentState,
-    you: ws.role === "host" ? null : personalState(state.round, ws.playerId),
+    state: ws.role === "host" ? publicState({ includeCounts: true }) : currentState,
+    you:
+      ws.role === "host"
+        ? null
+        : personalState(state.round, ws.playerId, state.survey),
   });
 
   ws.on("pong", () => {
@@ -1930,6 +2306,7 @@ loadCustomPalettes();
 loadState();
 armRevealTimer();
 armTieBreakTimer();
+armSurveyTimer();
 
 server.on("error", (error) => {
   if (error.code === "EADDRINUSE") {
@@ -1965,6 +2342,7 @@ function shutdown() {
   clearInterval(heartbeat);
   if (revealTimer) clearTimeout(revealTimer);
   if (tieBreakTimer) clearTimeout(tieBreakTimer);
+  if (surveyTimer) clearTimeout(surveyTimer);
   if (saveTimer) clearTimeout(saveTimer);
   persistStateSync();
   for (const ws of wss.clients) {

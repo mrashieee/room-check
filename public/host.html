@@ -248,6 +248,20 @@
                 <p class="field-hint session-import-hint">JSON: <code>question</code> and <code>answers</code> attributes. Max 20 questions.</p>
               </div>
 
+              <fieldset class="field survey-only poll-only" id="survey-timer-field" hidden>
+                <legend class="field-label">Survey window</legend>
+                <div class="timer-choices" id="survey-timer-choices">
+                  <label class="timer-choice"><input type="radio" name="surveyDuration" value="0" checked /><span>Manual</span></label>
+                  <label class="timer-choice"><input type="radio" name="surveyDuration" value="60" /><span>1 min</span></label>
+                  <label class="timer-choice"><input type="radio" name="surveyDuration" value="120" /><span>2 min</span></label>
+                  <label class="timer-choice"><input type="radio" name="surveyDuration" value="300" /><span>5 min</span></label>
+                  <label class="timer-choice"><input type="radio" name="surveyDuration" value="600" /><span>10 min</span></label>
+                  <label class="timer-choice"><input type="radio" name="surveyDuration" value="900" /><span>15 min</span></label>
+                  <label class="timer-choice"><input type="radio" name="surveyDuration" value="1800" /><span>30 min</span></label>
+                </div>
+                <p class="field-hint">One timer for the whole survey. Manual closes when you finish.</p>
+              </fieldset>
+
               <div class="question-editor-head poll-only">
                 <span id="question-editor-label">Editing question 1 of 1</span>
                 <button class="text-button text-button--muted" id="remove-question" type="button">Remove question</button>
@@ -272,7 +286,7 @@
                 </button>
               </fieldset>
 
-              <fieldset class="field field--timer poll-only">
+              <fieldset class="field field--timer poll-only" id="question-timer-field">
                 <legend class="field-label">Voting window</legend>
                 <div class="timer-choices" id="timer-choices">
                   <label class="timer-choice"><input type="radio" name="duration" value="30" /><span>30 sec</span></label>
@@ -284,7 +298,7 @@
                 <p class="field-hint">Results reveal automatically when time runs out — or whenever you hit Done.</p>
               </fieldset>
 
-              <div class="field poll-only">
+              <div class="field poll-only" id="question-tie-field">
                 <label class="setting-toggle">
                   <span class="setting-toggle-copy">
                     <span class="setting-toggle-title">If tied, spin the wheel</span>
@@ -437,6 +451,28 @@
           </div>
         </section>
 
+        <section class="survey-stage" id="survey-stage" aria-labelledby="survey-stage-title" hidden>
+          <div class="survey-head">
+            <div>
+              <p class="eyebrow" id="survey-stage-eyebrow">Live survey</p>
+              <h1 id="survey-stage-title">Room Check survey</h1>
+            </div>
+            <div class="survey-summary">
+              <strong id="survey-total">0</strong>
+              <span id="survey-total-label">people answered</span>
+              <span class="survey-timer" id="survey-timer">Open</span>
+            </div>
+          </div>
+          <div class="survey-question-list" id="survey-question-list" aria-label="Live survey response counts"></div>
+          <div class="survey-footer">
+            <p class="microcopy" id="survey-footnote">Counts update as people answer. No answer breakdown is shown here.</p>
+            <div class="results-actions">
+              <button class="button button--secondary button--large" id="survey-back-button" type="button">Back to setup</button>
+              <button class="button button--primary button--large" id="survey-finish-button" type="button">Finish survey</button>
+            </div>
+          </div>
+        </section>
+
         <section class="ended-stage" id="ended-stage" aria-labelledby="ended-title" hidden>
           <div class="ended-copy">
             <div class="thanks-mark ended-mark" aria-hidden="true">
@@ -459,7 +495,7 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
             </a>
             <p class="thanks-appeal ended-appeal">Every star genuinely helps. Thank you.</p>
-            <p class="ended-version">Built by Muhammad Rashid K · v2.3.0</p>
+            <p class="ended-version">Built by Muhammad Rashid K · v2.4.0</p>
             <button class="text-button text-button--muted ended-back" id="ended-back-button" type="button">Back to setup</button>
           </div>
 
