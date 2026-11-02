@@ -13,29 +13,61 @@ const dataDir = process.env.DATA_DIR
   ? path.resolve(process.env.DATA_DIR)
   : path.join(root, ".data");
 
-if (!fs.existsSync(dataDir)) {
-  console.error(`No data directory found at ${dataDir}.`);
-  process.exit(1);
+function fail(message) {
+  console.error(message);
+  process.exitCode = 1;
 }
 
-const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-const destination = path.join(path.dirname(dataDir), `.data-backup-${stamp}`);
+try {
+  if (!fs.existsSync(dataDir)) {
+    fail(`No data directory found at ${dataDir}.`);
+  } else {
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const destination = path.join(path.dirname(dataDir), `.data-backup-${stamp}`);
 
-fs.cpSync(dataDir, destination, { recursive: true, force: false, errorOnExist: true });
-console.log(`Backed up ${dataDir} to ${destination}`);
+    fs.mkdirSync(destination, { recursive: true, mode: 0o700 });
+    try {
+      fs.chmodSync(destination, 0o700);
+    } catch {
+      // Some filesystems do not support chmod.
+    }
+    fs.cpSync(dataDir, destination, { recursive: true, force: false, errorOnExist: true });
+    console.log(`Backed up ${dataDir} to ${destination}`);
 
-const keepValue = Number(process.env.BACKUP_KEEP || 10);
-const keep = Number.isFinite(keepValue) ? Math.max(1, keepValue) : 10;
-const parent = path.dirname(dataDir);
-const backups = fs
-  .readdirSync(parent)
-  .filter((name) => name.startsWith(".data-backup-"))
-  .map((name) => path.join(parent, name))
-  .filter((entry) => fs.statSync(entry).isDirectory())
-  .sort()
-  .reverse();
-for (const old of backups.slice(keep)) {
-  fs.rmSync(old, { recursive: true, force: true });
-  console.log(`Removed old backup ${old}`);
+    const parsed = Number.parseInt(process.env.BACKUP_KEEP || "10", 10);
+    const keep = Number.isFinite(parsed) ? Math.max(1, parsed) : 10;
+    const parent = path.dirname(dataDir);
+    let backups = [];
+    try {
+      backups = fs
+        .readdirSync(parent)
+        .filter((name) => name.startsWith(".data-backup-"))
+        .map((name) => path.join(parent, name))
+        .filter((entry) => {
+          try {
+            return fs.statSync(entry).isDirectory();
+          } catch {
+            return false;
+          }
+        })
+        .sort()
+        .reverse();
+    } catch (error) {
+      fail(`Could not list backups in ${parent}: ${error.message}`);
+      backups = null;
+    }
+    if (backups) {
+      for (const old of backups.slice(keep)) {
+        try {
+          fs.rmSync(old, { recursive: true, force: true });
+          console.log(`Removed old backup ${old}`);
+        } catch (error) {
+          console.error(`Could not remove old backup ${old}: ${error.message}`);
+        }
+      }
+      console.log(`Keeping the newest ${keep} backup${keep === 1 ? "" : "s"}.`);
+    }
+  }
+} catch (error) {
+  fail(`Backup failed: ${error.message}`);
 }
-console.log(`Keeping the newest ${keep} backup${keep === 1 ? "" : "s"}.`);
