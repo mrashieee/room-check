@@ -36,7 +36,14 @@ const UPDATE_ERROR_CACHE_MS = 5 * 60 * 1000;
 const UPDATE_FORCE_COOLDOWN_MS = 60 * 1000;
 
 const PORT = Number(process.env.PORT || 3000);
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+  throw new Error(`Invalid PORT "${process.env.PORT}". Use a number between 1 and 65535.`);
+}
 const HOST_BIND = process.env.BIND_ADDRESS || "0.0.0.0";
+const TRUST_PROXY = String(process.env.TRUST_PROXY || "loopback")
+  .split(",")
+  .map((entry) => entry.trim())
+  .filter(Boolean);
 const SESSION_MAX_AGE_SEC = 60 * 60 * 12;
 const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_MAX_LENGTH = 200;
@@ -80,9 +87,11 @@ const LIMITS = {
   maxSurveyDuration: 3600,
   maxQuestions: 20,
   maxCustomOptions: 100,
+  maxSurveyRespondents: 5000,
 };
 
 const OPTION_COLORS = ["lime", "coral", "blue", "pink", "violet", "sand", "mint", "ice", "peach", "rose"];
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function findLanAddress() {
   const interfaces = os.networkInterfaces();
@@ -119,6 +128,9 @@ try {
 }
 
 let SESSION_SECRET = String(process.env.SESSION_SECRET || "").trim() || null;
+if (SESSION_SECRET && SESSION_SECRET.length < 32) {
+  throw new Error("SESSION_SECRET must be at least 32 characters. Unset it to auto-generate one.");
+}
 let authRecord = null;
 let setupCode = null;
 let setupInFlight = false;
@@ -194,11 +206,24 @@ function validateRoundInput(body) {
   if (options.length < LIMITS.minOptions) throw new HttpError(400, "Add at least two answers.");
   if (options.length > LIMITS.maxOptions) throw new HttpError(400, "Keep it to ten answers or fewer.");
 
-  let durationSec = Number(body.durationSec);
-  if (!Number.isFinite(durationSec)) durationSec = 60;
-  durationSec = Math.round(durationSec);
+  let durationSec;
+  if (body.durationSec === undefined || body.durationSec === null || body.durationSec === "") {
+    durationSec = 60;
+  } else {
+    durationSec = Number(body.durationSec);
+    if (!Number.isFinite(durationSec)) {
+      throw new HttpError(400, "The timer must be a number of seconds.");
+    }
+    durationSec = Math.round(durationSec);
+  }
   if (durationSec !== 0 && (durationSec < LIMITS.minDuration || durationSec > LIMITS.maxDuration)) {
     throw new HttpError(400, "Choose a timer between 10 seconds and 10 minutes, or turn it off.");
+  }
+  if (body.spinOnTie !== undefined && typeof body.spinOnTie !== "boolean") {
+    throw new HttpError(400, "The tie-breaker setting must be true or false.");
+  }
+  if (body.allowCustom !== undefined && typeof body.allowCustom !== "boolean") {
+    throw new HttpError(400, "The write-in setting must be true or false.");
   }
 
   return {
@@ -235,7 +260,7 @@ function validateSessionInput(body) {
         options: raw?.options,
         durationSec: raw?.durationSec,
         spinOnTie: raw?.spinOnTie,
-        allowCustom: body.allowCustom !== false,
+        allowCustom: raw?.allowCustom ?? body.allowCustom ?? true,
       });
     } catch (error) {
       throw new HttpError(
@@ -271,7 +296,7 @@ function validateSurveyInput(body) {
         options: raw?.options,
         durationSec: 0,
         spinOnTie: false,
-        allowCustom: body.allowCustom !== false,
+        allowCustom: raw?.allowCustom ?? body.allowCustom ?? true,
       });
       return {
         id: crypto.randomUUID(),
@@ -475,24 +500,28 @@ function buildResults(round) {
     };
   }
 
-  const raw = counts.map((entry) => (entry.count / total) * 100);
+  const max = Math.max(...counts.map((entry) => entry.count));
+  return {
+    total,
+    winners: counts.filter((entry) => entry.count === max).map((entry) => entry.optionId),
+    options: withLargestRemainderPercents(counts),
+  };
+}
+
+function withLargestRemainderPercents(entries) {
+  const total = entries.reduce((sum, entry) => sum + entry.count, 0);
+  if (!total) return entries.map((entry) => ({ ...entry, percent: 0 }));
+  const raw = entries.map((entry) => (entry.count / total) * 100);
   const floored = raw.map(Math.floor);
   let remainder = 100 - floored.reduce((sum, value) => sum + value, 0);
   const order = raw
     .map((value, index) => ({ index, fraction: value - Math.floor(value) }))
     .sort((a, b) => b.fraction - a.fraction || a.index - b.index);
-
   for (let i = 0; i < order.length && remainder > 0; i += 1) {
     floored[order[i].index] += 1;
     remainder -= 1;
   }
-
-  const max = Math.max(...counts.map((entry) => entry.count));
-  return {
-    total,
-    winners: counts.filter((entry) => entry.count === max).map((entry) => entry.optionId),
-    options: counts.map((entry, index) => ({ ...entry, percent: floored[index] })),
-  };
+  return entries.map((entry, index) => ({ ...entry, percent: floored[index] }));
 }
 
 function publicTieBreak(round, result) {
@@ -579,23 +608,23 @@ function surveyResults(survey) {
         total += 1;
       }
     }
+    const listed = options
+      .map((option) => {
+        const count = counts.get(option.id) || 0;
+        return {
+          optionId: option.id,
+          label: option.label,
+          color: option.color,
+          count,
+          custom: customIds.has(option.id),
+        };
+      })
+      .filter((option) => !option.custom || option.count > 0);
     return {
       questionId: question.id,
       question: question.question,
       total,
-      options: options
-        .map((option) => {
-          const count = counts.get(option.id) || 0;
-          return {
-            optionId: option.id,
-            label: option.label,
-            color: option.color,
-            count,
-            custom: customIds.has(option.id),
-            percent: total > 0 ? Math.round((count / total) * 100) : 0,
-          };
-        })
-        .filter((option) => !option.custom || option.count > 0),
+      options: withLargestRemainderPercents(listed),
     };
   });
 }
@@ -782,6 +811,7 @@ function statePayloadFor(client) {
   const isHost = client.role === "host";
   return {
     type: "state",
+    rev: stateRev,
     state: isHost
       ? publicState({ includeCounts: true, includeSlides: true })
       : publicState({ includeSlides: false }),
@@ -789,10 +819,21 @@ function statePayloadFor(client) {
   };
 }
 
+let stateRev = Date.now();
+
 function broadcastState() {
+  stateRev += 1;
   for (const client of wss.clients) {
     if (client.readyState !== WebSocket.OPEN) continue;
-    client.send(JSON.stringify(statePayloadFor(client)));
+    try {
+      client.send(JSON.stringify(statePayloadFor(client)));
+    } catch {
+      try {
+        client.terminate();
+      } catch {
+        // Already closed.
+      }
+    }
   }
 }
 
@@ -827,6 +868,12 @@ function persistState() {
         await fs.promises.chmod(temp, 0o600);
       } catch {
         // Some filesystems do not support chmod.
+      }
+      const fd = await fs.promises.open(temp, "r");
+      try {
+        await fd.sync();
+      } finally {
+        await fd.close();
       }
       await fs.promises.rename(temp, STATE_FILE);
     })
@@ -989,12 +1036,16 @@ function normalizeStoredCustomOptions(rawOptions, baseOptions, limit = LIMITS.ma
 }
 
 function presentationSlidePath(presentationId, slideId, ext) {
-  return path.join(PRESENTATION_DIR, presentationId, `${slideId}.${ext}`);
+  if (!UUID_RE.test(presentationId || "") || !UUID_RE.test(slideId || "")) {
+    throw new HttpError(400, "That slide does not exist.");
+  }
+  const safeExt = ["png", "jpg", "webp"].includes(ext) ? ext : "png";
+  return path.join(PRESENTATION_DIR, presentationId, `${slideId}.${safeExt}`);
 }
 
 function normalizeStoredPresentation(raw) {
   if (!raw || typeof raw !== "object") return null;
-  if (typeof raw.id !== "string" || !raw.id) return null;
+  if (!UUID_RE.test(raw.id || "")) return null;
   if (typeof raw.title !== "string") return null;
   if (!["ready", "live", "closed"].includes(raw.status)) return null;
   if (!Array.isArray(raw.slides)) return null;
@@ -1002,7 +1053,7 @@ function normalizeStoredPresentation(raw) {
   const slides = [];
   for (const slide of raw.slides) {
     if (slides.length >= PRESENTATION_MAX_SLIDES) break;
-    if (!slide || typeof slide.id !== "string" || typeof slide.name !== "string") continue;
+    if (!slide || !UUID_RE.test(slide.id || "") || typeof slide.name !== "string") continue;
     const ext = PRESENTATION_SLIDE_TYPES.get(slide.type) || (slide.ext === "jpg" ? "jpg" : slide.ext);
     if (!PRESENTATION_SLIDE_TYPES.has(slide.type) && !["png", "jpg", "webp"].includes(ext)) continue;
     const fileExt = ext || PRESENTATION_SLIDE_TYPES.get(slide.type);
@@ -1145,8 +1196,27 @@ function loadState() {
   } catch {
     // Some filesystems do not support chmod.
   }
+  let rawText;
   try {
-    const raw = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
+    rawText = fs.readFileSync(STATE_FILE, "utf8");
+  } catch (error) {
+    console.error("Could not read state file:", error.message);
+    return;
+  }
+  let raw;
+  try {
+    raw = JSON.parse(rawText);
+  } catch {
+    const backup = `${STATE_FILE}.corrupt-${Date.now()}`;
+    try {
+      fs.copyFileSync(STATE_FILE, backup);
+      console.error(`State file was corrupt. Backed up to ${backup} and starting fresh.`);
+    } catch (error) {
+      console.error("State file was corrupt and could not be backed up:", error.message);
+    }
+    return;
+  }
+  try {
     state.session = null;
     state.sessionClosedAt = Number(raw?.sessionClosedAt) || null;
     state.theme = normalizeTheme(raw?.theme);
@@ -1365,6 +1435,10 @@ function openRound(details) {
   if (state.round?.status === "open") {
     throw new HttpError(409, "A round is already open. Finish it before starting another.");
   }
+  if (revealTimer) {
+    clearTimeout(revealTimer);
+    revealTimer = null;
+  }
   if (tieBreakTimer) {
     clearTimeout(tieBreakTimer);
     tieBreakTimer = null;
@@ -1395,6 +1469,10 @@ function startSession(details) {
     tieBreakTimer = null;
   }
   const startedAt = Date.now();
+  if (revealTimer) {
+    clearTimeout(revealTimer);
+    revealTimer = null;
+  }
   if (surveyTimer) {
     clearTimeout(surveyTimer);
     surveyTimer = null;
@@ -1410,7 +1488,7 @@ function startSession(details) {
   };
   state.round = createRound(details.questions[0]);
   if (state.presentation?.status === "live") {
-    state.presentation.activeView = "survey";
+    state.presentation.activeView = "poll";
   }
   armRevealTimer();
   scheduleSave();
@@ -1498,6 +1576,12 @@ function submitSurveyAnswer(playerId, questionId, optionId, customLabel = "") {
   if (survey.endsAt && Date.now() >= survey.endsAt) {
     closeSurvey("timer");
     throw new HttpError(409, "Time is up. The survey is closed.");
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(survey.responses, playerId)) {
+    if (Object.keys(survey.responses).length >= LIMITS.maxSurveyRespondents) {
+      throw new HttpError(429, "The survey is full. The host can close and start a new one.");
+    }
   }
 
   const question = survey.questions.find((entry) => entry.id === questionId);
@@ -1807,11 +1891,13 @@ function discardPresentationDeck() {
 function controllerAuthorized(req) {
   if (isHostAuthed(req)) return true;
   const token = String(req.headers["x-controller-token"] || req.query?.token || "");
+  const expected = state.presentation?.controllerToken || "";
   return Boolean(
     token &&
+      expected &&
       state.presentation &&
       (state.presentation.status === "live" || state.presentation.status === "ready") &&
-      token === state.presentation.controllerToken,
+      safeEqualText(token, expected),
   );
 }
 
@@ -1975,6 +2061,11 @@ function clearHostCookie(req, res) {
 
 function requestIsSecure(req) {
   if (req.secure) return true;
+  try {
+    if (PUBLIC_URL && new URL(PUBLIC_URL).protocol === "https:") return true;
+  } catch {
+    // Fall through to header checks.
+  }
   const forwarded = String(req.headers["x-forwarded-proto"] || "")
     .split(",")[0]
     .trim();
@@ -2174,6 +2265,37 @@ function recordLoginFailure(ip) {
   }
 }
 
+// Throttle for public voter endpoints: generous for real rooms, but stops
+// scripted ballot-stuffing and broadcast-DoS loops. Keyed by IP + playerId.
+const voteAttempts = new Map();
+const VOTE_LIMIT = 60;
+const VOTE_WINDOW_MS = 60 * 1000;
+
+function voteAllowed(ip, playerId) {
+  const now = Date.now();
+  if (voteAttempts.size > 5000) {
+    for (const [key, entry] of voteAttempts) {
+      if (now > entry.resetAt) voteAttempts.delete(key);
+      if (voteAttempts.size <= 4000) break;
+    }
+  }
+  const key = `${ip}|${playerId || "anonymous"}`;
+  const entry = voteAttempts.get(key);
+  if (!entry || now > entry.resetAt) {
+    voteAttempts.set(key, { count: 1, resetAt: now + VOTE_WINDOW_MS });
+    return true;
+  }
+  entry.count += 1;
+  return entry.count <= VOTE_LIMIT;
+}
+
+function clientIp(req) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "")
+    .split(",")[0]
+    .trim();
+  return forwarded || req.socket?.remoteAddress || "unknown";
+}
+
 function requireHost(req, res, next) {
   if (!isHostAuthed(req)) {
     return res.status(401).json({ error: "Host access required.", code: "host_required" });
@@ -2242,6 +2364,22 @@ async function getUpdateStatus({ force = false } = {}) {
     return updateCache;
   }
   if (updateCheckPromise) return updateCheckPromise;
+
+  try {
+    const updateUrl = new URL(UPDATE_API_URL);
+    if (updateUrl.protocol !== "https:") {
+      throw new Error("UPDATE_API_URL must be an https:// URL.");
+    }
+  } catch (error) {
+    const failed = {
+      ...base,
+      checkedAt: Date.now(),
+      error: error?.message || "UPDATE_API_URL is not a valid URL.",
+    };
+    updateCache = failed;
+    updateCacheAt = Date.now();
+    return failed;
+  }
 
   if (force) updateLastForceAt = now;
   updateCheckPromise = (async () => {
@@ -2314,7 +2452,7 @@ function sanitizeSvgBuffer(buffer) {
     throw new HttpError(400, "That SVG does not contain an SVG root.");
   }
   if (
-    /<script\b|<foreignObject\b|\son[a-z]+\s*=|javascript:|<!ENTITY|<!DOCTYPE|href\s*=\s*["']\s*(?:https?:|\/\/|data:text\/html)/i.test(
+    /<script\b|<foreignObject\b|<animate\b|<set\b|\son[a-z]+\s*=|onbegin|javascript:|<!ENTITY|<!DOCTYPE|href\s*=\s*["']\s*(?:https?:|\/\/|data:)/i.test(
       text,
     )
   ) {
@@ -2356,7 +2494,7 @@ function identifyLogo(buffer, mime) {
 
 const app = express();
 app.disable("x-powered-by");
-app.set("trust proxy", "loopback");
+app.set("trust proxy", TRUST_PROXY.length === 1 ? TRUST_PROXY[0] : TRUST_PROXY);
 
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -2381,7 +2519,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: "32kb" }));
+app.use(express.json({ limit: "256kb" }));
 
 app.use(
   express.static(PUBLIC_DIR, {
@@ -2475,6 +2613,7 @@ app.get("/api/state", (req, res) => {
   const playerId = typeof req.query.playerId === "string" ? req.query.playerId : "";
   const validPlayer = /^[a-zA-Z0-9_-]{16,64}$/.test(playerId) ? playerId : "";
   res.json({
+    rev: stateRev,
     state: publicState(),
     you: personalState(state.round, validPlayer, state.survey),
   });
@@ -2502,9 +2641,11 @@ app.get("/api/theme/logo", (req, res) => {
   if (!ext) return res.status(404).end();
   try {
     const buffer = fs.readFileSync(logoPath(ext));
+    res.setHeader("Cache-Control", "no-store");
     res.setHeader("Content-Type", logo.type);
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:");
+    if (logo.type === "image/svg+xml") {
+      res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox;");
+    }
     res.send(buffer);
   } catch {
     res.status(404).end();
@@ -2620,14 +2761,28 @@ app.post("/api/host/login", async (req, res, next) => {
   }
 });
 
+function closeHostSockets() {
+  if (typeof wss === "undefined") return;
+  for (const client of wss.clients) {
+    if (client.role !== "host") continue;
+    try {
+      client.close(4401, "Host signed out");
+    } catch {
+      // Ignore already-closed sockets.
+    }
+  }
+}
+
 app.post("/api/host/logout", (req, res) => {
   clearHostCookie(req, res);
+  closeHostSockets();
   res.json({ ok: true });
 });
 
 app.get("/api/host/state", requireHost, (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.json({
+    rev: stateRev,
     state: publicState({ includeCounts: true, includeSlides: true }),
     presentationToken: state.presentation?.controllerToken || null,
   });
@@ -2637,6 +2792,7 @@ app.get("/api/controller/state", requireController, (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   const slideToken = String(req.headers["x-controller-token"] || req.query?.token || "");
   res.json({
+    rev: stateRev,
     state: publicState({ includeSlides: true, slideToken }),
   });
 });
@@ -2840,7 +2996,9 @@ app.post("/api/presentation/interaction", requireController, (req, res, next) =>
 
 app.post("/api/presentation/interaction/reveal", requireController, (req, res) => {
   const revealed = revealRound("host");
-  if (!revealed) return res.status(409).json({ error: "There is no open poll to reveal." });
+  if (!revealed) {
+    return res.status(409).json({ error: "There is no open poll to reveal.", code: "no_open_round" });
+  }
   res.json({ ok: true, state: publicState() });
 });
 
@@ -2875,8 +3033,8 @@ app.post("/api/presentation/interaction/tiebreak", requireController, (req, res,
     broadcastState();
     res.json({
       ok: true,
-      winnerOptionId,
       endsAt: round.tieBreak.endsAt,
+      poolSize: round.tieBreak.pool.length,
       state: publicState(),
     });
   } catch (error) {
@@ -2887,7 +3045,7 @@ app.post("/api/presentation/interaction/tiebreak", requireController, (req, res,
 app.post("/api/presentation/interaction/close-hands", requireController, (req, res) => {
   const round = state.round;
   if (!round || round.mode !== "hands") {
-    return res.status(409).json({ error: "There is no live-hands round open." });
+    return res.status(409).json({ error: "There is no live-hands round open.", code: "no_hands_round" });
   }
   if (round.status === "open") {
     round.status = "closed";
@@ -3047,6 +3205,9 @@ app.post("/api/survey/answer", (req, res, next) => {
     if (!/^[a-zA-Z0-9_-]{16,64}$/.test(playerId)) {
       throw new HttpError(400, "This browser could not be identified. Reload and try again.");
     }
+    if (!voteAllowed(clientIp(req), playerId)) {
+      throw new HttpError(429, "Too many requests. Slow down and try again.");
+    }
     const questionId = typeof req.body?.questionId === "string" ? req.body.questionId : "";
     const optionId = typeof req.body?.optionId === "string" ? req.body.optionId : "";
     const customLabel = typeof req.body?.customLabel === "string" ? req.body.customLabel : "";
@@ -3065,7 +3226,7 @@ app.post("/api/host/session/start", requireHost, (req, res, next) => {
   try {
     const details = validateSessionInput(req.body);
     const round = startSession(details);
-    res.json({ ok: true, roundId: round.id, state: publicState() });
+    res.json({ ok: true, roundId: round.id, state: publicState({ includeCounts: true }) });
   } catch (error) {
     next(error);
   }
@@ -3074,7 +3235,7 @@ app.post("/api/host/session/start", requireHost, (req, res, next) => {
 app.post("/api/host/session/next", requireHost, (req, res, next) => {
   try {
     const round = advanceSession();
-    res.json({ ok: true, roundId: round.id, state: publicState() });
+    res.json({ ok: true, roundId: round.id, state: publicState({ includeCounts: true }) });
   } catch (error) {
     next(error);
   }
@@ -3084,7 +3245,7 @@ app.post("/api/host/open", requireHost, (req, res, next) => {
   try {
     const details = validateRoundInput(req.body);
     const round = openRound(details);
-    res.json({ ok: true, roundId: round.id, state: publicState() });
+    res.json({ ok: true, roundId: round.id, state: publicState({ includeCounts: true }) });
   } catch (error) {
     next(error);
   }
@@ -3094,9 +3255,9 @@ app.post("/api/host/reveal", requireHost, (req, res) => {
   const wasRevealed = state.round?.status === "revealed";
   const revealed = revealRound("host");
   if (!revealed && !wasRevealed) {
-    return res.status(409).json({ error: "There is no open round to reveal." });
+    return res.status(409).json({ error: "There is no open round to reveal.", code: "no_open_round" });
   }
-  res.json({ ok: true, state: publicState() });
+  res.json({ ok: true, state: publicState({ includeCounts: true }) });
 });
 
 app.post("/api/host/tiebreak/spin", requireHost, (req, res, next) => {
@@ -3135,7 +3296,7 @@ app.post("/api/host/tiebreak/spin", requireHost, (req, res, next) => {
       ok: true,
       winnerOptionId,
       endsAt: round.tieBreak.endsAt,
-      state: publicState(),
+      state: publicState({ includeCounts: true }),
     });
   } catch (error) {
     next(error);
@@ -3144,7 +3305,7 @@ app.post("/api/host/tiebreak/spin", requireHost, (req, res, next) => {
 
 app.post("/api/host/reset", requireHost, (req, res) => {
   resetRound();
-  res.json({ ok: true, state: publicState() });
+  res.json({ ok: true, state: publicState({ includeCounts: true }) });
 });
 
 app.post("/api/host/end", requireHost, (req, res) => {
@@ -3155,7 +3316,7 @@ app.post("/api/host/end", requireHost, (req, res) => {
 app.post("/api/host/hands/close", requireHost, (req, res) => {
   const round = state.round;
   if (!round || round.mode !== "hands") {
-    return res.status(409).json({ error: "There is no live-hands round open." });
+    return res.status(409).json({ error: "There is no live-hands round open.", code: "no_hands_round" });
   }
   if (round.status === "open") {
     round.status = "closed";
@@ -3163,7 +3324,7 @@ app.post("/api/host/hands/close", requireHost, (req, res) => {
     scheduleSave();
     broadcastState();
   }
-  res.json({ ok: true, state: publicState() });
+  res.json({ ok: true, state: publicState({ includeCounts: true }) });
 });
 
 app.post("/api/hands", (req, res, next) => {
@@ -3180,8 +3341,18 @@ app.post("/api/hands", (req, res, next) => {
     if (!/^[a-zA-Z0-9_-]{16,64}$/.test(playerId)) {
       throw new HttpError(400, "This browser could not be identified. Reload and try again.");
     }
+    if (!voteAllowed(clientIp(req), playerId)) {
+      throw new HttpError(429, "Too many requests. Slow down and try again.");
+    }
 
-    const raised = Boolean(req.body?.raised);
+    const raised = req.body?.raised === true;
+    if (
+      raised &&
+      !Object.prototype.hasOwnProperty.call(round.hands, playerId) &&
+      Object.keys(round.hands).length >= LIMITS.maxSurveyRespondents
+    ) {
+      throw new HttpError(429, "Too many hands are up. The host can close and reopen the round.");
+    }
     const currentlyRaised = Object.prototype.hasOwnProperty.call(round.hands, playerId);
     if (raised && !currentlyRaised) {
       round.hands[playerId] = { raisedAt: Date.now() };
@@ -3221,6 +3392,9 @@ app.post("/api/vote", (req, res, next) => {
     if (!/^[a-zA-Z0-9_-]{16,64}$/.test(playerId)) {
       throw new HttpError(400, "This browser could not be identified. Reload and try again.");
     }
+    if (!voteAllowed(clientIp(req), playerId)) {
+      throw new HttpError(429, "Too many requests. Slow down and try again.");
+    }
 
     let optionId = typeof req.body?.optionId === "string" ? req.body.optionId : "";
     const customLabel = typeof req.body?.customLabel === "string" ? req.body.customLabel : "";
@@ -3234,6 +3408,9 @@ app.post("/api/vote", (req, res, next) => {
     }
 
     const updated = Object.prototype.hasOwnProperty.call(round.votes, playerId);
+    if (!updated && Object.keys(round.votes).length >= LIMITS.maxSurveyRespondents) {
+      throw new HttpError(429, "Too many votes have been cast. The host can reset and reopen the poll.");
+    }
     round.votes[playerId] = { optionId, at: Date.now() };
     scheduleSave();
     broadcastState();
@@ -3345,6 +3522,16 @@ const heartbeat = setInterval(() => {
     } catch {
       ws.terminate();
     }
+  }
+  const now = Date.now();
+  for (const [key, entry] of loginAttempts) {
+    if (now > entry.resetAt) loginAttempts.delete(key);
+  }
+  for (const [key, entry] of qrAttempts) {
+    if (now > entry.resetAt) qrAttempts.delete(key);
+  }
+  for (const [key, entry] of voteAttempts) {
+    if (now > entry.resetAt) voteAttempts.delete(key);
   }
 }, 30_000);
 
