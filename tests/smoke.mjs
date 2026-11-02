@@ -194,6 +194,21 @@ async function main() {
     await waitVisible(hostPage.locator("#customizer-overlay"));
     await hostPage.click("#customizer-close");
     await hostPage.waitForFunction(() => document.querySelector("#customizer-overlay")?.hidden);
+    const exportPromise = hostPage.waitForEvent("download", { timeout: 20_000 });
+    await hostPage.click("#export-questions");
+    const exportDownload = await exportPromise;
+    const exportPath = path.join(dataDir, "questions-export.json");
+    await exportDownload.saveAs(exportPath);
+    const exported = JSON.parse(fs.readFileSync(exportPath, "utf8"));
+    assert.ok(exported.title, "export should include a title");
+    assert.ok(Array.isArray(exported.questions) && exported.questions.length >= 1, "export should include questions");
+    assert.ok(exported.questions[0].question && Array.isArray(exported.questions[0].options), "export shape should match import");
+    await hostPage.setInputFiles("#import-questions-input", exportPath);
+    await hostPage.waitForFunction(
+      (count) => document.querySelector("#session-count")?.textContent?.includes(String(count)),
+      exported.questions.length,
+      { timeout: 10_000 },
+    );
 
     console.log("3/15 projector setup and deck upload");
     await hostPage.goto(server.base + "/present", { waitUntil: "domcontentloaded" });

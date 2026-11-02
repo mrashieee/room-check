@@ -1790,7 +1790,30 @@ html[data-button-style="minimal"] .add-question-button {
   gap: 7px;
 }
 
+.session-builder-io {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
 .import-questions {
+  min-height: 32px;
+  padding: 6px 9px;
+  font-size: 12px;
+  box-shadow: none;
+}
+
+label.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  cursor: pointer;
+  text-align: center;
+}
+
+.session-builder-io .button {
   min-height: 32px;
   padding: 6px 9px;
   font-size: 12px;

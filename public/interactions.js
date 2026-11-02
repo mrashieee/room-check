@@ -61,6 +61,7 @@ const modeChoices = $("#mode-choices");
 const sessionBuilder = $("#session-builder");
 const multiQuestionToggle = $("#multi-question-toggle");
 const importQuestionsInput = $("#import-questions-input");
+const exportQuestionsButton = $("#export-questions");
 const sessionCount = $("#session-count");
 const questionList = $("#question-list");
 const addQuestionButton = $("#add-question");
@@ -519,6 +520,35 @@ async function importQuestionsFile(file) {
   }
 }
 
+function exportQuestionsFile() {
+  captureActiveQuestion();
+  const questions = draftQuestions.filter((question) => question.question.trim() && question.options.filter(Boolean).length >= 2);
+  if (!questions.length) {
+    showToast(toast, "Write at least one question with two answers first.", 3200);
+    return;
+  }
+  const payload = {
+    title: titleInput.value.trim() || "Room Check",
+    questions: questions.map((question) => ({
+      question: question.question.trim(),
+      options: question.options.filter(Boolean),
+      durationSec: question.durationSec,
+      spinOnTie: question.spinOnTie !== false,
+      allowCustom: question.allowCustom !== false,
+    })),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2) + "\n"], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${(payload.title || "room-check").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "room-check"}-questions.json`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast(toast, `Exported ${questions.length} ${pluralize(questions.length, "question")}. Import it anywhere with Import JSON.`, 3200);
+}
+
 function updateQuestionCount() {
   questionCount.textContent = `${questionInput.value.length} / 160`;
 }
@@ -713,7 +743,7 @@ function populateSetupFromRound(round) {
   draftQuestions = [
     normalizeQuestionDraft({
       question: round.question || "",
-      options: round.options.map((option) => option.label),
+      options: Array.isArray(round.options) ? round.options.map((option) => option.label) : [],
       durationSec: round.durationSec ?? 60,
       spinOnTie: round.spinOnTie !== false,
       allowCustom: round.allowCustom !== false,
@@ -1434,7 +1464,7 @@ function applyState(state, rev = 0) {
     ) {
       if (wasMultiSession) {
         populateSetup();
-      } else if (lastRound) {
+      } else if (lastRound && lastRound.mode !== "hands") {
         populateSetupFromRound(lastRound);
       } else {
         populateSetup();
@@ -2129,6 +2159,7 @@ multiQuestionToggle.addEventListener("change", () => {
 importQuestionsInput.addEventListener("change", () => {
   importQuestionsFile(importQuestionsInput.files?.[0]);
 });
+exportQuestionsButton.addEventListener("click", exportQuestionsFile);
 
 addOptionButton.addEventListener("click", () => {
   if (options.length >= MAX_OPTIONS) return;
