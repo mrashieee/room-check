@@ -512,8 +512,9 @@ function publicSession() {
   };
 }
 
-function publicPresentation(presentation) {
+function publicPresentation(presentation, { includeSlides = true, slideToken = "" } = {}) {
   if (!presentation) return null;
+  const tokenQuery = slideToken ? `?token=${encodeURIComponent(slideToken)}` : "";
   return {
     id: presentation.id,
     title: presentation.title,
@@ -527,12 +528,16 @@ function publicPresentation(presentation) {
     slideCount: presentation.slides.length,
     startedAt: presentation.startedAt || null,
     closedAt: presentation.closedAt || null,
-    slides: presentation.slides.map((slide) => ({
-      id: slide.id,
-      name: slide.name,
-      src: `/api/presentation/slide/${slide.id}`,
-      rotation: slide.rotation || 0,
-    })),
+    ...(includeSlides
+      ? {
+          slides: presentation.slides.map((slide) => ({
+            id: slide.id,
+            name: slide.name,
+            src: `/api/presentation/slide/${slide.id}${tokenQuery}`,
+            rotation: slide.rotation || 0,
+          })),
+        }
+      : {}),
   };
 }
 
@@ -610,7 +615,7 @@ function publicSurvey(survey, { includeCounts = false } = {}) {
   };
 }
 
-function publicState({ includeCounts = false } = {}) {
+function publicState({ includeCounts = false, includeSlides = false, slideToken = "" } = {}) {
   if (state.survey) {
     const survey = state.survey;
     return {
@@ -618,7 +623,7 @@ function publicState({ includeCounts = false } = {}) {
       round: null,
       session: null,
       survey: publicSurvey(survey, { includeCounts }),
-      presentation: publicPresentation(state.presentation),
+      presentation: publicPresentation(state.presentation, { includeSlides, slideToken }),
       theme: state.theme,
       closed: survey.status === "closed",
       closedAt: survey.closedAt || null,
@@ -633,7 +638,7 @@ function publicState({ includeCounts = false } = {}) {
       round: null,
       session,
       survey: null,
-      presentation: publicPresentation(state.presentation),
+      presentation: publicPresentation(state.presentation, { includeSlides, slideToken }),
       theme: state.theme,
       closed: Boolean(state.sessionClosedAt),
       closedAt: state.sessionClosedAt || null,
@@ -645,7 +650,7 @@ function publicState({ includeCounts = false } = {}) {
       now: Date.now(),
       session,
       survey: null,
-      presentation: publicPresentation(state.presentation),
+      presentation: publicPresentation(state.presentation, { includeSlides, slideToken }),
       theme: state.theme,
       closed: false,
       closedAt: null,
@@ -668,7 +673,7 @@ function publicState({ includeCounts = false } = {}) {
     now: Date.now(),
     session,
     survey: null,
-    presentation: publicPresentation(state.presentation),
+    presentation: publicPresentation(state.presentation, { includeSlides, slideToken }),
     theme: state.theme,
     closed: false,
     closedAt: null,
@@ -766,7 +771,9 @@ function statePayloadFor(client) {
   const isHost = client.role === "host";
   return {
     type: "state",
-    state: isHost ? publicState({ includeCounts: true }) : publicState(),
+    state: isHost
+      ? publicState({ includeCounts: true, includeSlides: true })
+      : publicState({ includeSlides: false }),
     you: isHost ? null : personalState(state.round, client.playerId, state.survey),
   };
 }
@@ -2284,7 +2291,7 @@ function identifyLogo(buffer, mime) {
 
 const app = express();
 app.disable("x-powered-by");
-app.set("trust proxy", true);
+app.set("trust proxy", "loopback");
 
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -2539,17 +2546,20 @@ app.post("/api/host/logout", (req, res) => {
 app.get("/api/host/state", requireHost, (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.json({
-    state: publicState({ includeCounts: true }),
+    state: publicState({ includeCounts: true, includeSlides: true }),
     presentationToken: state.presentation?.controllerToken || null,
   });
 });
 
-app.get("/api/presentation/state", (req, res) => {
+app.get("/api/controller/state", requireController, (req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.json({ presentation: publicPresentation(state.presentation) });
+  const slideToken = String(req.headers["x-controller-token"] || req.query?.token || "");
+  res.json({
+    state: publicState({ includeSlides: true, slideToken }),
+  });
 });
 
-app.get("/api/presentation/slide/:id", (req, res) => {
+app.get("/api/presentation/slide/:id", requireController, (req, res) => {
   const presentation = state.presentation;
   if (!presentation) return res.status(404).end();
   const slide = presentation.slides.find((entry) => entry.id === req.params.id);
@@ -2566,7 +2576,7 @@ app.get("/api/presentation/slide/:id", (req, res) => {
   }
   try {
     const buffer = fs.readFileSync(file);
-    res.setHeader("Cache-Control", "public, max-age=300");
+    res.setHeader("Cache-Control", "private, max-age=300");
     res.type(slide.type || "image/png");
     res.send(buffer);
   } catch (error) {
@@ -2796,9 +2806,10 @@ app.post("/api/presentation/end", requireController, (req, res, next) => {
   try {
     if (!state.presentation) throw new HttpError(404, "Presentation not found.");
     if (state.presentation.status === "live") controlPresentation("close");
+    const slideToken = String(req.headers["x-controller-token"] || req.query?.token || "");
     res.json({
       ok: true,
-      presentation: publicPresentation(state.presentation),
+      presentation: publicPresentation(state.presentation, { slideToken }),
       state: publicState(),
     });
   } catch (error) {
@@ -2814,7 +2825,8 @@ app.post("/api/presentation/control", requireController, (req, res, next) => {
       req.body?.fitMode,
       req.body?.scroll,
     );
-    res.json({ presentation: publicPresentation(presentation) });
+    const slideToken = String(req.headers["x-controller-token"] || req.query?.token || "");
+    res.json({ presentation: publicPresentation(presentation, { slideToken }) });
   } catch (error) {
     next(error);
   }

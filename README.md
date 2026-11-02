@@ -36,6 +36,8 @@ It is **offline-first**: the presenter laptop owns the slides and the presentati
 - **Tunnel-ready audience link:** run `npm run share` and the QR/link automatically use a temporary public HTTPS address.
 - **Share card:** `/share` shows the audience QR and link, with a downloadable 1920×1080 PNG for a slide.
 - **Desktop shell:** on desktop, the header and footer stay visible while only the middle content scrolls. Phones keep normal page scrolling.
+- **Presenter preflight:** the projector setup shows the audience link, whether it is LAN or tunnel, a copy button and the share card.
+- **Connection feedback:** the projector shows a reconnecting state if the server blips, and warns before closing or reloading a live presentation.
 - **No media server:** no WebRTC, TURN, SFU, camera or screen sharing to audience phones. That is deliberate.
 
 ## What it does not do
@@ -576,6 +578,8 @@ Check the [CHANGELOG](./CHANGELOG.md) for release notes.
 - Run a single app instance. Do not put the local data directory on a shared network filesystem.
 - No names, emails, camera, microphone, GPS, analytics or payment data are collected.
 - Audience screens do not display the slide deck or live video. The deck stays on the projector.
+- Slide images require the host cookie or a valid controller token. Public state omits slide URLs.
+- The controller token is only valid while the presentation is live.
 
 ## Development
 
@@ -594,7 +598,10 @@ npm run share         # run with a temporary public Cloudflare tunnel
 npm run reset-password
 npm run backup-data   # copy .data to a timestamped backup
 npm run check         # syntax checks
+npm run test:smoke    # automated Chromium smoke test
 ```
+
+`npm run test:smoke` starts a temporary server on a free port with a throwaway data directory, then exercises setup, image/PDF slides, the controller, polls, hands, surveys, the share card, slide access and end session. It uses `playwright-core` and a Chromium executable. Set `CHROME_PATH` if Chromium is not in a standard location.
 
 Manual QA flow:
 
@@ -642,6 +649,8 @@ scripts/
 ├── share.mjs               temporary Cloudflare tunnel
 ├── reset-password.mjs      password reset helper
 └── backup-data.mjs         cross-platform .data backup
+tests/smoke.mjs             automated Chromium smoke test
+tests/fixtures/             smoke-test slide and PDF fixtures
 docs/                       README screenshots
 CHANGELOG.md                release history
 .env.example

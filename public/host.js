@@ -164,6 +164,7 @@ let clockTimer = null;
 let qrTimer = null;
 let saveDraftTimer = null;
 let actionInFlight = false;
+let allowUnload = false;
 let config = null;
 let hostPollTimer = null;
 let hostPollBusy = false;
@@ -2131,6 +2132,7 @@ $("#lock-button").addEventListener("click", async () => {
   } catch {
     // Lock the UI regardless.
   }
+  allowUnload = true;
   if (connection) connection.close();
   stopClock();
   stopHostPolling();
@@ -2198,12 +2200,19 @@ document.addEventListener("fullscreenchange", () => {
   fullscreenButton.setAttribute("aria-label", isFull ? "Exit full screen" : "Enter full screen");
 });
 
-window.addEventListener("beforeunload", () => {
+window.addEventListener("beforeunload", (event) => {
   if (connection) connection.close();
   stopClock();
   stopHostPolling();
   clearTimeout(qrTimer);
   clearTimeout(saveDraftTimer);
+  const liveRound = roundState?.round?.status === "open";
+  const liveSurvey = roundState?.survey?.status === "open";
+  const livePresentation = roundState?.presentation?.status === "live";
+  if (!allowUnload && (liveRound || liveSurvey || livePresentation)) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
 });
 
 init();

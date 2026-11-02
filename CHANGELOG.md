@@ -25,6 +25,11 @@ All notable changes to Room Check are documented here.
 - Landing header uses Home; the host and presenter headers also expose Share
 - Presentation header End session uses the same muted treatment as the host header
 - Desktop landing fills the viewport, aligns content to the top-left and hides the scrollbar
+- Presenter preflight audience link, LAN/tunnel label and copy action
+- Projector connection feedback and live-session close/reload warning
+- Automated Chromium smoke test covering setup, slides, controller, polls, hands, surveys, share card, slide access and end session
+- Slide images now require the host cookie or controller token; public state no longer exposes slide URLs
+- Controller state endpoint scoped to the active controller token
 - Host theme customiser, named palettes, custom logo, backups and update page remain available
 
 ### Changed

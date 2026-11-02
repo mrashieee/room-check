@@ -22,6 +22,12 @@ const qrPanel = document.querySelector("#present-qr-panel");
 const qrImage = document.querySelector("#present-qr");
 const qrUrl = document.querySelector("#present-qr-url");
 const copyController = document.querySelector("#present-copy");
+const connectionPill = document.querySelector("#present-connection");
+const connectionLabel = document.querySelector("#present-connection-label");
+const audienceMode = document.querySelector("#present-audience-mode");
+const audienceUrl = document.querySelector("#present-audience-url");
+const audienceNote = document.querySelector("#present-audience-note");
+const copyAudience = document.querySelector("#present-audience-copy");
 const slideWrap = document.querySelector(".present-slide-wrap");
 const displaySlide = document.querySelector("#present-slide");
 const displayLabel = document.querySelector("#present-display-label");
@@ -54,6 +60,8 @@ let round = null;
 let survey = null;
 let controllerToken = "";
 let controllerBase = location.origin;
+let audienceJoinUrl = "";
+let allowUnload = false;
 let stateTimer = null;
 let uploading = false;
 let displayDismissed = false;
@@ -62,6 +70,26 @@ let fitMode = "width";
 function setStatus(message, { error = false } = {}) {
   statusLine.textContent = message;
   statusLine.dataset.state = error ? "error" : "info";
+}
+
+function setProjectorConnection(status, label) {
+  connectionPill.dataset.status = status;
+  connectionLabel.textContent = label;
+}
+
+function applyAudienceConfig(config) {
+  audienceJoinUrl = config?.joinUrl || "";
+  if (!audienceJoinUrl) {
+    audienceMode.textContent = "Unavailable";
+    audienceUrl.textContent = "—";
+    audienceNote.textContent = "Could not load the audience link. Restart the server and reload.";
+    return;
+  }
+  audienceMode.textContent = config.publicUrl ? "Public tunnel" : "LAN";
+  audienceUrl.textContent = audienceJoinUrl.replace(/^https?:\/\//, "");
+  audienceNote.textContent = config.publicUrl
+    ? "Public tunnel link. Keep the tunnel process running during the session."
+    : "LAN link. Run npm run share for an audience outside this network.";
 }
 
 async function request(path, options = {}) {
@@ -356,7 +384,8 @@ function hideDisplayLocally() {
 
 async function refreshDisplayState() {
   try {
-    const payload = await request("/api/state");
+    const payload = await request("/api/host/state");
+    setProjectorConnection("online", "Projector");
     presentation = payload.state?.presentation || null;
     round = payload.state?.round || null;
     survey = payload.state?.survey || null;
@@ -376,6 +405,7 @@ async function refreshDisplayState() {
     }
     renderDisplay();
   } catch {
+    setProjectorConnection("offline", "Reconnecting");
     // Keep the last slide visible if the network blips.
   }
 }
@@ -608,6 +638,7 @@ async function endPresentationSession() {
       return;
     }
   }
+  allowUnload = true;
   location.href = "/host";
 }
 
@@ -649,6 +680,15 @@ copyController.addEventListener("click", async () => {
     setStatus("Could not copy the controller link.");
   }
 });
+copyAudience.addEventListener("click", async () => {
+  if (!audienceJoinUrl) return;
+  try {
+    await navigator.clipboard.writeText(audienceJoinUrl);
+    copyAudience.setAttribute("aria-label", "Audience link copied");
+  } catch {
+    setStatus("Could not copy the audience link.");
+  }
+});
 startButton.addEventListener("click", startPresentation);
 resumeButton.addEventListener("click", showDisplay);
 discardButton.addEventListener("click", discardPresentation);
@@ -678,6 +718,7 @@ lockButton.addEventListener("click", async () => {
   } catch {
     // Lock the UI regardless.
   }
+  allowUnload = true;
   location.href = "/host";
 });
 document.addEventListener("keydown", (event) => {
@@ -691,7 +732,13 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "ArrowRight") control("next");
 });
 
-window.addEventListener("beforeunload", stopDisplayPolling);
+window.addEventListener("beforeunload", (event) => {
+  stopDisplayPolling();
+  if (!allowUnload && presentation?.status === "live") {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+});
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && !displayView.hidden) refreshDisplayState();
 });
@@ -702,7 +749,9 @@ async function init() {
   try {
     const config = await request("/api/config");
     if (config?.joinUrl) controllerBase = new URL(config.joinUrl).origin;
+    applyAudienceConfig(config);
   } catch {
+    applyAudienceConfig(null);
     // Fall back to the current origin.
   }
   try {

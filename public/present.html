@@ -39,7 +39,7 @@
       <div class="host-header-actions">
         <div class="connection-pill" id="present-connection" data-status="online" role="status">
           <span class="connection-dot" aria-hidden="true"></span>
-          <span>Projector</span>
+          <span id="present-connection-label">Projector</span>
         </div>
         <button class="icon-button" id="present-header-fullscreen" type="button" aria-label="Toggle full screen" title="Full screen">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
@@ -49,7 +49,7 @@
         </a>
         <button class="text-button" id="present-end-session" type="button">End session</button>
         <button class="text-button" id="present-lock" type="button">Lock</button>
-        <a class="text-button" href="/share">Share</a>
+        <a class="text-button" href="/share" target="_blank" rel="noreferrer">Share</a>
         <a class="text-button" href="/">Home</a>
       </div>
     </header>
@@ -73,6 +73,20 @@
             <div class="present-field">
               <label class="field-label" for="present-title">Presentation title</label>
               <input class="text-input" id="present-title" type="text" maxlength="52" value="Presentation" autocomplete="off" />
+            </div>
+
+            <div class="present-field present-audience">
+              <div class="field-label-row">
+                <span class="field-label">Audience link</span>
+                <span class="present-audience-mode" id="present-audience-mode">—</span>
+              </div>
+              <div class="present-qr-url-row">
+                <p class="present-qr-url" id="present-audience-url">—</p>
+                <button class="icon-button icon-button--light" id="present-audience-copy" type="button" aria-label="Copy audience link" title="Copy audience link">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="1.8"></path></svg>
+                </button>
+              </div>
+              <p class="present-status" id="present-audience-note">Loading the audience link…</p>
             </div>
 
             <div class="present-field">

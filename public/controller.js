@@ -398,7 +398,7 @@ function renderInteraction() {
 
 async function refresh() {
   try {
-    const payload = await request("/api/state");
+    const payload = await request("/api/controller/state");
     presentation = payload.state?.presentation || null;
     round = payload.state?.round || null;
     survey = payload.state?.survey || null;
@@ -544,8 +544,11 @@ async function endPresentationSession() {
   controlBusy = true;
   endSessionButton.disabled = true;
   try {
-    await request("/api/presentation/end", { method: "POST" });
-    await refresh();
+    const payload = await request("/api/presentation/end", { method: "POST" });
+    presentation = payload.presentation || (presentation ? { ...presentation, status: "closed" } : null);
+    round = null;
+    survey = null;
+    clearRoundTimer();
   } catch (error) {
     note.textContent = error?.message || "Could not end the session.";
   } finally {
