@@ -243,6 +243,9 @@ async function main() {
     const projectorPage = await hostContext.newPage();
     trackPage(projectorPage, "projector");
     await projectorPage.goto(server.base + "/present", { waitUntil: "domcontentloaded" });
+    await waitVisible(projectorPage.locator("#present-setup"));
+    await waitVisible(projectorPage.locator("#present-resume"));
+    await projectorPage.click("#present-resume");
     await waitVisible(projectorPage.locator("#present-display"));
 
     console.log("4/15 controller pairing and slide access");

@@ -69,6 +69,24 @@ let stateTimer = null;
 let uploading = false;
 let displayDismissed = false;
 let fitMode = "width";
+const DISPLAY_RESUME_KEY = "roomcheck.present.display";
+
+function rememberDisplay(showing) {
+  try {
+    if (showing) sessionStorage.setItem(DISPLAY_RESUME_KEY, "1");
+    else sessionStorage.removeItem(DISPLAY_RESUME_KEY);
+  } catch {
+    // Private browsing or disabled storage; fall back to setup-first.
+  }
+}
+
+function shouldResumeDisplay() {
+  try {
+    return sessionStorage.getItem(DISPLAY_RESUME_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 function setStatus(message, { error = false } = {}) {
   statusLine.textContent = message;
@@ -82,6 +100,7 @@ function setProjectorConnection(status, label) {
 
 function showThanks() {
   stopDisplayPolling();
+  rememberDisplay(false);
   allowUnload = true;
   location.href = "/thanks-host";
 }
@@ -199,8 +218,10 @@ async function refreshPresentation() {
     return;
   }
   applyPresentation(presentation);
-  if (presentation?.status === "live") {
+  if (presentation?.status === "live" && shouldResumeDisplay()) {
     showDisplay();
+  } else if (presentation?.status === "live") {
+    setStatus("Presentation is live. Press Show presentation to return to the projector view.");
   }
 }
 
@@ -395,6 +416,7 @@ function applyRemoteScroll() {
 
 function showDisplay() {
   displayDismissed = false;
+  rememberDisplay(true);
   setupView.hidden = true;
   authView.hidden = true;
   displayView.hidden = false;
@@ -410,6 +432,7 @@ function hideDisplayLocally() {
   if (displayView.hidden) return;
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   displayDismissed = true;
+  rememberDisplay(false);
   stopDisplayPolling();
   displayView.hidden = true;
   setupView.hidden = false;
@@ -435,6 +458,7 @@ async function refreshDisplayState() {
       return;
     }
     if (!presentation || presentation.status !== "live") {
+      rememberDisplay(false);
       stopDisplayPolling();
       displayView.hidden = true;
       setupView.hidden = false;
