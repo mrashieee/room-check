@@ -235,7 +235,8 @@ async function main() {
     await hostPage.click("#present-resume");
     await waitVisible(hostPage.locator("#present-display"));
     assert.equal(await hostPage.locator("#present-end-presentation").isHidden(), false);
-    assert.equal(await hostPage.locator("#present-end-session").isHidden(), true);
+    assert.equal(await hostPage.locator("#present-end-session").isHidden(), false);
+    assert.equal(await text(hostPage.locator("#present-end-session")), "End session");
     const headerPoll = await hostPage.evaluate(async () => {
       const response = await fetch("/api/host/open", {
         method: "POST",
@@ -259,7 +260,8 @@ async function main() {
     assert.equal(headerEnd, 200);
     await hostPage.reload({ waitUntil: "domcontentloaded" });
     await waitVisible(hostPage.locator("#present-setup"));
-    assert.equal(await hostPage.locator("#present-end-session").isHidden(), true);
+    assert.equal(await hostPage.locator("#present-end-session").isHidden(), false);
+    assert.equal(await text(hostPage.locator("#present-end-session")), "End session");
     await hostPage.click("#present-resume");
     await waitVisible(hostPage.locator("#present-display"));
     const homePage = await hostContext.newPage();
@@ -605,7 +607,8 @@ async function main() {
     await hostControlPage.goto(server.base + "/interactions", { waitUntil: "domcontentloaded" });
     await waitVisible(hostControlPage.locator("#host-app"));
     await waitVisible(hostControlPage.locator("#host-end-presentation"));
-    assert.equal(await hostControlPage.locator("#end-session-button").isHidden(), true);
+    assert.equal(await hostControlPage.locator("#end-session-button").isHidden(), false);
+    assert.equal(await text(hostControlPage.locator("#end-session-button")), "End session");
     hostControlPage.once("dialog", (dialog) => dialog.accept());
     await hostControlPage.click("#host-end-presentation");
     await hostControlPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });

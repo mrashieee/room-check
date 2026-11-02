@@ -189,8 +189,8 @@ function updateHeaderActions() {
   const live = presentation?.status === "live";
   const interactionVisible = Boolean(round || survey);
   endPresentationButton.hidden = !live;
-  endSessionButton.hidden = !interactionVisible;
-  endSessionButton.textContent = live ? "End interaction" : "End session";
+  endSessionButton.hidden = false;
+  endSessionButton.textContent = live && interactionVisible ? "End interaction" : "End session";
 }
 
 function renderSlides() {

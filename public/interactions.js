@@ -1376,8 +1376,8 @@ function applyState(state, rev = 0) {
   const presentationLive = state?.presentation?.status === "live";
   const interactionVisible = Boolean(state?.round || state?.survey);
   endPresentationButton.hidden = !presentationLive;
-  endSessionButton.hidden = !interactionVisible;
-  endSessionButton.textContent = presentationLive ? "End interaction" : "End session";
+  endSessionButton.hidden = false;
+  endSessionButton.textContent = presentationLive && interactionVisible ? "End interaction" : "End session";
   const incomingRev = Number(rev) || 0;
   if (incomingRev && incomingRev <= lastStateRev) return;
   if (incomingRev) lastStateRev = incomingRev;
