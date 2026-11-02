@@ -1,4 +1,22 @@
-# Room Check smoke tests
+# Room Check tests
+
+## Unit tests (no browser)
+
+```bash
+npm run test:unit
+```
+
+Fast HTTP-level tests against a temporary server with a throwaway `DATA_DIR`:
+
+- backup rotation keeps the newest N backups with safe permissions
+- host setup, login and stale-cookie rejection
+- strict input validation rejects non-numeric timers
+- tie-break winner hidden from public state until done
+- vote rate limiting trips after a burst (429)
+- logo responses are not immutably cached
+- closing a presentation invalidates the controller token
+
+## Smoke test (browser)
 
 Run the full browser smoke test:
 
@@ -35,7 +53,7 @@ No browser is downloaded by `npm install`.
 
 ## CI
 
-`.github/workflows/check.yml` runs `npm run check` and `npm run test:smoke` on pushes and pull requests. GitHub-hosted Ubuntu provides `/usr/bin/google-chrome`.
+`.github/workflows/check.yml` runs `npm run check`, `npm run version:check`, `npm run test:unit` and `npm run test:smoke` on pushes and pull requests (Node 22 and 24 matrix). GitHub-hosted Ubuntu provides `/usr/bin/google-chrome`.
 
 ## Notes
 
