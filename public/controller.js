@@ -549,6 +549,8 @@ async function endPresentationSession() {
     round = null;
     survey = null;
     clearRoundTimer();
+    location.href = "/thanks-host";
+    return;
   } catch (error) {
     note.textContent = error?.message || "Could not end the session.";
   } finally {

@@ -33,10 +33,15 @@ It is **offline-first**: the presenter laptop owns the slides and the presentati
 - **Phone controller:** pair a phone by QR or host password, then change slides, fit the projector, scroll tall slides, run quick polls and raise Live Hands.
 - **Silent audience screen:** `/join` shows a calm attention screen, then switches to voting, hand raising or survey questions when the host starts them.
 - **Host console:** create polls and multi-question surveys, reveal results, run the wheel, customise the theme and manage backups.
+- **Works without a controller:** a live presentation can be ended directly from the host header with **End presentation**.
 - **Tunnel-ready audience link:** run `npm run share` and the QR/link automatically use a temporary public HTTPS address.
 - **Share card:** `/share` shows the audience QR and link, with a downloadable 1920×1080 PNG for a slide.
+- **Thanks pages:** `/thanks` is the audience version with no host links; `/thanks-host` adds **Start another session** for host-side screens. Both carry the support message, accented GitHub icon and GitHub QR.
+- **Audience standby:** when the host starts another session, the audience `/thanks` page returns automatically to `/join` standby.
+- **Protected home:** `/` requires the host password and opens the presenter dashboard after login.
 - **Desktop shell:** on desktop, the header and footer stay visible while only the middle content scrolls. Phones keep normal page scrolling.
 - **Presenter preflight:** the projector setup shows the audience link, whether it is LAN or tunnel, a copy button and the share card.
+- **Home controls:** fullscreen, in-place theme customisation and End session are available from the home header. The Room Check brand returns home.
 - **Connection feedback:** the projector shows a reconnecting state if the server blips, and warns before closing or reloading a live presentation.
 - **No media server:** no WebRTC, TURN, SFU, camera or screen sharing to audience phones. That is deliberate.
 
@@ -235,9 +240,10 @@ The controller and projector stay in sync over the same WebSocket connection. Sc
 Press **End session** on the controller, the projector header or the full-screen display bar.
 
 - The room closes.
-- The projector shows the host end screen.
-- The audience sees a thank-you screen styled like the host end screen.
-- The host is returned to `/host`.
+- The projector opens the host thank-you page.
+- Ending from the projector, host, home or phone controller opens `/thanks-host`.
+- The host header exposes **End presentation** while a presentation is live, so a separate phone controller is optional.
+- The audience is sent to `/thanks` when the session closes; survey results still render in `/join` after a survey closes.
 
 ### Slide files
 
@@ -310,7 +316,7 @@ Open `/host` and choose **Customise**, or open `/host?customize=1`.
 - Named custom palettes saved in `.data/palettes.json`.
 - Reset to the default theme.
 
-Host-facing logos open `/host`. Audience logos on `/join` and `/controller` are not links.
+Host-facing Room Check brands return to `/`. Audience logos on `/join` and `/controller` are not links.
 
 ## Configuration
 
@@ -326,6 +332,8 @@ Configuration is optional and read from `.env` when using `npm start` or `npm ru
 | `UPDATE_CHECK` | `on` | Set to `off` to disable GitHub release checks |
 | `UPDATE_REPO` | `mrashieee/room-check` | GitHub repository used by the update checker |
 | `UPDATE_API_URL` | GitHub latest-release API | Optional override for a mirror or local test |
+| `PRESENTATION_RETENTION_DAYS` | `7` | Delete inactive presentation folders older than this many days |
+| `BACKUP_KEEP` | `10` | Keep only the newest N backups created by `npm run backup-data` |
 
 Example `.env`:
 
@@ -336,6 +344,8 @@ PUBLIC_URL=https://poll.example.com
 # SESSION_SECRET=replace-with-a-long-random-string
 # DATA_DIR=./.data
 # UPDATE_CHECK=on
+# PRESENTATION_RETENTION_DAYS=7
+# BACKUP_KEEP=10
 ```
 
 ### `PUBLIC_URL`
@@ -347,6 +357,12 @@ This is the address phones will use. It affects the QR code, the audience link a
 - Reverse proxy or custom domain: set it to the full HTTPS origin, such as `https://poll.example.com`.
 
 Do not include a path after the origin.
+
+### Data retention
+
+On startup, Room Check removes inactive presentation folders older than `PRESENTATION_RETENTION_DAYS` (default 7). The active presentation is always kept.
+
+`npm run backup-data` keeps the newest `BACKUP_KEEP` backups (default 10) and removes older `.data-backup-*` folders.
 
 ### Data directory
 
@@ -571,6 +587,7 @@ Check the [CHANGELOG](./CHANGELOG.md) for release notes.
 - The first-run setup code prevents someone from claiming a freshly exposed instance.
 - Login and setup attempts are rate-limited.
 - Host sessions are signed HttpOnly, SameSite cookies and expire after 12 hours.
+- The landing page and host/presenter APIs require the host session; audience pages and the informational updates page remain public.
 - Results are not included in the audience state until the host or timer reveals them.
 - Write-in answers are private to their creator and the host while voting.
 - Use HTTPS for any deployment reachable over the internet.
@@ -580,13 +597,25 @@ Check the [CHANGELOG](./CHANGELOG.md) for release notes.
 - Audience screens do not display the slide deck or live video. The deck stays on the projector.
 - Slide images require the host cookie or a valid controller token. Public state omits slide URLs.
 - The controller token is only valid while the presentation is live.
+- A new controller link can be generated from the presenter QR panel, invalidating older controller links.
+- WebSocket upgrades reject cross-origin browser connections.
+- QR generation is rate-limited per client.
 
 ## Development
 
 ```bash
 npm run dev
 npm run check
+npm run test:smoke
 ```
+
+A GitHub Actions workflow runs syntax checks and the Chromium smoke test on pushes to `main`/`feature/**` and pull requests.
+
+### Accessibility
+
+- Skip links and visible focus outlines are built in.
+- The theme customiser traps focus, restores focus on close and makes the background inert.
+- Reduced-motion preferences disable non-essential animation and transitions.
 
 `npm run dev` restarts the server when server-side files change. Browser assets are served directly, so no build step is required.
 
@@ -601,12 +630,12 @@ npm run check         # syntax checks
 npm run test:smoke    # automated Chromium smoke test
 ```
 
-`npm run test:smoke` starts a temporary server on a free port with a throwaway data directory, then exercises setup, image/PDF slides, the controller, polls, hands, surveys, the share card, slide access and end session. It uses `playwright-core` and a Chromium executable. Set `CHROME_PATH` if Chromium is not in a standard location.
+`npm run test:smoke` starts a temporary server on a free port with a throwaway data directory, then exercises the protected landing, customiser save, fullscreen, image/PDF slides, presenter controls, controller token/password pairing, polls, write-ins, hands, surveys, share copy/PNG, slide access, all end-session paths and the `/thanks` pages. It uses `playwright-core` and a Chromium executable. Set `CHROME_PATH` if Chromium is not in a standard location.
 
 Manual QA flow:
 
 1. Start with a fresh `.data` directory and complete first-run setup.
-2. Open `/` and confirm the **Presentation** and **Poll, survey or hands** links work.
+2. Open `/` and confirm it redirects to host login, then the **Presentation** and **Poll, survey or hands** links work after login.
 3. Upload images and a PDF; start the presentation; pair the controller.
 4. Test slide navigation, fit width/page, tall-slide scrolling and remote scroll sync.
 5. Run a quick poll with 2–10 answers, a timer, a tie-breaker and a write-in.
@@ -631,7 +660,7 @@ public/
 ├── theme.js                applies theme, logo and favicon
 ├── customizer.js           host-only theme customiser
 ├── landing.html            presentation / interaction landing page
-├── landing.js              landing theme loader
+├── landing.js              landing theme, customiser, fullscreen and session controls
 ├── present.html            projector setup and full-screen display
 ├── present.js              slide upload, PDF conversion, display and controls
 ├── controller.html         phone controller
@@ -640,6 +669,10 @@ public/
 ├── share.html              audience QR/link card
 ├── share.js                share card QR and PNG export
 ├── share.css               share card styles
+├── thanks.html             audience thank-you page
+├── thanks-host.html        host thank-you page with Start another session
+├── thanks.js               thanks page theme and host action
+├── thanks.css              thanks page styles
 ├── updates.html            update page
 ├── updates.js              update page behavior
 ├── styles.css              original base layer
@@ -651,6 +684,7 @@ scripts/
 └── backup-data.mjs         cross-platform .data backup
 tests/smoke.mjs             automated Chromium smoke test
 tests/fixtures/             smoke-test slide and PDF fixtures
+.github/workflows/ci.yml    syntax and smoke CI
 docs/                       README screenshots
 CHANGELOG.md                release history
 .env.example

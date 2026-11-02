@@ -31,6 +31,10 @@ const MAX_QUESTIONS = 20;
 const OPTION_COLORS = ["lime", "coral", "blue", "pink", "violet", "sand", "mint", "ice", "peach", "rose"];
 const DEFAULT_OPTIONS = ["Electric", "Warming up", "Need coffee", "Send help"];
 const TIMER_CIRCUMFERENCE = 2 * Math.PI * 52;
+const nextPath = (() => {
+  const value = new URLSearchParams(location.search).get("next") || "";
+  return value.startsWith("/") && !value.startsWith("//") ? value : "";
+})();
 
 const loginView = $("#login-view");
 const hostApp = $("#host-app");
@@ -52,7 +56,6 @@ const setupView = $("#setup-view");
 const openStage = $("#open-stage");
 const resultsStage = $("#results-stage");
 const surveyStage = $("#survey-stage");
-const endedStage = $("#ended-stage");
 const setupForm = $("#setup-form");
 const modeChoices = $("#mode-choices");
 const sessionBuilder = $("#session-builder");
@@ -126,11 +129,11 @@ const timerRingValue = $("#timer-ring-value");
 const confettiCanvas = $("#confetti-canvas");
 const fullscreenButton = $("#fullscreen-button");
 const endSessionButton = $("#end-session-button");
+const endPresentationButton = $("#host-end-presentation");
 const updateNotice = $("#update-notice");
 const updateNoticeTitle = $("#update-notice-title");
 const updateNoticeCopy = $("#update-notice-copy");
 const updateDismiss = $("#update-dismiss");
-const endedBackButton = $("#ended-back-button");
 const resultsEyebrowHost = $("#results-eyebrow-host");
 const nextQuestionButton = $("#next-question-button");
 const againButton = $("#again-button");
@@ -190,7 +193,6 @@ function setView(view) {
   resultsStage.hidden = view !== "results";
   surveyStage.hidden = view !== "survey";
   surveyResultsStage.hidden = view !== "surveyResults";
-  endedStage.hidden = view !== "ended";
 }
 
 function handleAuthFailure() {
@@ -1351,16 +1353,9 @@ function showSurveyResults(index = surveyResultsIndex) {
   });
 }
 
-function showEnded() {
-  hideWheel();
-  endSessionButton.hidden = true;
-  const qrSrc = qrImageUrl(GITHUB_URL);
-  if (githubQr.getAttribute("src") !== qrSrc) githubQr.src = qrSrc;
-  setView("ended");
-}
-
 function applyState(state) {
   if (!document.body.classList.contains("customizer-open")) applyTheme(state?.theme);
+  endPresentationButton.hidden = state?.presentation?.status !== "live";
   const incomingNow = Number(state?.now) || 0;
   if (incomingNow && incomingNow < lastStateNow) return;
   lastStateNow = Math.max(lastStateNow, incomingNow);
@@ -1394,7 +1389,8 @@ function applyState(state) {
     roundState = state;
 
     if (state.closed) {
-      showEnded();
+      allowUnload = true;
+      location.href = "/thanks-host";
       return;
     }
 
@@ -1403,7 +1399,6 @@ function applyState(state) {
 
     if (
       currentView === "boot" ||
-      currentView === "ended" ||
       currentView === "survey" ||
       currentView === "surveyResults" ||
       hadRound
@@ -1728,8 +1723,9 @@ async function finishSurvey() {
   actionInFlight = true;
   setActionBusy(surveyFinishButton, true, "Finishing…");
   try {
-    const result = await api("/api/host/end", { method: "POST", body: {} });
-    applyState(result.state);
+    await api("/api/host/end", { method: "POST", body: {} });
+    allowUnload = true;
+    location.href = "/thanks-host";
   } catch (error) {
     handleActionError(error);
   } finally {
@@ -1768,10 +1764,14 @@ async function nextSessionQuestion() {
   actionInFlight = true;
   setActionBusy(nextQuestionButton, true, last ? "Finishing…" : "Opening…");
   try {
-    const result = last
-      ? await api("/api/host/end", { method: "POST", body: {} })
-      : await api("/api/host/session/next", { method: "POST", body: {} });
-    applyState(result.state);
+    if (last) {
+      await api("/api/host/end", { method: "POST", body: {} });
+      allowUnload = true;
+      location.href = "/thanks-host";
+    } else {
+      const result = await api("/api/host/session/next", { method: "POST", body: {} });
+      applyState(result.state);
+    }
   } catch (error) {
     handleActionError(error);
   } finally {
@@ -1847,6 +1847,10 @@ async function enterConsole() {
   applyState(stateResponse.state);
   loadUpdateNotice();
   startClock();
+  if (nextPath) {
+    location.replace(nextPath);
+    return;
+  }
   if (new URLSearchParams(location.search).get("customize") === "1" && currentView === "setup") {
     openCustomizer();
   } else if (currentView === "setup") {
@@ -2139,6 +2143,22 @@ $("#lock-button").addEventListener("click", async () => {
   location.reload();
 });
 
+async function endPresentationFromHost() {
+  if (!roundState?.presentation || roundState.presentation.status !== "live") return;
+  if (!window.confirm("End the presentation and show the thank-you screen?")) return;
+  endPresentationButton.disabled = true;
+  try {
+    await api("/api/host/presentation/close", { method: "POST", body: {} });
+    allowUnload = true;
+    location.href = "/thanks-host";
+  } catch (error) {
+    handleActionError(error);
+    endPresentationButton.disabled = false;
+  }
+}
+
+endPresentationButton.addEventListener("click", endPresentationFromHost);
+
 endSessionButton.addEventListener("click", async () => {
   if (
     !window.confirm(
@@ -2149,8 +2169,9 @@ endSessionButton.addEventListener("click", async () => {
   }
   endSessionButton.disabled = true;
   try {
-    const result = await api("/api/host/end", { method: "POST", body: {} });
-    applyState(result.state);
+    await api("/api/host/end", { method: "POST", body: {} });
+    allowUnload = true;
+    location.href = "/thanks-host";
   } catch (error) {
     handleActionError(error);
   } finally {
@@ -2158,17 +2179,7 @@ endSessionButton.addEventListener("click", async () => {
   }
 });
 
-endedBackButton.addEventListener("click", async () => {
-  endedBackButton.disabled = true;
-  try {
-    const result = await api("/api/host/reset", { method: "POST", body: {} });
-    applyState(result.state);
-  } catch (error) {
-    handleActionError(error);
-  } finally {
-    endedBackButton.disabled = false;
-  }
-});
+
 
 document.addEventListener("keydown", (event) => {
   const target = event.target;

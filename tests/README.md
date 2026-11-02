@@ -9,14 +9,18 @@ npm run test:smoke
 
 The test starts a temporary Room Check server on a free local port with a throwaway `DATA_DIR`, then uses Chromium to exercise:
 
-- fresh host setup
-- landing and removed routes
+- protected landing and host setup
+- landing and host theme customiser open/save/close
 - image and PDF slide upload
-- projector and controller pairing
+- projector next/previous, fit, rotate, deck/resume and display-bar end
+- controller token pairing, password pairing, fit, rotate, slide jump and slide controls
+- poll add/remove, vote, vote change and write-in
+- reveal, Live Hands, survey back/next and results
+- share-card copy, PNG export and routes
 - public slide access restrictions
-- quick poll, Live Hands and survey
-- share-card PNG export
-- end session and audience thank-you screen
+- fullscreen toggles on landing, host and projector
+- end session from controller, home, host and projector, including host End presentation and `/thanks-host`
+- `/thanks` audience content and return to `/join` standby; `/thanks-host` Start another session
 
 ## Browser requirement
 
@@ -27,6 +31,10 @@ CHROME_PATH=/path/to/chromium npm run test:smoke
 ```
 
 No browser is downloaded by `npm install`.
+
+## CI
+
+`.github/workflows/ci.yml` runs `npm run check` and `npm run test:smoke` on pushes to `main`/`feature/**` and pull requests. GitHub-hosted Ubuntu provides `/usr/bin/google-chrome`.
 
 ## Notes
 

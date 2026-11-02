@@ -1,0 +1,51 @@
+/*
+ * Room Check — thank you page
+ * Copyright (c) 2026 Muhammad Rashid K
+ * SPDX-License-Identifier: MIT
+ */
+
+.thanks-page {
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+  background: var(--page-background, var(--color-paper));
+}
+
+.thanks-main {
+  flex: 1;
+  width: 100%;
+}
+
+.thanks-page .ended-stage {
+  width: min(100%, 1320px);
+  min-height: calc(100dvh - 136px);
+  margin: 0 auto;
+  padding-inline: clamp(20px, 5vw, 64px);
+}
+
+.thanks-page .ended-star .github-mark {
+  width: 30px;
+  height: 30px;
+  padding: 5px;
+  border-radius: 999px;
+  background: var(--color-accent-2);
+  color: var(--color-paper);
+  box-sizing: border-box;
+}
+
+.thanks-page .ended-star .github-mark svg {
+  width: 18px;
+  height: 18px;
+}
+
+.thanks-page .ended-back {
+  display: inline-block;
+  margin-top: 16px;
+}
+
+@media (max-width: 960px) {
+  .thanks-page .ended-stage {
+    width: 100%;
+    min-height: 0;
+  }
+}

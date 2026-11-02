@@ -22,6 +22,7 @@ const qrPanel = document.querySelector("#present-qr-panel");
 const qrImage = document.querySelector("#present-qr");
 const qrUrl = document.querySelector("#present-qr-url");
 const copyController = document.querySelector("#present-copy");
+const newController = document.querySelector("#present-new-controller");
 const connectionPill = document.querySelector("#present-connection");
 const connectionLabel = document.querySelector("#present-connection-label");
 const audienceMode = document.querySelector("#present-audience-mode");
@@ -75,6 +76,12 @@ function setStatus(message, { error = false } = {}) {
 function setProjectorConnection(status, label) {
   connectionPill.dataset.status = status;
   connectionLabel.textContent = label;
+}
+
+function showThanks() {
+  stopDisplayPolling();
+  allowUnload = true;
+  location.href = "/thanks-host";
 }
 
 function applyAudienceConfig(config) {
@@ -393,6 +400,12 @@ async function refreshDisplayState() {
       fitMode = presentation.fitMode === "page" ? "page" : "width";
       applyFitMode();
     }
+    if (presentation?.status === "closed") {
+      round = null;
+      survey = null;
+      showThanks();
+      return;
+    }
     if (!presentation || presentation.status !== "live") {
       stopDisplayPolling();
       displayView.hidden = true;
@@ -629,17 +642,20 @@ async function startPresentation() {
 }
 
 async function endPresentationSession() {
-  if (presentation?.status === "live") {
-    if (!window.confirm("End the presentation and return to the host console?")) return;
-    try {
-      await request("/api/host/presentation/close", { method: "POST" });
-    } catch (error) {
-      setStatus(error?.message || "Could not end the presentation.", { error: true });
-      return;
-    }
+  if (presentation?.status !== "live") {
+    allowUnload = true;
+    location.href = "/host";
+    return;
   }
-  allowUnload = true;
-  location.href = "/host";
+  if (!window.confirm("End the presentation and show the thank-you screen?")) return;
+  try {
+    await request("/api/host/presentation/close", { method: "POST" });
+  } catch (error) {
+    setStatus(error?.message || "Could not end the presentation.", { error: true });
+    return;
+  }
+  presentation = { ...presentation, status: "closed" };
+  showThanks();
 }
 
 async function stopPresentation() {
@@ -678,6 +694,20 @@ copyController.addEventListener("click", async () => {
     copyController.setAttribute("aria-label", "Controller link copied");
   } catch {
     setStatus("Could not copy the controller link.");
+  }
+});
+newController.addEventListener("click", async () => {
+  if (!presentation?.id) return;
+  newController.disabled = true;
+  try {
+    const payload = await request("/api/host/presentation/token", { method: "POST" });
+    controllerToken = payload.token || "";
+    applyPresentation(payload.presentation);
+    setStatus("New controller link ready. Old controller links no longer work.");
+  } catch (error) {
+    setStatus(error?.message || "Could not create a new controller link.", { error: true });
+  } finally {
+    newController.disabled = false;
   }
 });
 copyAudience.addEventListener("click", async () => {

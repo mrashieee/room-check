@@ -65,6 +65,10 @@ const PRESENTATION_SLIDE_TYPES = new Map([
 ]);
 const PRESENTATION_MAX_SLIDES = 80;
 const PRESENTATION_SLIDE_MAX_BYTES = 25 * 1024 * 1024;
+const PRESENTATION_RETENTION_DAYS = (() => {
+  const value = Number(process.env.PRESENTATION_RETENTION_DAYS || 7);
+  return Number.isFinite(value) ? Math.max(1, value) : 7;
+})();
 const LIMITS = {
   title: 52,
   question: 160,
@@ -1745,6 +1749,23 @@ function controlPresentation(action, index, fitMode, scroll) {
   return presentation;
 }
 
+function prunePresentationFiles() {
+  if (!fs.existsSync(PRESENTATION_DIR)) return;
+  const cutoff = Date.now() - PRESENTATION_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const activeId = state.presentation?.id || null;
+  for (const entry of fs.readdirSync(PRESENTATION_DIR)) {
+    if (entry === activeId) continue;
+    const target = path.join(PRESENTATION_DIR, entry);
+    try {
+      if (fs.statSync(target).mtimeMs < cutoff) {
+        fs.rmSync(target, { recursive: true, force: true });
+      }
+    } catch {
+      // A damaged or already-removed directory is fine to skip.
+    }
+  }
+}
+
 function clearPresentation() {
   if (state.presentation) removePresentationFiles(state.presentation.id);
   state.presentation = null;
@@ -2088,6 +2109,19 @@ async function saveAuthRecord(record) {
 }
 
 const loginAttempts = new Map();
+const qrAttempts = new Map();
+
+function qrAllowed(ip) {
+  const now = Date.now();
+  const entry = qrAttempts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    qrAttempts.set(ip, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  if (entry.count >= 60) return false;
+  entry.count += 1;
+  return true;
+}
 
 function loginAllowed(ip) {
   const now = Date.now();
@@ -2341,6 +2375,7 @@ app.use(
 
 app.get("/", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
+  if (!isHostAuthed(req)) return res.redirect(302, "/host?next=/");
   res.sendFile(path.join(PUBLIC_DIR, "landing.html"));
 });
 
@@ -2360,6 +2395,18 @@ app.get("/share", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Robots-Tag", "noindex, nofollow");
   res.sendFile(path.join(PUBLIC_DIR, "share.html"));
+});
+
+app.get("/thanks", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.sendFile(path.join(PUBLIC_DIR, "thanks.html"));
+});
+
+app.get("/thanks-host", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.sendFile(path.join(PUBLIC_DIR, "thanks-host.html"));
 });
 
 app.get("/join", (req, res) => {
@@ -2435,6 +2482,10 @@ app.get("/api/theme/logo", (req, res) => {
 
 app.get("/api/qr", async (req, res, next) => {
   try {
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    if (!qrAllowed(ip)) {
+      throw new HttpError(429, "Too many QR requests. Wait a minute and try again.");
+    }
     const data = typeof req.query.data === "string" ? req.query.data.trim() : "";
     if (!data || data.length > 500 || !/^https?:\/\//i.test(data)) {
       throw new HttpError(400, "A valid http or https link is required for the QR code.");
@@ -2691,6 +2742,21 @@ app.post("/api/host/presentation/start", requireHost, (req, res, next) => {
     res.json({
       presentation: publicPresentation(presentation),
       token: presentation.controllerToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/host/presentation/token", requireHost, (req, res, next) => {
+  try {
+    if (!state.presentation) throw new HttpError(404, "Presentation not found.");
+    state.presentation.controllerToken = crypto.randomBytes(24).toString("base64url");
+    scheduleSave();
+    broadcastState();
+    res.json({
+      presentation: publicPresentation(state.presentation),
+      token: state.presentation.controllerToken,
     });
   } catch (error) {
     next(error);
@@ -3161,6 +3227,20 @@ app.use((error, req, res, next) => {
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true, maxPayload: 512 * 1024 });
 
+function allowedWebSocketOrigin(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try {
+    const originUrl = new URL(origin);
+    const host = req.headers["x-forwarded-host"] || req.headers.host;
+    if (host && originUrl.host === host) return true;
+    if (PUBLIC_URL && originUrl.origin === new URL(PUBLIC_URL).origin) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 server.on("upgrade", (req, socket, head) => {
   let url;
   try {
@@ -3170,6 +3250,12 @@ server.on("upgrade", (req, socket, head) => {
     return;
   }
   if (url.pathname !== "/ws") {
+    socket.destroy();
+    return;
+  }
+
+  if (!allowedWebSocketOrigin(req)) {
+    socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
     socket.destroy();
     return;
   }
@@ -3223,6 +3309,7 @@ const heartbeat = setInterval(() => {
 initAuth();
 loadCustomPalettes();
 loadState();
+prunePresentationFiles();
 armRevealTimer();
 armTieBreakTimer();
 armSurveyTimer();

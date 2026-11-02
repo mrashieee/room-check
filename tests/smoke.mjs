@@ -125,11 +125,23 @@ async function main() {
   });
 
   try {
-    const hostContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const hostContext = await browser.newContext({
+      viewport: { width: 1280, height: 900 },
+      permissions: ["clipboard-read", "clipboard-write"],
+    });
     const hostPage = await hostContext.newPage();
-    await hostPage.goto(server.base + "/", { waitUntil: "domcontentloaded" });
 
-    console.log("1/13 landing and removed routes");
+    console.log("1/13 protected landing");
+    await hostPage.goto(server.base + "/", { waitUntil: "domcontentloaded" });
+    await waitVisible(hostPage.locator("#auth-setup-form"));
+    assert.match(hostPage.url(), /\/host\?next=\/$/);
+
+    console.log("2/13 host setup and landing");
+    await hostPage.fill("#setup-code", server.setupCode);
+    await hostPage.fill("#new-password", password);
+    await hostPage.fill("#confirm-password", password);
+    await hostPage.click("#setup-submit");
+    await hostPage.waitForURL((url) => url.pathname === "/", { timeout: 20_000 });
     assert.equal(await text(hostPage.locator("h1").first()), "Run the room.");
     assert.deepEqual(await hostPage.locator(".landing-option strong").allTextContents(), [
       "Presentation",
@@ -137,19 +149,40 @@ async function main() {
     ]);
     assert.equal(await hostPage.locator(".landing-option-index").count(), 0);
     assert.equal(await text(hostPage.locator(".brand-tag").first()), "Home");
+    assert.equal(await hostPage.locator(".landing-header .brand").getAttribute("href"), "/");
+    assert.equal(await hostPage.locator("#landing-fullscreen").count(), 1);
+    assert.equal(await hostPage.locator("#customise-button").count(), 1);
+    assert.equal(await hostPage.locator("#landing-end-session").isDisabled(), true);
+    await hostPage.click("#customise-button");
+    await waitVisible(hostPage.locator("#customizer-overlay"));
+    await hostPage.waitForFunction(() => document.querySelector(".landing-main")?.inert === true);
+    assert.equal(new URL(hostPage.url()).pathname, "/");
+    await hostPage.locator(".palette-card").first().click();
+    await hostPage.click("#theme-save");
+    await hostPage.waitForFunction(() => document.querySelector("#customizer-overlay")?.hidden);
+    await hostPage.waitForFunction(() => document.querySelector(".landing-main")?.inert === false);
+    await hostPage.click("#landing-fullscreen");
+    await hostPage.waitForFunction(() => Boolean(document.fullscreenElement));
+    await hostPage.click("#landing-fullscreen");
+    await hostPage.waitForFunction(() => !document.fullscreenElement);
+    const hostThanksResponse = await hostPage.goto(server.base + "/thanks-host", { waitUntil: "domcontentloaded" });
+    assert.equal(hostThanksResponse.status(), 200);
+    assert.equal(await hostPage.locator("#thanks-start").count(), 1);
+    await hostPage.goto(server.base + "/", { waitUntil: "domcontentloaded" });
     for (const route of ["/online", "/live"]) {
       const response = await hostPage.goto(server.base + route, { waitUntil: "domcontentloaded" });
       assert.equal(response.status(), 404, `${route} should be gone`);
     }
-
-    console.log("2/13 host setup");
     await hostPage.goto(server.base + "/host", { waitUntil: "domcontentloaded" });
-    await waitVisible(hostPage.locator("#auth-setup-form"));
-    await hostPage.fill("#setup-code", server.setupCode);
-    await hostPage.fill("#new-password", password);
-    await hostPage.fill("#confirm-password", password);
-    await hostPage.click("#setup-submit");
-    await waitVisible(hostPage.locator("#host-app"), 20_000);
+    await waitVisible(hostPage.locator("#host-app"));
+    await hostPage.click("#fullscreen-button");
+    await hostPage.waitForFunction(() => Boolean(document.fullscreenElement));
+    await hostPage.click("#fullscreen-button");
+    await hostPage.waitForFunction(() => !document.fullscreenElement);
+    await hostPage.click("#customise-button");
+    await waitVisible(hostPage.locator("#customizer-overlay"));
+    await hostPage.click("#customizer-close");
+    await hostPage.waitForFunction(() => document.querySelector("#customizer-overlay")?.hidden);
 
     console.log("3/13 projector setup and deck upload");
     await hostPage.goto(server.base + "/present", { waitUntil: "domcontentloaded" });
@@ -170,13 +203,39 @@ async function main() {
     assert.equal(await text(hostPage.locator("#present-audience-mode")), "LAN");
     await hostPage.click("#present-start");
     await waitVisible(hostPage.locator("#present-display"), 20_000);
+    await hostPage.click("#present-fullscreen");
+    await hostPage.waitForFunction(() => Boolean(document.fullscreenElement));
+    await hostPage.click("#present-fullscreen");
+    await hostPage.waitForFunction(() => !document.fullscreenElement);
+    await hostPage.click("#present-next");
+    await hostPage.waitForFunction(() => document.querySelector("#present-display-label")?.textContent?.includes("2 / 4"));
+    await hostPage.click("#present-prev");
+    await hostPage.waitForFunction(() => document.querySelector("#present-display-label")?.textContent?.includes("1 / 4"));
+    await hostPage.click("#present-rotate");
+    await hostPage.click("#present-fit");
+    await hostPage.waitForFunction(() => document.querySelector("#present-fit")?.textContent?.includes("Fit width"));
+    await hostPage.click("#present-fit");
+    await hostPage.waitForFunction(() => document.querySelector("#present-fit")?.textContent?.includes("Fit page"));
+    await hostPage.click("#present-back");
+    await waitVisible(hostPage.locator("#present-setup"));
+    await waitVisible(hostPage.locator("#present-resume"));
+    await hostPage.click("#present-resume");
+    await waitVisible(hostPage.locator("#present-display"));
+    const homePage = await hostContext.newPage();
+    await homePage.goto(server.base + "/", { waitUntil: "domcontentloaded" });
+    await homePage.waitForFunction(() => !document.querySelector("#landing-end-session")?.disabled, null, { timeout: 10_000 });
+    assert.equal(await homePage.locator("#landing-end-session").isDisabled(), false);
+    await homePage.close();
+    const projectorPage = await hostContext.newPage();
+    await projectorPage.goto(server.base + "/present", { waitUntil: "domcontentloaded" });
+    await waitVisible(projectorPage.locator("#present-display"));
 
     console.log("4/13 controller pairing and slide access");
     const hostState = await hostPage.evaluate(async () => {
       const response = await fetch("/api/host/state", { credentials: "same-origin" });
       return response.json();
     });
-    const token = hostState.presentationToken;
+    let token = hostState.presentationToken;
     assert.ok(token && token.length >= 24, "controller token missing");
     assert.equal(hostState.state.presentation.slides.length, 4);
     const publicState = await (await fetch(server.base + "/api/state")).json();
@@ -219,6 +278,56 @@ async function main() {
     await controllerPage.waitForFunction(() =>
       document.querySelector("#controller-counter")?.textContent?.includes("2 / 4"),
     );
+    await controllerPage.click("#controller-prev");
+    await controllerPage.waitForFunction(() =>
+      document.querySelector("#controller-counter")?.textContent?.includes("1 / 4"),
+    );
+    await controllerPage.click("#controller-fit-page");
+    await controllerPage.waitForFunction(() =>
+      document.querySelector("#controller-fit-page")?.classList.contains("is-active"),
+    );
+    await controllerPage.click("#controller-fit-width");
+    await controllerPage.click("#controller-rotate");
+    await controllerPage.locator(".controller-slide-button").nth(2).click();
+    await controllerPage.waitForFunction(() =>
+      document.querySelector("#controller-counter")?.textContent?.includes("3 / 4"),
+    );
+    await controllerPage.locator(".controller-slide-button").nth(0).click();
+    await controllerPage.waitForFunction(() =>
+      document.querySelector("#controller-counter")?.textContent?.includes("1 / 4"),
+    );
+    const previousToken = token;
+    const rotatedToken = await hostPage.evaluate(async () => {
+      const response = await fetch("/api/host/presentation/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      return (await response.json()).token;
+    });
+    assert.notEqual(rotatedToken, token);
+    token = rotatedToken;
+    const staleTokenResponse = await fetch(server.base + "/api/controller/state", {
+      headers: { "X-Controller-Token": previousToken },
+    });
+    assert.equal(staleTokenResponse.status, 401);
+    await controllerPage.goto(
+      `${server.base}/controller?token=${encodeURIComponent(token)}`,
+      { waitUntil: "domcontentloaded" },
+    );
+    await waitVisible(controllerPage.locator("#controller-live"));
+    const passwordControllerContext = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+    });
+    const passwordController = await passwordControllerContext.newPage();
+    await passwordController.goto(server.base + "/controller", { waitUntil: "domcontentloaded" });
+    await waitVisible(passwordController.locator("#controller-login"));
+    await passwordController.fill("#controller-password", password);
+    await passwordController.click("#controller-login-submit");
+    await waitVisible(passwordController.locator("#controller-live"));
+    await passwordControllerContext.close();
 
     console.log("5/13 audience join");
     const audienceContext = await browser.newContext({
@@ -239,10 +348,24 @@ async function main() {
     await controllerPage.locator("#controller-poll-options input").nth(1).fill("Second");
     await controllerPage.click("#controller-add-option");
     await controllerPage.locator("#controller-poll-options input").nth(2).fill("Third");
+    await controllerPage.locator("#controller-poll-options .controller-option-remove").nth(2).click();
+    assert.equal(await controllerPage.locator("#controller-poll-options input").count(), 2);
+    await controllerPage.click("#controller-add-option");
+    await controllerPage.locator("#controller-poll-options input").nth(2).fill("Third");
     await controllerPage.selectOption("#controller-poll-duration", "0");
     await controllerPage.click("#controller-poll-start");
     await waitVisible(audiencePage.locator("#screen-vote"));
     await audiencePage.locator("#vote-options .vote-option").nth(1).click();
+    await audiencePage.click("#vote-submit");
+    await waitVisible(audiencePage.locator("#screen-voted"));
+    await audiencePage.click("#change-vote-button");
+    await waitVisible(audiencePage.locator("#screen-vote"));
+    await audiencePage.fill("#vote-write-in-input", "Audience write-in");
+    await audiencePage.click("#vote-write-in-submit");
+    await waitVisible(audiencePage.locator("#screen-voted"));
+    await audiencePage.click("#change-vote-button");
+    await waitVisible(audiencePage.locator("#screen-vote"));
+    await audiencePage.locator("#vote-options .vote-option").nth(0).click();
     await audiencePage.click("#vote-submit");
     await waitVisible(audiencePage.locator("#screen-voted"));
     await controllerPage.waitForFunction(
@@ -294,6 +417,14 @@ async function main() {
     await audiencePage.waitForFunction(() =>
       document.querySelector("#survey-question")?.textContent?.includes("Second question?"),
     );
+    await audiencePage.click("#survey-back");
+    await audiencePage.waitForFunction(() =>
+      document.querySelector("#survey-question")?.textContent?.includes("First question?"),
+    );
+    await audiencePage.click("#survey-next");
+    await audiencePage.waitForFunction(() =>
+      document.querySelector("#survey-question")?.textContent?.includes("Second question?"),
+    );
     await audiencePage.locator("#survey-options .vote-option").nth(1).click();
     await audiencePage.click("#survey-next");
     await waitVisible(audiencePage.locator("#screen-survey-done"));
@@ -312,6 +443,10 @@ async function main() {
     await hostPage.goto(server.base + "/share", { waitUntil: "domcontentloaded" });
     await waitVisible(hostPage.locator("#share-ready"));
     assert.match(await text(hostPage.locator("#share-link")), /\/join$/);
+    await hostPage.click("#share-copy");
+    await hostPage.waitForFunction(() => document.querySelector("#share-copy")?.getAttribute("aria-label") === "Audience link copied");
+    const copiedLink = await hostPage.evaluate(() => navigator.clipboard.readText());
+    assert.match(copiedLink, /\/join$/);
     const downloadPromise = hostPage.waitForEvent("download", { timeout: 20_000 });
     await hostPage.click("#share-download");
     const download = await downloadPromise;
@@ -330,23 +465,97 @@ async function main() {
     await waitVisible(controllerPage.locator("#controller-end-session"));
     controllerPage.on("dialog", (dialog) => dialog.accept());
     await controllerPage.click("#controller-end-session");
-    await waitVisible(audiencePage.locator("#screen-thanks"));
-    await controllerPage.waitForFunction(
-      () => document.querySelector("#controller-state")?.textContent === "Ended",
-    );
+    await audiencePage.waitForURL((url) => url.pathname === "/thanks", { timeout: 15_000 });
+    await waitVisible(audiencePage.locator(".ended-copy h1"));
+    assert.equal(await audiencePage.locator("#thanks-start").count(), 0);
+    assert.equal(await audiencePage.locator('.site-header a[href="/"]').count(), 0);
+    await projectorPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
+    await waitVisible(projectorPage.locator(".ended-copy h1"));
+    await controllerPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
+    await waitVisible(controllerPage.locator(".ended-copy h1"));
 
-    console.log("11/13 host ended screen");
+    console.log("11/13 host redirects to thanks");
     await hostPage.goto(server.base + "/host", { waitUntil: "domcontentloaded" });
-    await waitVisible(hostPage.locator("#host-app"));
-    await waitVisible(hostPage.locator("#ended-stage"));
+    await hostPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
+    await waitVisible(hostPage.locator(".ended-copy h1"));
+    assert.match(await text(hostPage.locator(".thanks-support-title")), /Give Room Check a star/);
+    assert.equal(await hostPage.locator(".ended-star .github-mark").count(), 1);
+    assert.match(await hostPage.locator("#thanks-qr").getAttribute("src"), /\/api\/qr\?data=/);
 
-    console.log("12/13 presenter and host header links");
+    console.log("12/13 end session from home");
+    const pollStart = await hostPage.evaluate(async () => {
+      const response = await fetch("/api/host/open", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "poll",
+          title: "Home End Test",
+          question: "Ready to finish?",
+          options: ["Yes", "No"],
+          durationSec: 0,
+          spinOnTie: false,
+        }),
+      });
+      return response.status;
+    });
+    assert.equal(pollStart, 200);
+    const homeEndPage = await hostContext.newPage();
+    await homeEndPage.goto(server.base + "/", { waitUntil: "domcontentloaded" });
+    await homeEndPage.waitForFunction(
+      () => !document.querySelector("#landing-end-session")?.disabled,
+      null,
+      { timeout: 10_000 },
+    );
+    homeEndPage.on("dialog", (dialog) => dialog.accept());
+    await homeEndPage.click("#landing-end-session");
+    await homeEndPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
+    await waitVisible(homeEndPage.locator(".ended-copy h1"));
+    await homeEndPage.click("#thanks-start");
+    await homeEndPage.waitForURL((url) => url.pathname === "/host", { timeout: 15_000 });
+    await waitVisible(homeEndPage.locator("#setup-view"));
+    await audiencePage.waitForURL((url) => url.pathname === "/join", { timeout: 10_000 });
+    await homeEndPage.fill("#game-title", "Host End Test");
+    await homeEndPage.fill("#question-input", "End from host?");
+    await homeEndPage.click("#start-button");
+    await waitVisible(homeEndPage.locator("#open-stage"));
+    await homeEndPage.click("#end-session-button");
+    await homeEndPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
+    await waitVisible(homeEndPage.locator(".ended-copy h1"));
+    await homeEndPage.close();
+
+    console.log("13/13 direct projector end");
     await hostPage.goto(server.base + "/present", { waitUntil: "domcontentloaded" });
+    await waitVisible(hostPage.locator("#present-setup"));
+    await waitVisible(hostPage.locator("#present-start"));
+    await hostPage.click("#present-start");
+    await waitVisible(hostPage.locator("#present-display"));
+    hostPage.once("dialog", (dialog) => dialog.accept());
+    await hostPage.click("#present-stop");
+    await hostPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
+    await waitVisible(hostPage.locator(".ended-copy h1"));
+    await hostPage.goto(server.base + "/present", { waitUntil: "domcontentloaded" });
+    assert.equal(await hostPage.locator(".host-header .brand").getAttribute("href"), "/");
     assert.equal(await hostPage.locator('#present-end-session').count(), 1);
     assert.equal(await hostPage.locator('.text-button[href="/share"]').count() >= 1, true);
     assert.equal(await hostPage.locator('.text-button[href="/"]').count() >= 1, true);
 
-    console.log("13/13 done");
+    console.log("14/14 end presentation from host");
+    await hostPage.goto(server.base + "/present", { waitUntil: "domcontentloaded" });
+    await waitVisible(hostPage.locator("#present-setup"));
+    await hostPage.click("#present-start");
+    await waitVisible(hostPage.locator("#present-display"));
+    const hostControlPage = await hostContext.newPage();
+    await hostControlPage.goto(server.base + "/host", { waitUntil: "domcontentloaded" });
+    await waitVisible(hostControlPage.locator("#host-app"));
+    await waitVisible(hostControlPage.locator("#host-end-presentation"));
+    hostControlPage.once("dialog", (dialog) => dialog.accept());
+    await hostControlPage.click("#host-end-presentation");
+    await hostControlPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
+    await waitVisible(hostControlPage.locator(".ended-copy h1"));
+    await hostPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
+    await hostControlPage.close();
+
+    console.log("14/14 done");
     console.log("SMOKE OK");
   } finally {
     await browser.close().catch(() => {});

@@ -57,6 +57,7 @@ let removeLogo = false;
 let logoPreviewUrl = null;
 let lastFocus = null;
 let customPalettes = [];
+let inertedBackground = [];
 
 function cloneTheme(theme) {
   return normalizeTheme(JSON.parse(JSON.stringify(theme)));
@@ -390,6 +391,20 @@ function releasePreviewUrl() {
   logoPreviewUrl = null;
 }
 
+function setBackgroundInert(inert) {
+  if (inert) {
+    inertedBackground = [];
+    for (const child of document.body.children) {
+      if (child === overlay || child.inert) continue;
+      child.inert = true;
+      inertedBackground.push(child);
+    }
+    return;
+  }
+  for (const child of inertedBackground) child.inert = false;
+  inertedBackground = [];
+}
+
 export async function openCustomizer() {
   savedTheme = getCurrentTheme();
   draft = cloneTheme(savedTheme);
@@ -405,6 +420,7 @@ export async function openCustomizer() {
   applyDraftPreview();
   overlay.hidden = false;
   document.body.classList.add("customizer-open");
+  setBackgroundInert(true);
   closeButton.focus();
 }
 
@@ -415,6 +431,7 @@ function closeCustomizer({ revert = true } = {}) {
   removeLogo = false;
   overlay.hidden = true;
   document.body.classList.remove("customizer-open");
+  setBackgroundInert(false);
   if (lastFocus instanceof HTMLElement) lastFocus.focus();
 }
 

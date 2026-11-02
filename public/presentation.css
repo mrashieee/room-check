@@ -73,6 +73,10 @@ a.landing-option:hover {
   transform: translate(-2px, -2px);
 }
 
+a.landing-option:hover .landing-option-copy span {
+  color: inherit;
+}
+
 .landing-option.is-disabled {
   cursor: not-allowed;
   opacity: 0.52;
@@ -1073,12 +1077,19 @@ a.landing-option:hover {
 }
 
 /* Match the quieter End session treatment used in the host header. */
-#present-end-session {
+#present-end-session,
+#landing-end-session {
   color: var(--muted);
 }
 
-#present-end-session:hover {
+#present-end-session:hover,
+#landing-end-session:hover {
   color: var(--color-accent-2);
+}
+
+#landing-end-session:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 /* Desktop landing: fit the room into one screen without a visible scrollbar. */

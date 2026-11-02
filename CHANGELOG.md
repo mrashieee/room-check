@@ -25,7 +25,20 @@ All notable changes to Room Check are documented here.
 - Landing header uses Home; the host and presenter headers also expose Share
 - Presentation header End session uses the same muted treatment as the host header
 - Desktop landing fills the viewport, aligns content to the top-left and hides the scrollbar
+- Landing page is protected by host login and returns there after login
+- Landing header exposes customise, fullscreen and End session
+- Landing customise opens the theme customiser in place instead of navigating to `/host`
+- Host-facing Room Check brands return to `/`
+- End session opens a dedicated `/thanks` page from the projector, host, home, controller and audience
+- `/thanks` is a standalone public thank-you page with support copy, an accented GitHub star action, GitHub QR and next-session actions
+- Start another session now resets the ended state before opening `/host`
+- Smoke coverage now includes fullscreen, customiser save, controller password pairing, presenter controls, share copy and every end-session path
+- Survey results still stay on `/join` after a survey closes
 - Presenter preflight audience link, LAN/tunnel label and copy action
+- Inactive presentation retention and backup rotation
+- WebSocket origin checks, QR rate limiting and controller-link rotation
+- Customiser background inerting and reduced-motion accessibility
+- GitHub Actions syntax and browser smoke workflow
 - Projector connection feedback and live-session close/reload warning
 - Automated Chromium smoke test covering setup, slides, controller, polls, hands, surveys, share card, slide access and end session
 - Slide images now require the host cookie or controller token; public state no longer exposes slide URLs
@@ -51,7 +64,7 @@ All notable changes to Room Check are documented here.
 
 ### Fixed
 
-- Audience logos no longer navigate back to the landing page; host-facing logos open the host console
+- Audience logos no longer navigate back to the landing page; host-facing brands return home
 - Divider alignment and projector clarity improvements at 1080p
 - Updating a vote flashes the audience confirmation seal
 - End session remains reachable while the projector is full-screen

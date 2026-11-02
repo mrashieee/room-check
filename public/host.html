@@ -34,7 +34,7 @@
     <section class="login-view" id="login-view" aria-labelledby="login-title" hidden>
       <div class="login-card">
         <div class="login-intro">
-          <a class="brand" href="/host" aria-label="Room Check host console">
+          <a class="brand" href="/" aria-label="Room Check host console">
             <span class="brand-mark" aria-hidden="true">
               <svg viewBox="0 0 32 32">
                 <rect width="32" height="32" rx="1" fill="currentColor"></rect>
@@ -132,7 +132,7 @@
 
     <div class="host-app" id="host-app" hidden>
       <header class="host-header">
-        <a class="brand brand--host" href="/host" aria-label="Room Check host console">
+        <a class="brand brand--host" href="/" aria-label="Room Check host console">
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 32 32">
               <rect width="32" height="32" rx="1" fill="currentColor"></rect>
@@ -156,6 +156,7 @@
           </button>
           <button class="text-button" id="end-session-button" type="button">End session</button>
           <button class="text-button" id="lock-button" type="button">Lock</button>
+          <button class="text-button" id="host-end-presentation" type="button" hidden>End presentation</button>
           <a class="text-button" href="/share" target="_blank" rel="noreferrer">Share</a>
           <a class="text-button" href="/">Home</a>
         </div>
@@ -513,44 +514,6 @@
           </div>
         </section>
 
-        <section class="ended-stage" id="ended-stage" aria-labelledby="ended-title" hidden>
-          <div class="ended-copy">
-            <div class="thanks-mark ended-mark" aria-hidden="true">
-              <svg viewBox="0 0 64 64" fill="none">
-                <path d="M22 38V15a4 4 0 0 1 8 0v17M30 32V11a4 4 0 0 1 8 0v21M38 33V15a4 4 0 0 1 8 0v21M46 37V23a4 4 0 0 1 8 0v18c0 10-7 17-17 17h-4c-5 0-9-2-12-6L10 39a4 4 0 0 1 6-5l6 6" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
-              </svg>
-            </div>
-            <p class="eyebrow">That’s a wrap</p>
-            <h1 id="ended-title">Thanks for joining.</h1>
-
-            <div class="thanks-support ended-support">
-              <span class="thanks-support-kicker">Open source</span>
-              <p class="thanks-support-title">Had fun? Give Room Check a star.</p>
-              <p class="thanks-support-copy">We’re a small open-source project. A star takes 10 seconds and helps more presenters discover us.</p>
-            </div>
-
-            <a class="button button--primary button--large ended-star" href="https://github.com/mrashieee/room-check" target="_blank" rel="noopener noreferrer">
-              <span class="github-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" fill="currentColor"></path></svg></span>
-              <span>Star Room Check on GitHub</span>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-            </a>
-            <p class="thanks-appeal ended-appeal">Every star genuinely helps. Thank you.</p>
-            <p class="ended-version">Built by Muhammad Rashid K · v2.5.1</p>
-            <button class="text-button text-button--muted ended-back" id="ended-back-button" type="button">Back to host setup</button>
-          </div>
-
-          <aside class="ended-qr" aria-label="GitHub project QR code">
-            <div class="qr-frame qr-frame--stage">
-              <img id="github-qr" alt="QR code for the Room Check GitHub repository" width="440" height="440" />
-              <span class="qr-corner qr-corner--tl" aria-hidden="true"></span>
-              <span class="qr-corner qr-corner--tr" aria-hidden="true"></span>
-              <span class="qr-corner qr-corner--bl" aria-hidden="true"></span>
-              <span class="qr-corner qr-corner--br" aria-hidden="true"></span>
-            </div>
-            <p class="stage-url">github.com/mrashieee/room-check</p>
-            <p class="stage-qr-note">Scan to star<br />the project.</p>
-          </aside>
-        </section>
       </main>
     </div>
 

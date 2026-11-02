@@ -31,7 +31,6 @@ const screens = {
   surveyDone: $("#screen-survey-done"),
   surveyResults: $("#screen-survey-results"),
   results: $("#screen-results"),
-  thanks: $("#screen-thanks"),
   error: $("#screen-error"),
 };
 
@@ -524,7 +523,7 @@ function renderSurveyResults() {
   const survey = currentState?.survey;
   const results = survey?.results;
   if (!survey || !results?.length) {
-    renderThanks();
+    location.href = "/thanks";
     return;
   }
 
@@ -764,11 +763,6 @@ function renderWaiting() {
   if (changed) announce("Waiting for the host to start the poll.");
 }
 
-function renderThanks() {
-  const changed = showScreen("thanks");
-  if (changed) announce("Thanks for joining. You can star Room Check on GitHub.");
-}
-
 function renderHands(round) {
   const closed = round.status === "closed";
   const changed = currentScreen !== "hands";
@@ -823,7 +817,8 @@ function renderScreen() {
       if (survey.results?.length) {
         renderSurveyResults();
       } else {
-        renderThanks();
+        location.href = "/thanks";
+        return;
       }
     } else if (surveyIndex >= survey.questions.length) {
       renderSurveyDone();
@@ -840,7 +835,7 @@ function renderScreen() {
   }
   if (!round) {
     if (currentState?.closed) {
-      renderThanks();
+      location.href = "/thanks";
     } else {
       renderWaiting();
     }
@@ -876,6 +871,11 @@ function handleState(state, you) {
   currentState = state;
   currentRoundId = state.round?.id || null;
   currentSurveyId = state.survey?.id || null;
+
+  if (state.closed && !state.survey?.results?.length) {
+    location.href = "/thanks";
+    return;
+  }
 
   if (currentSurveyId) {
     if (previousSurveyId !== currentSurveyId) {
@@ -1158,6 +1158,8 @@ async function submitVoteWriteIn() {
       body: { playerId, customLabel: label },
     });
     voteWriteInInput.value = "";
+    changingVote = false;
+    voteWasUpdated = Boolean(result.updated);
     handleState(result.state, result.you);
   } catch (error) {
     voteWriteInNote.textContent = error?.message || "Could not add that option.";

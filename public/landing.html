@@ -25,7 +25,7 @@
     <a class="skip-link" href="#main">Skip to presentation</a>
 
     <header class="host-header landing-header">
-      <a class="brand brand--host" href="/host" aria-label="Room Check host console">
+      <a class="brand brand--host" href="/" aria-label="Room Check host console">
         <span class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 32 32" role="img">
             <rect width="32" height="32" rx="1" fill="currentColor"></rect>
@@ -35,6 +35,15 @@
         <span class="brand-word">Room Check</span>
         <span class="brand-tag">Home</span>
       </a>
+      <div class="host-header-actions">
+        <button class="icon-button" id="landing-fullscreen" type="button" aria-label="Toggle full screen" title="Full screen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </button>
+        <button class="icon-button" id="customise-button" type="button" aria-label="Customise theme" title="Customise theme">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17h1.2a1.8 1.8 0 0 0 1.2-3.15 1.8 1.8 0 0 1 1.2-3.15h1.2a3.7 3.7 0 0 0 3.7-3.7c0-3.85-3.75-7-8.5-7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path><circle cx="8.2" cy="9.2" r="1" fill="currentColor"></circle><circle cx="12" cy="7.2" r="1" fill="currentColor"></circle><circle cx="15.8" cy="9.2" r="1" fill="currentColor"></circle><circle cx="8.4" cy="13.1" r="1" fill="currentColor"></circle></svg>
+        </button>
+        <button class="text-button" id="landing-end-session" type="button" disabled>End session</button>
+      </div>
     </header>
 
     <main class="landing-main" id="main">
@@ -66,6 +75,129 @@
         Remote audience? Run <code>npm run share</code>, then open the <a href="/share">share card</a> to show the join QR.
       </p>
     </main>
+
+    <div class="customizer-overlay" id="customizer-overlay" hidden>
+      <section class="customizer-panel" role="dialog" aria-modal="true" aria-labelledby="customizer-title">
+        <header class="customizer-head">
+          <div>
+            <p class="customizer-kicker">Host only</p>
+            <h2 id="customizer-title">Make it yours.</h2>
+            <p class="customizer-intro">Five colours, one logo, your rules. The Room Check title stays fixed.</p>
+          </div>
+          <button class="icon-button" id="customizer-close" type="button" aria-label="Close customiser">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+          </button>
+        </header>
+
+        <div class="customizer-body">
+          <section class="customizer-module customizer-module--wide">
+            <div class="customizer-module-head">
+              <h3>Palette</h3>
+              <p>Start with a room, then tune the five main colours.</p>
+            </div>
+            <div class="theme-palette-grid" id="theme-palette-grid"></div>
+            <div class="theme-color-grid" id="theme-color-grid"></div>
+            <p class="theme-contrast" id="theme-contrast" role="status"></p>
+            <div class="custom-palette-save">
+              <label class="field-label" for="theme-palette-name">Save this palette</label>
+              <div class="custom-palette-row">
+                <input
+                  class="text-input"
+                  id="theme-palette-name"
+                  type="text"
+                  maxlength="32"
+                  autocomplete="off"
+                  placeholder="Palette name"
+                />
+                <button class="button button--secondary" id="theme-palette-save" type="button">Save palette</button>
+              </div>
+              <p class="field-hint" id="theme-palette-note">Saved in your data folder and available here next time.</p>
+            </div>
+          </section>
+
+          <section class="customizer-module">
+            <div class="customizer-module-head">
+              <h3>Background</h3>
+              <p>Flat paper or a two-colour wash.</p>
+            </div>
+            <div class="segmented" id="theme-background">
+              <button type="button" data-background="flat">Flat</button>
+              <button type="button" data-background="gradient">Gradient</button>
+            </div>
+            <div class="gradient-color-grid" id="theme-gradient-colors">
+              <div class="color-field gradient-color-field">
+                <label for="theme-gradient-from">Start colour</label>
+                <input id="theme-gradient-from" type="color" />
+                <output id="theme-gradient-from-value" for="theme-gradient-from">#F6ECD7</output>
+              </div>
+              <div class="color-field gradient-color-field">
+                <label for="theme-gradient-to">End colour</label>
+                <input id="theme-gradient-to" type="color" />
+                <output id="theme-gradient-to-value" for="theme-gradient-to">#E7D8BD</output>
+              </div>
+            </div>
+            <p class="field-hint">The page wash blends Start → End. Panels keep the palette Background and Surface.</p>
+            <label class="theme-range" for="theme-angle">
+              <span>Angle</span>
+              <input id="theme-angle" type="range" min="0" max="360" step="5" />
+              <output id="theme-angle-value" for="theme-angle">135°</output>
+            </label>
+            <div class="background-preview" id="theme-background-preview" aria-hidden="true"></div>
+          </section>
+
+          <section class="customizer-module">
+            <div class="customizer-module-head">
+              <h3>Corners</h3>
+              <p>From print-sharp to friendly.</p>
+            </div>
+            <div class="theme-option-grid" id="theme-corners"></div>
+          </section>
+
+          <section class="customizer-module">
+            <div class="customizer-module-head">
+              <h3>Buttons</h3>
+              <p>Choose how actions land.</p>
+            </div>
+            <div class="theme-option-grid" id="theme-buttons"></div>
+          </section>
+
+          <section class="customizer-module customizer-module--wide">
+            <div class="customizer-module-head">
+              <h3>Answer colours</h3>
+              <p>One palette for A–J, so the room can tell them apart.</p>
+            </div>
+            <div class="choice-palette-grid" id="theme-choice-grid"></div>
+          </section>
+
+          <section class="customizer-module customizer-module--wide">
+            <div class="customizer-module-head">
+              <h3>Logo</h3>
+              <p>PNG, JPG, WebP or SVG. The Room Check title stays fixed.</p>
+            </div>
+            <div class="logo-row">
+              <div class="logo-preview" id="theme-logo-preview" aria-hidden="true"></div>
+              <div class="logo-actions">
+                <label class="button button--secondary logo-pick">
+                  Choose file
+                  <input id="theme-logo-input" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
+                </label>
+                <button class="text-button" id="theme-logo-remove" type="button">Remove logo</button>
+                <p class="field-hint" id="theme-logo-note">Max 256 KB; SVGs are usually tiny.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <footer class="customizer-foot">
+          <p class="customizer-status" id="theme-status" role="status"></p>
+          <div class="customizer-actions">
+            <button class="text-button" id="theme-reset" type="button">Reset</button>
+            <button class="button button--secondary" id="theme-cancel" type="button">Cancel</button>
+            <button class="button button--primary" id="theme-save" type="button">Save changes</button>
+          </div>
+        </footer>
+      </section>
+    </div>
 
     <footer class="player-footer landing-footer">
       <span>One question. One room. One answer.</span>
