@@ -10,19 +10,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f6ecd7" />
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="description" content="A live audience poll. One question. One room. One answer." />
+    <meta name="description" content="The Room Check audience screen for prompts, polls, hands and surveys." />
     <meta name="author" content="Muhammad Rashid K" />
     <meta name="copyright" content="Copyright (c) 2026 Muhammad Rashid K" />
-    <title>Room Check — Live audience poll</title>
+    <title>Room Check — Audience</title>
     <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
     <link rel="preload" href="/fonts/big-shoulders-display-800.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/golos-text.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/carnival.css" />
+    <link rel="stylesheet" href="/presentation.css" />
     <script type="module" src="/player.js"></script>
   </head>
   <body class="player-page">
-    <a class="skip-link" href="#main">Skip to the poll</a>
+    <a class="skip-link" href="#main">Skip to the audience screen</a>
 
     <div class="atmosphere" aria-hidden="true">
       <span class="atmosphere-orb atmosphere-orb--lime"></span>
@@ -32,7 +33,7 @@
     </div>
 
     <header class="site-header">
-      <a class="brand" href="/" aria-label="Room Check home">
+      <span class="brand" aria-label="Room Check">
         <span class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 32 32" role="img">
             <rect width="32" height="32" rx="1" fill="currentColor"></rect>
@@ -40,7 +41,7 @@
           </svg>
         </span>
         <span class="brand-word">Room Check</span>
-      </a>
+      </span>
       <div class="connection-pill" id="connection-pill" data-status="connecting" role="status" aria-live="polite">
         <span class="connection-dot" aria-hidden="true"></span>
         <span id="connection-label">Connecting</span>
@@ -52,6 +53,23 @@
         <div class="connecting-mark" aria-hidden="true"><span></span><span></span><span></span></div>
         <p class="eyebrow">Room Check</p>
         <h1 id="connecting-title">Finding the room<span class="dot-pulse">…</span></h1>
+      </section>
+
+      <section class="player-screen player-screen--presentation" id="screen-presentation" aria-labelledby="presentation-title" hidden>
+        <div class="presentation-silent-mark" aria-hidden="true">
+          <svg viewBox="0 0 64 64" fill="none">
+            <rect x="18" y="10" width="28" height="44" rx="3" stroke="currentColor" stroke-width="3"></rect>
+            <path d="M25 17h14M25 47h14" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
+            <path d="M8 32h8M48 32h8" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
+          </svg>
+        </div>
+        <p class="eyebrow">Presentation in progress</p>
+        <h1 id="presentation-title">Look up front.</h1>
+        <p class="lede">Phones down. The presenter is leading the room from the big screen.</p>
+        <div class="screen-note">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>You’re in the room</span>
+        </div>
       </section>
 
       <section class="player-screen player-screen--waiting" id="screen-waiting" aria-labelledby="waiting-title" hidden>
@@ -290,7 +308,7 @@
     <div class="sr-only" id="live-announcer" role="status" aria-live="polite"></div>
 
     <noscript>
-      <div class="noscript">Room Check needs JavaScript to receive the live poll.</div>
+      <div class="noscript">Room Check needs JavaScript to receive the room.</div>
     </noscript>
   </body>
 </html>

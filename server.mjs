@@ -57,7 +57,14 @@ const THEME_LOGO_TYPES = {
   "image/webp": "webp",
   "image/svg+xml": "svg",
 };
-
+const PRESENTATION_DIR = path.join(DATA_DIR, "presentation");
+const PRESENTATION_SLIDE_TYPES = new Map([
+  ["image/png", "png"],
+  ["image/jpeg", "jpg"],
+  ["image/webp", "webp"],
+]);
+const PRESENTATION_MAX_SLIDES = 80;
+const PRESENTATION_SLIDE_MAX_BYTES = 25 * 1024 * 1024;
 const LIMITS = {
   title: 52,
   question: 160,
@@ -97,7 +104,7 @@ function findLanAddress() {
 }
 
 const LAN_URL = "http://" + (findLanAddress() || "localhost") + ":" + PORT;
-const JOIN_URL = PUBLIC_URL || LAN_URL;
+const JOIN_URL = (PUBLIC_URL || LAN_URL).replace(/\/+$/, "") + "/join";
 const IS_PUBLIC = Boolean(PUBLIC_URL);
 
 fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
@@ -117,6 +124,7 @@ let state = {
   round: null,
   survey: null,
   session: null,
+  presentation: null,
   sessionClosedAt: null,
   theme: normalizeTheme(DEFAULT_THEME),
 };
@@ -504,6 +512,30 @@ function publicSession() {
   };
 }
 
+function publicPresentation(presentation) {
+  if (!presentation) return null;
+  return {
+    id: presentation.id,
+    title: presentation.title,
+    status: presentation.status,
+    activeView: presentation.activeView || "slides",
+    fitMode: presentation.fitMode === "page" ? "page" : "width",
+    scroll: Number.isFinite(Number(presentation.scroll))
+      ? Math.min(1, Math.max(0, Number(presentation.scroll)))
+      : 0,
+    currentIndex: presentation.currentIndex,
+    slideCount: presentation.slides.length,
+    startedAt: presentation.startedAt || null,
+    closedAt: presentation.closedAt || null,
+    slides: presentation.slides.map((slide) => ({
+      id: slide.id,
+      name: slide.name,
+      src: `/api/presentation/slide/${slide.id}`,
+      rotation: slide.rotation || 0,
+    })),
+  };
+}
+
 function surveyCounts(survey) {
   const questions = {};
   let totalRespondents = 0;
@@ -586,6 +618,7 @@ function publicState({ includeCounts = false } = {}) {
       round: null,
       session: null,
       survey: publicSurvey(survey, { includeCounts }),
+      presentation: publicPresentation(state.presentation),
       theme: state.theme,
       closed: survey.status === "closed",
       closedAt: survey.closedAt || null,
@@ -600,6 +633,7 @@ function publicState({ includeCounts = false } = {}) {
       round: null,
       session,
       survey: null,
+      presentation: publicPresentation(state.presentation),
       theme: state.theme,
       closed: Boolean(state.sessionClosedAt),
       closedAt: state.sessionClosedAt || null,
@@ -611,6 +645,7 @@ function publicState({ includeCounts = false } = {}) {
       now: Date.now(),
       session,
       survey: null,
+      presentation: publicPresentation(state.presentation),
       theme: state.theme,
       closed: false,
       closedAt: null,
@@ -633,6 +668,7 @@ function publicState({ includeCounts = false } = {}) {
     now: Date.now(),
     session,
     survey: null,
+    presentation: publicPresentation(state.presentation),
     theme: state.theme,
     closed: false,
     closedAt: null,
@@ -726,21 +762,19 @@ function sendJson(ws, payload) {
   }
 }
 
+function statePayloadFor(client) {
+  const isHost = client.role === "host";
+  return {
+    type: "state",
+    state: isHost ? publicState({ includeCounts: true }) : publicState(),
+    you: isHost ? null : personalState(state.round, client.playerId, state.survey),
+  };
+}
+
 function broadcastState() {
-  const playerPayload = publicState();
-  const hostPayload = publicState({ includeCounts: true });
   for (const client of wss.clients) {
     if (client.readyState !== WebSocket.OPEN) continue;
-    client.send(
-      JSON.stringify({
-        type: "state",
-        state: client.role === "host" ? hostPayload : playerPayload,
-        you:
-          client.role === "host"
-            ? null
-            : personalState(state.round, client.playerId, state.survey),
-      }),
-    );
+    client.send(JSON.stringify(statePayloadFor(client)));
   }
 }
 
@@ -759,6 +793,7 @@ function persistState() {
       savedAt: Date.now(),
       round: state.round,
       survey: state.survey,
+      presentation: state.presentation,
       session: state.session,
       sessionClosedAt: state.sessionClosedAt || null,
       theme: state.theme,
@@ -794,6 +829,7 @@ function persistStateSync() {
           savedAt: Date.now(),
           round: state.round,
           survey: state.survey,
+          presentation: state.presentation,
           session: state.session,
           sessionClosedAt: state.sessionClosedAt || null,
           theme: state.theme,
@@ -934,6 +970,61 @@ function normalizeStoredCustomOptions(rawOptions, baseOptions, limit = LIMITS.ma
   return options;
 }
 
+function presentationSlidePath(presentationId, slideId, ext) {
+  return path.join(PRESENTATION_DIR, presentationId, `${slideId}.${ext}`);
+}
+
+function normalizeStoredPresentation(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  if (typeof raw.id !== "string" || !raw.id) return null;
+  if (typeof raw.title !== "string") return null;
+  if (!["ready", "live", "closed"].includes(raw.status)) return null;
+  if (!Array.isArray(raw.slides)) return null;
+
+  const slides = [];
+  for (const slide of raw.slides) {
+    if (slides.length >= PRESENTATION_MAX_SLIDES) break;
+    if (!slide || typeof slide.id !== "string" || typeof slide.name !== "string") continue;
+    const ext = PRESENTATION_SLIDE_TYPES.get(slide.type) || (slide.ext === "jpg" ? "jpg" : slide.ext);
+    if (!PRESENTATION_SLIDE_TYPES.has(slide.type) && !["png", "jpg", "webp"].includes(ext)) continue;
+    const fileExt = ext || PRESENTATION_SLIDE_TYPES.get(slide.type);
+    if (!fs.existsSync(presentationSlidePath(raw.id, slide.id, fileExt))) continue;
+    slides.push({
+      id: slide.id,
+      name: cleanString(slide.name, 80) || "Slide",
+      type: slide.type || `image/${fileExt === "jpg" ? "jpeg" : fileExt}`,
+      ext: fileExt,
+      rotation: [0, 90, 180, 270].includes(Number(slide.rotation)) ? Number(slide.rotation) : 0,
+    });
+  }
+  if (raw.status === "live" && slides.length === 0) return null;
+  const currentIndex = Math.min(
+    Math.max(Number(raw.currentIndex) || 0, 0),
+    Math.max(0, slides.length - 1),
+  );
+  return {
+    id: raw.id,
+    title: cleanString(raw.title, LIMITS.title) || "Presentation",
+    status: raw.status,
+    activeView: ["slides", "poll", "hands", "survey"].includes(raw.activeView)
+      ? raw.activeView
+      : "slides",
+    fitMode: raw.fitMode === "page" ? "page" : "width",
+    scroll: Number.isFinite(Number(raw.scroll))
+      ? Math.min(1, Math.max(0, Number(raw.scroll)))
+      : 0,
+    slides,
+    currentIndex,
+    controllerToken:
+      typeof raw.controllerToken === "string" && raw.controllerToken.length >= 24
+        ? raw.controllerToken
+        : crypto.randomBytes(24).toString("base64url"),
+    createdAt: Number(raw.createdAt) || Date.now(),
+    startedAt: Number(raw.startedAt) || null,
+    closedAt: Number(raw.closedAt) || null,
+  };
+}
+
 function normalizeStoredSurvey(raw) {
   if (!raw || typeof raw !== "object") return null;
   if (typeof raw.id !== "string" || !raw.id) return null;
@@ -1040,6 +1131,8 @@ function loadState() {
       const logoPath = path.join(DATA_DIR, `theme-logo.${THEME_LOGO_TYPES[state.theme.logo.type] || "bin"}`);
       if (!fs.existsSync(logoPath)) state.theme.logo = null;
     }
+
+    state.presentation = normalizeStoredPresentation(raw?.presentation);
 
     const survey = normalizeStoredSurvey(raw?.survey);
     if (survey) {
@@ -1260,6 +1353,9 @@ function openRound(details) {
   state.session = null;
   state.sessionClosedAt = null;
   state.round = createRound(details);
+  if (state.presentation?.status === "live") {
+    state.presentation.activeView = details.mode === "hands" ? "hands" : "poll";
+  }
   armRevealTimer();
   scheduleSave();
   broadcastState();
@@ -1289,6 +1385,9 @@ function startSession(details) {
     startedAt,
   };
   state.round = createRound(details.questions[0]);
+  if (state.presentation?.status === "live") {
+    state.presentation.activeView = "survey";
+  }
   armRevealTimer();
   scheduleSave();
   broadcastState();
@@ -1342,6 +1441,9 @@ function startSurvey(details) {
     closedAt: null,
     revealReason: null,
   };
+  if (state.presentation?.status === "live") {
+    state.presentation.activeView = "survey";
+  }
   armSurveyTimer();
   scheduleSave();
   broadcastState();
@@ -1422,6 +1524,285 @@ function advanceSession() {
   return state.round;
 }
 
+function presentationDirFor(presentationId) {
+  return path.join(PRESENTATION_DIR, presentationId);
+}
+
+function removePresentationFiles(presentationId) {
+  if (!presentationId) return;
+  try {
+    fs.rmSync(presentationDirFor(presentationId), { recursive: true, force: true });
+  } catch {
+    // Files may already be gone.
+  }
+}
+
+function createPresentation(title) {
+  if (state.presentation?.status === "live") {
+    throw new HttpError(409, "Finish the live presentation before creating another.");
+  }
+  if (state.presentation) removePresentationFiles(state.presentation.id);
+  state.presentation = {
+    id: crypto.randomUUID(),
+    title: cleanString(title, LIMITS.title) || "Presentation",
+    status: "ready",
+    activeView: "slides",
+    fitMode: "width",
+    scroll: 0,
+    slides: [],
+    currentIndex: 0,
+    controllerToken: crypto.randomBytes(24).toString("base64url"),
+    createdAt: Date.now(),
+    startedAt: null,
+    closedAt: null,
+  };
+  scheduleSave();
+  broadcastState();
+  return state.presentation;
+}
+
+function identifyPresentationSlide(buffer, mime) {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    throw new HttpError(400, "Choose a slide image.");
+  }
+  if (buffer.length > PRESENTATION_SLIDE_MAX_BYTES) {
+    throw new HttpError(413, "Keep each slide under 25 MB.");
+  }
+  if (mime === "image/png") {
+    const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    if (!buffer.subarray(0, 8).equals(signature)) throw new HttpError(400, "That PNG is not valid.");
+    return "png";
+  }
+  if (mime === "image/jpeg") {
+    if (buffer[0] !== 0xff || buffer[1] !== 0xd8 || buffer[2] !== 0xff) {
+      throw new HttpError(400, "That JPEG is not valid.");
+    }
+    return "jpg";
+  }
+  if (mime === "image/webp") {
+    if (buffer.toString("ascii", 0, 4) !== "RIFF" || buffer.toString("ascii", 8, 12) !== "WEBP") {
+      throw new HttpError(400, "That WebP is not valid.");
+    }
+    return "webp";
+  }
+  throw new HttpError(415, "Use PNG, JPEG or WebP slide images.");
+}
+
+function addPresentationSlide(buffer, mime, name) {
+  const presentation = state.presentation;
+  if (!presentation) throw new HttpError(409, "Create a presentation first.");
+  if (presentation.status === "live") {
+    throw new HttpError(409, "End the presentation before changing the deck.");
+  }
+  if (presentation.status === "closed") {
+    presentation.status = "ready";
+    presentation.closedAt = null;
+    presentation.activeView = "slides";
+  }
+  if (presentation.slides.length >= PRESENTATION_MAX_SLIDES) {
+    throw new HttpError(409, `Keep the presentation to ${PRESENTATION_MAX_SLIDES} slides or fewer.`);
+  }
+  const ext = identifyPresentationSlide(buffer, mime);
+  const slide = {
+    id: crypto.randomUUID(),
+    name: cleanString(name, 80) || `Slide ${presentation.slides.length + 1}`,
+    type: mime,
+    ext,
+    rotation: 0,
+  };
+  const dir = presentationDirFor(presentation.id);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try {
+    fs.chmodSync(dir, 0o700);
+  } catch {
+    // A mounted volume may manage permissions.
+  }
+  const file = presentationSlidePath(presentation.id, slide.id, ext);
+  fs.writeFileSync(file, buffer, { mode: 0o600 });
+  try {
+    fs.chmodSync(file, 0o600);
+  } catch {
+    // Some filesystems do not support chmod.
+  }
+  presentation.slides.push(slide);
+  scheduleSave();
+  broadcastState();
+  return presentation;
+}
+
+function deletePresentationSlide(slideId) {
+  const presentation = state.presentation;
+  if (!presentation) throw new HttpError(404, "Presentation not found.");
+  if (presentation.status === "live") {
+    throw new HttpError(409, "End the presentation before changing the deck.");
+  }
+  if (presentation.status === "closed") {
+    presentation.status = "ready";
+    presentation.closedAt = null;
+    presentation.activeView = "slides";
+  }
+  const index = presentation.slides.findIndex((slide) => slide.id === slideId);
+  if (index === -1) throw new HttpError(404, "Slide not found.");
+  const [slide] = presentation.slides.splice(index, 1);
+  try {
+    fs.unlinkSync(presentationSlidePath(presentation.id, slide.id, slide.ext));
+  } catch {
+    // Already gone.
+  }
+  presentation.currentIndex = Math.min(
+    presentation.currentIndex,
+    Math.max(0, presentation.slides.length - 1),
+  );
+  scheduleSave();
+  broadcastState();
+  return presentation;
+}
+
+function startPresentation() {
+  const presentation = state.presentation;
+  if (!presentation) throw new HttpError(409, "Create a presentation first.");
+  if (presentation.status === "live") return presentation;
+  if (!presentation.slides.length) throw new HttpError(409, "Add at least one slide first.");
+  if (revealTimer) {
+    clearTimeout(revealTimer);
+    revealTimer = null;
+  }
+  if (tieBreakTimer) {
+    clearTimeout(tieBreakTimer);
+    tieBreakTimer = null;
+  }
+  state.round = null;
+  state.survey = null;
+  presentation.status = "live";
+  presentation.activeView = "slides";
+  presentation.currentIndex = 0;
+  presentation.scroll = 0;
+  presentation.startedAt = Date.now();
+  presentation.closedAt = null;
+  state.sessionClosedAt = null;
+  scheduleSave();
+  broadcastState();
+  return presentation;
+}
+
+function controlPresentation(action, index, fitMode, scroll) {
+  const presentation = state.presentation;
+  if (!presentation) throw new HttpError(404, "Presentation not found.");
+  if (presentation.status !== "live") throw new HttpError(409, "The presentation is not live.");
+  if (action === "close") {
+    presentation.status = "closed";
+    presentation.closedAt = Date.now();
+    state.round = null;
+    state.survey = null;
+    state.sessionClosedAt = Date.now();
+  } else if (action === "slides") {
+    state.round = null;
+    state.survey = null;
+    presentation.activeView = "slides";
+  } else if (action === "fit") {
+    if (fitMode !== "width" && fitMode !== "page") {
+      throw new HttpError(400, "Choose fit width or fit page.");
+    }
+    presentation.fitMode = fitMode;
+    if (fitMode === "page") presentation.scroll = 0;
+  } else if (action === "scroll") {
+    const value = Number(scroll);
+    if (!Number.isFinite(value)) throw new HttpError(400, "Choose a valid scroll position.");
+    if (Number.isInteger(Number(index)) && Number(index) !== presentation.currentIndex) {
+      return presentation;
+    }
+    presentation.scroll = Math.min(1, Math.max(0, value));
+  } else if (action === "rotate") {
+    const slide = presentation.slides[presentation.currentIndex];
+    if (!slide) throw new HttpError(409, "There is no current slide to rotate.");
+    slide.rotation = ((Number(slide.rotation) || 0) + 90) % 360;
+    presentation.scroll = 0;
+  } else if (action === "next") {
+    presentation.currentIndex = Math.min(presentation.slides.length - 1, presentation.currentIndex + 1);
+    presentation.scroll = 0;
+  } else if (action === "prev") {
+    presentation.currentIndex = Math.max(0, presentation.currentIndex - 1);
+    presentation.scroll = 0;
+  } else if (action === "goto") {
+    const next = Number(index);
+    if (!Number.isInteger(next) || next < 0 || next >= presentation.slides.length) {
+      throw new HttpError(400, "That slide does not exist.");
+    }
+    presentation.currentIndex = next;
+    presentation.scroll = 0;
+  } else {
+    throw new HttpError(400, "Unknown presentation action.");
+  }
+  scheduleSave();
+  broadcastState();
+  return presentation;
+}
+
+function clearPresentation() {
+  if (state.presentation) removePresentationFiles(state.presentation.id);
+  state.presentation = null;
+  scheduleSave();
+  broadcastState();
+}
+
+function controllerAuthorized(req) {
+  if (isHostAuthed(req)) return true;
+  const token = String(req.headers["x-controller-token"] || req.query?.token || "");
+  return Boolean(
+    token &&
+      state.presentation &&
+      state.presentation.status === "live" &&
+      token === state.presentation.controllerToken,
+  );
+}
+
+function startPresentationInteraction(mode, details) {
+  const presentation = state.presentation;
+  if (!presentation || presentation.status !== "live") {
+    throw new HttpError(409, "Start the presentation first.");
+  }
+  if (state.round?.status === "open") {
+    throw new HttpError(409, "Finish the current interaction first.");
+  }
+  if (state.survey?.status === "open") {
+    throw new HttpError(409, "Finish the current survey first.");
+  }
+  if (revealTimer) {
+    clearTimeout(revealTimer);
+    revealTimer = null;
+  }
+  if (tieBreakTimer) {
+    clearTimeout(tieBreakTimer);
+    tieBreakTimer = null;
+  }
+  state.survey = null;
+  state.round = createRound(details);
+  presentation.activeView = mode === "hands" ? "hands" : "poll";
+  armRevealTimer();
+  scheduleSave();
+  broadcastState();
+  return state.round;
+}
+
+function endPresentationInteraction() {
+  const presentation = state.presentation;
+  if (!presentation) throw new HttpError(404, "Presentation not found.");
+  if (revealTimer) {
+    clearTimeout(revealTimer);
+    revealTimer = null;
+  }
+  if (tieBreakTimer) {
+    clearTimeout(tieBreakTimer);
+    tieBreakTimer = null;
+  }
+  state.round = null;
+  state.survey = null;
+  presentation.activeView = "slides";
+  scheduleSave();
+  broadcastState();
+  return presentation;
+}
+
 function resetRound() {
   if (revealTimer) {
     clearTimeout(revealTimer);
@@ -1458,6 +1839,7 @@ function endSession() {
   }
   state.round = null;
   state.session = null;
+  if (state.presentation?.status === "live") state.presentation.activeView = "slides";
   state.sessionClosedAt = Date.now();
   scheduleSave();
   broadcastState();
@@ -1727,6 +2109,13 @@ function requireHost(req, res, next) {
   next();
 }
 
+function requireController(req, res, next) {
+  if (!controllerAuthorized(req)) {
+    return res.status(401).json({ error: "Controller access required.", code: "controller_required" });
+  }
+  next();
+}
+
 function parseVersionParts(value) {
   return String(value || "")
     .replace(/^v/i, "")
@@ -1910,12 +2299,13 @@ app.use((req, res, next) => {
       "script-src 'self'",
       "font-src 'self'",
       "connect-src 'self' ws: wss:",
+      "worker-src 'self'",
       "base-uri 'none'",
       "form-action 'self'",
       "frame-ancestors 'none'",
     ].join("; "),
   );
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), display-capture=(), geolocation=()");
   next();
 });
 
@@ -1934,9 +2324,35 @@ app.use(
   }),
 );
 
+app.use(
+  "/vendor/pdfjs",
+  express.static(path.join(__dirname, "node_modules", "pdfjs-dist", "build"), {
+    index: false,
+    maxAge: "1h",
+  }),
+);
+
 app.get("/", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.sendFile(path.join(PUBLIC_DIR, "player.html"));
+  res.sendFile(path.join(PUBLIC_DIR, "landing.html"));
+});
+
+app.get("/present", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.sendFile(path.join(PUBLIC_DIR, "present.html"));
+});
+
+app.get("/controller", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.sendFile(path.join(PUBLIC_DIR, "controller.html"));
+});
+
+app.get("/share", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.sendFile(path.join(PUBLIC_DIR, "share.html"));
 });
 
 app.get("/join", (req, res) => {
@@ -2122,7 +2538,286 @@ app.post("/api/host/logout", (req, res) => {
 
 app.get("/api/host/state", requireHost, (req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.json({ state: publicState({ includeCounts: true }) });
+  res.json({
+    state: publicState({ includeCounts: true }),
+    presentationToken: state.presentation?.controllerToken || null,
+  });
+});
+
+app.get("/api/presentation/state", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ presentation: publicPresentation(state.presentation) });
+});
+
+app.get("/api/presentation/slide/:id", (req, res) => {
+  const presentation = state.presentation;
+  if (!presentation) return res.status(404).end();
+  const slide = presentation.slides.find((entry) => entry.id === req.params.id);
+  if (!slide) return res.status(404).end();
+  const file = presentationSlidePath(presentation.id, slide.id, slide.ext);
+  if (!fs.existsSync(file)) {
+    console.error("Presentation slide missing", {
+      presentationId: presentation.id,
+      slideId: slide.id,
+      ext: slide.ext,
+      file,
+    });
+    return res.status(404).end();
+  }
+  try {
+    const buffer = fs.readFileSync(file);
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.type(slide.type || "image/png");
+    res.send(buffer);
+  } catch (error) {
+    console.error("Could not read presentation slide", {
+      file,
+      message: error.message,
+    });
+    res.status(404).end();
+  }
+});
+
+app.get("/api/host/presentation/state", requireHost, (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json({
+    presentation: publicPresentation(state.presentation),
+    token: state.presentation?.controllerToken || null,
+  });
+});
+
+app.post("/api/host/presentation/reopen", requireHost, (req, res, next) => {
+  try {
+    const presentation = state.presentation;
+    if (!presentation) throw new HttpError(404, "Presentation not found.");
+    if (presentation.status === "live") {
+      throw new HttpError(409, "End the live presentation before editing the deck.");
+    }
+    presentation.status = "ready";
+    presentation.closedAt = null;
+    presentation.activeView = "slides";
+    scheduleSave();
+    broadcastState();
+    res.json({
+      presentation: publicPresentation(presentation),
+      token: presentation.controllerToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/host/presentation/title", requireHost, (req, res, next) => {
+  try {
+    if (!state.presentation) throw new HttpError(404, "Presentation not found.");
+    if (state.presentation.status !== "ready") {
+      throw new HttpError(409, "The title can only be changed before the presentation starts.");
+    }
+    state.presentation.title = cleanString(req.body?.title, LIMITS.title) || "Presentation";
+    scheduleSave();
+    broadcastState();
+    res.json({
+      presentation: publicPresentation(state.presentation),
+      token: state.presentation.controllerToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/host/presentation/create", requireHost, (req, res, next) => {
+  try {
+    const presentation = createPresentation(req.body?.title);
+    res.status(201).json({
+      presentation: publicPresentation(presentation),
+      token: presentation.controllerToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post(
+  "/api/host/presentation/slides",
+  requireHost,
+  express.raw({
+    type: ["image/png", "image/jpeg", "image/webp"],
+    limit: "25mb",
+  }),
+  (req, res, next) => {
+    try {
+      let name = "";
+      try {
+        name = decodeURIComponent(String(req.headers["x-slide-name"] || ""));
+      } catch {
+        name = String(req.headers["x-slide-name"] || "");
+      }
+      const presentation = addPresentationSlide(req.body, req.headers["content-type"], name);
+      res.status(201).json({
+        presentation: publicPresentation(presentation),
+        token: presentation.controllerToken,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+app.delete("/api/host/presentation/slides/:id", requireHost, (req, res, next) => {
+  try {
+    const presentation = deletePresentationSlide(req.params.id);
+    res.json({
+      presentation: publicPresentation(presentation),
+      token: presentation.controllerToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/host/presentation/start", requireHost, (req, res, next) => {
+  try {
+    const presentation = startPresentation();
+    res.json({
+      presentation: publicPresentation(presentation),
+      token: presentation.controllerToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/host/presentation/close", requireHost, (req, res, next) => {
+  try {
+    if (!state.presentation) throw new HttpError(404, "Presentation not found.");
+    if (state.presentation.status === "live") controlPresentation("close");
+    res.json({
+      presentation: publicPresentation(state.presentation),
+      token: state.presentation?.controllerToken || null,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete("/api/host/presentation", requireHost, (req, res) => {
+  clearPresentation();
+  res.json({ ok: true, presentation: null });
+});
+
+app.post("/api/presentation/interaction", requireController, (req, res, next) => {
+  try {
+    const mode = req.body?.mode === "hands" ? "hands" : "poll";
+    const details = validateRoundInput({
+      mode,
+      title: req.body?.title,
+      question: req.body?.question,
+      options: req.body?.options,
+      durationSec: req.body?.durationSec,
+      spinOnTie: req.body?.spinOnTie,
+    });
+    const round = startPresentationInteraction(mode, details);
+    res.json({ ok: true, roundId: round.id, state: publicState() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/presentation/interaction/reveal", requireController, (req, res) => {
+  const revealed = revealRound("host");
+  if (!revealed) return res.status(409).json({ error: "There is no open poll to reveal." });
+  res.json({ ok: true, state: publicState() });
+});
+
+app.post("/api/presentation/interaction/tiebreak", requireController, (req, res, next) => {
+  try {
+    const round = state.round;
+    if (!round || round.status !== "revealed" || round.mode !== "poll") {
+      throw new HttpError(409, "Reveal the poll before spinning the wheel.");
+    }
+    if (!round.spinOnTie) {
+      throw new HttpError(409, "The tie-breaker wheel is not enabled for this poll.");
+    }
+    const results = buildResults(round);
+    if (results.winners.length < 2) {
+      throw new HttpError(409, "This poll is not tied.");
+    }
+    if (round.tieBreak) {
+      throw new HttpError(409, "The tie-breaker has already been used for this round.");
+    }
+    const winnerOptionId = results.winners[crypto.randomInt(results.winners.length)];
+    const now = Date.now();
+    round.tieBreak = {
+      status: "spinning",
+      pool: [...results.winners],
+      winnerOptionId,
+      startedAt: now,
+      endsAt: now + TIEBREAK_MS,
+      completedAt: null,
+    };
+    armTieBreakTimer();
+    scheduleSave();
+    broadcastState();
+    res.json({
+      ok: true,
+      winnerOptionId,
+      endsAt: round.tieBreak.endsAt,
+      state: publicState(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/presentation/interaction/close-hands", requireController, (req, res) => {
+  const round = state.round;
+  if (!round || round.mode !== "hands") {
+    return res.status(409).json({ error: "There is no live-hands round open." });
+  }
+  if (round.status === "open") {
+    round.status = "closed";
+    round.closedAt = Date.now();
+    scheduleSave();
+    broadcastState();
+  }
+  res.json({ ok: true, state: publicState() });
+});
+
+app.post("/api/presentation/interaction/end", requireController, (req, res, next) => {
+  try {
+    const presentation = endPresentationInteraction();
+    res.json({ ok: true, presentation: publicPresentation(presentation), state: publicState() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/presentation/end", requireController, (req, res, next) => {
+  try {
+    if (!state.presentation) throw new HttpError(404, "Presentation not found.");
+    if (state.presentation.status === "live") controlPresentation("close");
+    res.json({
+      ok: true,
+      presentation: publicPresentation(state.presentation),
+      state: publicState(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/presentation/control", requireController, (req, res, next) => {
+  try {
+    const presentation = controlPresentation(
+      req.body?.action,
+      req.body?.index,
+      req.body?.fitMode,
+      req.body?.scroll,
+    );
+    res.json({ presentation: publicPresentation(presentation) });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get("/api/host/palettes", requireHost, (req, res) => {
@@ -2452,7 +3147,7 @@ app.use((error, req, res, next) => {
 });
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ noServer: true });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 512 * 1024 });
 
 server.on("upgrade", (req, socket, head) => {
   let url;
@@ -2467,7 +3162,8 @@ server.on("upgrade", (req, socket, head) => {
     return;
   }
 
-  const role = url.searchParams.get("role") === "host" ? "host" : "player";
+  const requestedRole = url.searchParams.get("role");
+  const role = requestedRole === "host" ? "host" : "player";
   if (role === "host" && !isHostAuthed(req)) {
     socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
     socket.destroy();
@@ -2486,15 +3182,7 @@ server.on("upgrade", (req, socket, head) => {
 });
 
 wss.on("connection", (ws) => {
-  const currentState = publicState();
-  sendJson(ws, {
-    type: "state",
-    state: ws.role === "host" ? publicState({ includeCounts: true }) : currentState,
-    you:
-      ws.role === "host"
-        ? null
-        : personalState(state.round, ws.playerId, state.survey),
-  });
+  sendJson(ws, statePayloadFor(ws));
 
   ws.on("pong", () => {
     ws.isAlive = true;
@@ -2538,13 +3226,15 @@ server.on("error", (error) => {
 });
 
 server.listen(PORT, HOST_BIND, () => {
-  const audience = IS_PUBLIC ? JOIN_URL : LAN_URL;
+  const audience = JOIN_URL;
   const line = "─".repeat(58);
   console.log("");
   console.log("  ROOM CHECK");
   console.log("  " + line);
   console.log("  Audience     " + audience);
   console.log("  Host console http://localhost:" + PORT + "/host");
+  console.log("  Projector    http://localhost:" + PORT + "/present");
+  console.log("  Share card   http://localhost:" + PORT + "/share");
   console.log("  Host auth    " + (authRecord ? "Password protected" : "First-run setup needed"));
   console.log("  Mode         " + (IS_PUBLIC ? "Public link" : "Same Wi-Fi / LAN"));
   console.log("  " + line);

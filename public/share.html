@@ -1,0 +1,78 @@
+<!doctype html>
+<!--
+  Room Check
+  Copyright (c) 2026 Muhammad Rashid K
+  SPDX-License-Identifier: MIT
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f6ecd7" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="Room Check audience join card." />
+    <meta name="author" content="Muhammad Rashid K" />
+    <meta name="copyright" content="Copyright (c) 2026 Muhammad Rashid K" />
+    <title>Room Check — Share the room</title>
+    <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
+    <link rel="preload" href="/fonts/big-shoulders-display-800.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/golos-text.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/carnival.css" />
+    <link rel="stylesheet" href="/presentation.css" />
+    <link rel="stylesheet" href="/share.css" />
+    <script type="module" src="/share.js"></script>
+  </head>
+  <body class="share-page">
+    <a class="skip-link" href="#main">Skip to share card</a>
+
+    <header class="host-header">
+      <a class="brand brand--host" href="/host" aria-label="Room Check host console">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" role="img">
+            <rect width="32" height="32" rx="1" fill="currentColor"></rect>
+            <path d="M9.5 12.5v7M16 9v14M22.5 13.5v5" fill="none" stroke="#101210" stroke-width="3" stroke-linecap="round"></path>
+          </svg>
+        </span>
+        <span class="brand-word">Room Check</span>
+        <span class="brand-tag">Share</span>
+      </a>
+      <div class="host-header-actions">
+        <a class="text-button" href="/present">Presenter</a>
+        <a class="text-button" href="/host">Host console</a>
+      </div>
+    </header>
+
+    <main class="share-main" id="main">
+      <section class="share-ready" id="share-ready" hidden>
+        <div class="share-copy">
+          <p class="eyebrow">Audience join</p>
+          <h1 id="share-title">Scan to join.</h1>
+          <p class="lede">Point a phone camera at the code, or open the link below. The audience screen stays silent; slides stay on the projector.</p>
+          <div class="share-link-row">
+            <p class="share-link" id="share-link">—</p>
+            <button class="icon-button" id="share-copy" type="button" aria-label="Copy audience link" title="Copy audience link">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="1.8"></path></svg>
+            </button>
+          </div>
+          <div class="share-actions">
+            <button class="button button--primary button--large" id="share-download" type="button">Download PNG for slides</button>
+            <a class="button button--secondary button--large" id="share-open" href="/join" target="_blank" rel="noreferrer">Open audience view</a>
+          </div>
+          <p class="share-note" id="share-note">The downloaded card is 1920×1080, ready to drop into a slide.</p>
+        </div>
+        <div class="share-qr-card">
+          <img id="share-qr" alt="QR code for the audience join link" width="640" height="640" />
+          <span class="share-qr-caption">Scan to join</span>
+        </div>
+      </section>
+
+      <section class="share-error" id="share-error" hidden>
+        <p class="eyebrow">Share the room</p>
+        <h1>The audience link is not ready.</h1>
+        <p class="lede" id="share-error-note">Start the server, then return to this page.</p>
+        <a class="button button--primary button--large" href="/present">Open presenter</a>
+      </section>
+    </main>
+  </body>
+</html>

@@ -21,7 +21,7 @@ import {
 } from "./common.js";
 import { applyTheme, loadTheme } from "./theme.js";
 import { contrastRatio } from "./theme-config.js";
-import { initCustomizer } from "./customizer.js";
+import { initCustomizer, openCustomizer } from "./customizer.js";
 
 const DRAFT_KEY = "roomcheck.hostDraft.v2";
 const LEGACY_DRAFT_KEY = "roomcheck.hostDraft.v1";
@@ -1846,7 +1846,11 @@ async function enterConsole() {
   applyState(stateResponse.state);
   loadUpdateNotice();
   startClock();
-  if (currentView === "setup") questionInput.focus();
+  if (new URLSearchParams(location.search).get("customize") === "1" && currentView === "setup") {
+    openCustomizer();
+  } else if (currentView === "setup") {
+    questionInput.focus();
+  }
 }
 
 async function loadUpdateNotice() {

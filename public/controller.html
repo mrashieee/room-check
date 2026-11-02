@@ -1,0 +1,129 @@
+<!doctype html>
+<!--
+  Room Check
+  Copyright (c) 2026 Muhammad Rashid K
+  SPDX-License-Identifier: MIT
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f6ecd7" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="Room Check phone presenter controller." />
+    <meta name="author" content="Muhammad Rashid K" />
+    <meta name="copyright" content="Copyright (c) 2026 Muhammad Rashid K" />
+    <title>Room Check — Controller</title>
+    <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
+    <link rel="preload" href="/fonts/big-shoulders-display-800.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/golos-text.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/carnival.css" />
+    <link rel="stylesheet" href="/presentation.css" />
+    <script type="module" src="/controller.js"></script>
+  </head>
+  <body class="controller-page">
+    <header class="site-header">
+      <span class="brand" aria-label="Room Check">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" role="img">
+            <rect width="32" height="32" rx="1" fill="currentColor"></rect>
+            <path d="M9.5 12.5v7M16 9v14M22.5 13.5v5" fill="none" stroke="#101210" stroke-width="3" stroke-linecap="round"></path>
+          </svg>
+        </span>
+        <span class="brand-word">Room Check</span>
+        <span class="brand-tag">Controller</span>
+      </span>
+    </header>
+
+    <main class="controller-main" id="main">
+      <div class="controller-head">
+        <div>
+          <p class="eyebrow">Offline presentation</p>
+          <h1 id="controller-title">Controller</h1>
+        </div>
+        <span class="controller-state" id="controller-state">Waiting</span>
+      </div>
+
+      <p class="microcopy" id="controller-note">Waiting for the projector.</p>
+
+      <div class="controller-tabs" id="controller-tabs" hidden>
+        <button type="button" data-tab="slides">Slides</button>
+        <button type="button" data-tab="poll">Poll</button>
+        <button type="button" data-tab="hands">Hands</button>
+      </div>
+      <button class="text-button controller-end-session" id="controller-end-session" type="button" hidden>End session</button>
+
+      <section class="controller-form" id="controller-poll-form" hidden>
+        <h2>Quick poll</h2>
+        <label class="field-label" for="controller-poll-question">Question</label>
+        <input class="text-input" id="controller-poll-question" type="text" maxlength="160" placeholder="What should we decide?" />
+        <div class="controller-option-inputs" id="controller-poll-options"></div>
+        <button class="text-button controller-add-option" id="controller-add-option" type="button">+ Add answer</button>
+        <div class="controller-poll-settings">
+          <label class="field-label" for="controller-poll-duration">Voting window</label>
+          <select class="text-input" id="controller-poll-duration">
+            <option value="0">Manual reveal</option>
+            <option value="30">30 seconds</option>
+            <option value="60" selected>60 seconds</option>
+            <option value="90">90 seconds</option>
+            <option value="120">2 minutes</option>
+          </select>
+          <label class="controller-check">
+            <input id="controller-spin-on-tie" type="checkbox" checked />
+            <span>If tied, spin the wheel</span>
+          </label>
+        </div>
+        <button class="button button--primary" id="controller-poll-start" type="button">Open poll</button>
+      </section>
+
+      <section class="controller-form" id="controller-hands-form" hidden>
+        <h2>Live Hands</h2>
+        <label class="field-label" for="controller-hands-question">Question</label>
+        <input class="text-input" id="controller-hands-question" type="text" maxlength="160" placeholder="Who has used an AI assistant today?" />
+        <button class="button button--primary" id="controller-hands-start" type="button">Open Live Hands</button>
+      </section>
+
+      <section class="controller-interaction" id="controller-interaction" hidden>
+        <p class="eyebrow" id="controller-interaction-kind">Poll live</p>
+        <h2 id="controller-interaction-question"></h2>
+        <p class="controller-interaction-count" id="controller-interaction-count"></p>
+        <div class="controller-results" id="controller-results"></div>
+        <p class="controller-timer" id="controller-interaction-timer" hidden></p>
+        <div class="controller-controls">
+          <button class="button button--primary" id="controller-interaction-action" type="button">Reveal results</button>
+          <button class="button button--secondary" id="controller-interaction-tiebreak" type="button" hidden>Spin tie-breaker</button>
+          <button class="button button--secondary" id="controller-interaction-back" type="button">Back to slides</button>
+        </div>
+      </section>
+
+      <div class="controller-login" id="controller-login" hidden>
+        <label class="field-label" for="controller-password">Host password</label>
+        <div class="field">
+          <input class="text-input" id="controller-password" type="password" autocomplete="current-password" placeholder="Host password" />
+        </div>
+        <button class="button button--primary" id="controller-login-submit" type="button">Pair controller</button>
+        <p class="form-error" id="controller-login-error" role="alert" hidden></p>
+      </div>
+
+      <section id="controller-live" hidden>
+        <div class="controller-slide" id="controller-slide-panel">
+          <img id="controller-slide-image" alt="Current slide" />
+          <p class="controller-counter" id="controller-counter">Slide 1 / 1</p>
+        </div>
+
+        <div class="controller-controls">
+          <button class="button button--secondary" id="controller-prev" type="button">← Previous</button>
+          <button class="button button--primary" id="controller-next" type="button">Next →</button>
+          <button class="button button--secondary controller-rotate" id="controller-rotate" type="button">Rotate slide</button>
+        </div>
+        <div class="controller-fit-controls" aria-label="Slide fit">
+          <button class="button button--secondary" id="controller-fit-width" type="button">Fit width</button>
+          <button class="button button--secondary" id="controller-fit-page" type="button">Fit page</button>
+        </div>
+
+        <div class="controller-list" id="controller-list" aria-label="Slides"></div>
+      </section>
+    </main>
+  </body>
+</html>

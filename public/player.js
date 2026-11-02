@@ -22,6 +22,7 @@ import { contrastRatio } from "./theme-config.js";
 const playerId = getPlayerId();
 const screens = {
   connecting: $("#screen-connecting"),
+  presentation: $("#screen-presentation"),
   waiting: $("#screen-waiting"),
   vote: $("#screen-vote"),
   hands: $("#screen-hands"),
@@ -63,6 +64,7 @@ const surveyDoneProgress = $("#survey-done-progress");
 const surveyReview = $("#survey-review");
 const surveyResultsTitle = $("#survey-results-title");
 const surveyResultsList = $("#survey-results-list");
+const presentationTitle = $("#presentation-title");
 const votedOption = $("#voted-option");
 const votedCount = $("#voted-count");
 const votedCountLabel = $("#voted-count-label");
@@ -308,6 +310,15 @@ function renderVotedScreen(round) {
     votedWaiting.textContent = "The room is weighing in…";
   }
   const changed = showScreen("voted");
+  if (voteWasUpdated) {
+    const seal = screens.voted?.querySelector(".success-seal");
+    if (seal) {
+      seal.classList.remove("is-updated");
+      void seal.offsetWidth;
+      seal.classList.add("is-updated");
+      setTimeout(() => seal.classList.remove("is-updated"), 900);
+    }
+  }
   if (changed) {
     announce(
       voteWasUpdated
@@ -737,6 +748,17 @@ function renderResults(round) {
   }
 }
 
+function renderPresentationSilent() {
+  const presentation = currentState?.presentation;
+  if (!presentation) {
+    renderWaiting();
+    return;
+  }
+  presentationTitle.textContent = presentation.title || "Look up front.";
+  const changed = showScreen("presentation");
+  if (changed) announce("Presentation in progress. Look up at the big screen.");
+}
+
 function renderWaiting() {
   const changed = showScreen("waiting");
   if (changed) announce("Waiting for the host to start the poll.");
@@ -812,6 +834,10 @@ function renderScreen() {
   }
 
   const round = currentState?.round;
+  if (!round && currentState?.presentation?.status === "live") {
+    renderPresentationSilent();
+    return;
+  }
   if (!round) {
     if (currentState?.closed) {
       renderThanks();

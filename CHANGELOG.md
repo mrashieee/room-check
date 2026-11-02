@@ -6,19 +6,52 @@ All notable changes to Room Check are documented here.
 
 ### Added
 
-- Audience write-in options for single polls and survey questions
-- One private write-in option per voter per poll/question
-- Spelling, punctuation, spacing and small-typo merging
-- Merged custom options in final poll/survey results
-- Support for result lists larger than 10 options
-- Custom option labels capitalize the first letter automatically
-- Button style now covers primary, secondary, icon and add-action controls
+- Offline-first presenter assistant with projector slides, phone controller and a silent audience screen
+- Landing page with **Presentation** and **Poll, survey or hands** entries, without numbering
+- `/present` projector setup and full-screen display with image/PDF slide uploads
+- `/controller` phone controller with QR-token pairing, host-password fallback, fit width/page and tall-slide scrolling
+- Remote scroll sync: scrolling the controller preview scrolls the projector
+- Audience attention screen on `/join` while slides are presented
+- Controller tabs for Slides, Poll and Hands
+- Quick polls with 2–10 answers, timers, tie-breaker spins, result highlighting and private write-ins
+- Multi-question surveys with audience-driven progression, review screens, QR joining and post-survey graphs
+- Live Hands with a raised-hand count on the projector
+- End session from the controller, projector header or full-screen display bar
+- Host end screen and matching audience thank-you screen
+- `/share` audience QR/link card with a downloadable 1920×1080 PNG
+- Tunnel-aware share link: `npm run share` sets `PUBLIC_URL` so the QR and share card use the public address
+- Desktop shell keeps the header and footer visible while the middle content scrolls; phones keep normal page scrolling
+- Landing cards use the same neutral card style, with Presentation matching Poll, survey or hands
+- Landing header uses Home; the host and presenter headers also expose Share
+- Presentation header End session uses the same muted treatment as the host header
+- Desktop landing fills the viewport, aligns content to the top-left and hides the scrollbar
+- Host theme customiser, named palettes, custom logo, backups and update page remain available
 
-### Privacy
+### Changed
 
-- A write-in option is visible only to its creator and the host while voting
-- Other voters see host options and their own write-in only
-- Merged write-in results become visible to everyone after the poll reveal or survey close
+- The app is now offline-first and tunnel-based. The projector owns the slides; the audience screen handles interactions only.
+- The audience link is a normal web page delivered by the tunnel. The tunnel is not a media relay.
+- `/present` always opens the offline projector.
+- `/join` is the only audience route. The old online room and live audience routes are gone.
+- The share card now shows the audience join link and presentation title, not a room code.
+- Documentation rewritten for the offline/tunnel workflow.
+
+### Removed
+
+- Online presentation mode, online rooms and room codes
+- WebRTC screen/camera sharing, microphone mixing, STUN/TURN configuration and ICE endpoints
+- Online host page, live audience page and online-only styles
+- Chat, emoji reactions, custom stickers and online pause controls
+- Online room lifecycle and signaling code
+
+### Fixed
+
+- Audience logos no longer navigate back to the landing page; host-facing logos open the host console
+- Divider alignment and projector clarity improvements at 1080p
+- Updating a vote flashes the audience confirmation seal
+- End session remains reachable while the projector is full-screen
+- Custom write-in labels capitalize the first letter and merge spelling/typo variants
+- Result lists can contain more than 10 options
 
 ## 2.5.1 — 2026-10-31
 

@@ -976,6 +976,26 @@ html[data-button-style="minimal"] .add-question-button {
   stroke-width: 4;
 }
 
+.success-seal.is-updated {
+  animation: vote-updated-flash 720ms ease-out;
+}
+
+@keyframes vote-updated-flash {
+  0% {
+    background: var(--color-accent);
+    transform: scale(1);
+  }
+  35% {
+    background: var(--color-paper);
+    transform: scale(1.12);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--color-accent) 28%, transparent);
+  }
+  100% {
+    background: var(--color-accent);
+    transform: scale(1);
+  }
+}
+
 .player-screen--voted .lede {
   color: var(--muted-strong);
 }
@@ -4504,4 +4524,48 @@ body.customizer-open {
   flex: 0 0 auto;
   min-height: 280px;
   max-height: 360px;
+}
+
+/* Desktop app shell: header and footer stay visible; the middle scrolls. */
+@media (min-width: 821px) {
+  body.landing-page,
+  body.player-page,
+  body.updates-page {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  body.landing-page,
+  body.player-page,
+  body.updates-page {
+    display: flex;
+    flex-direction: column;
+  }
+
+  body.landing-page > .host-header,
+  body.player-page > .site-header,
+  body.updates-page > .site-header,
+  body.landing-page > .player-footer,
+  body.player-page > .player-footer,
+  body.updates-page > .player-footer {
+    flex: 0 0 auto;
+  }
+
+  body.landing-page > .landing-main,
+  body.player-page > .player-main,
+  body.updates-page > .updates-main {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  body.player-page > .player-main {
+    align-items: flex-start;
+  }
+
+  body.player-page > .player-main > .player-screen {
+    margin-block: auto;
+  }
 }

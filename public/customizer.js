@@ -390,7 +390,7 @@ function releasePreviewUrl() {
   logoPreviewUrl = null;
 }
 
-async function openCustomizer() {
+export async function openCustomizer() {
   savedTheme = getCurrentTheme();
   draft = cloneTheme(savedTheme);
   pendingLogoFile = null;
