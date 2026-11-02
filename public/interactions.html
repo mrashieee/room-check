@@ -220,6 +220,18 @@
                 <p class="field-hint" id="mode-hint">Ask a question, collect votes, then reveal the results.</p>
               </fieldset>
 
+              <div class="field">
+                <span class="field-label">Question set</span>
+                <span class="session-builder-io">
+                  <label class="button button--secondary import-questions">
+                    <span>Import JSON</span>
+                    <input id="import-questions-input" type="file" accept=".json,application/json" hidden />
+                  </label>
+                  <button class="button button--secondary" id="export-questions" type="button">Export JSON</button>
+                </span>
+                <p class="field-hint">JSON uses <code>question</code> and <code>answers</code> attributes. Max 20 questions. Export a set to reuse it at another event.</p>
+              </div>
+
               <div class="field poll-only">
                 <label class="setting-toggle multi-question-toggle">
                   <span class="setting-toggle-copy">
@@ -334,18 +346,6 @@
                 <label class="field-label" for="join-url-input">Audience link</label>
                 <input class="text-input" id="join-url-input" name="joinUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" />
                 <p class="field-hint" id="join-url-hint">Phones must be on the same Wi-Fi as this laptop. Use <code>npm run share</code> for a public link.</p>
-              </div>
-
-              <div class="field">
-                <span class="field-label">Question set</span>
-                <span class="session-builder-io">
-                  <label class="button button--secondary import-questions">
-                    <span>Import JSON</span>
-                    <input id="import-questions-input" type="file" accept=".json,application/json" hidden />
-                  </label>
-                  <button class="button button--secondary" id="export-questions" type="button">Export JSON</button>
-                </span>
-                <p class="field-hint">JSON uses <code>question</code> and <code>answers</code> attributes. Max 20 questions. Export a set to reuse it at another event.</p>
               </div>
 
               <div class="setup-submit-row">
