@@ -2,7 +2,7 @@
 
 All notable changes to Room Check are documented here.
 
-## Unreleased
+## 3.0.0 — 2026-11-02
 
 ### Added
 
