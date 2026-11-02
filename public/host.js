@@ -1362,7 +1362,11 @@ function showSurveyResults(index = surveyResultsIndex) {
 
 function applyState(state) {
   if (!document.body.classList.contains("customizer-open")) applyTheme(state?.theme);
-  endPresentationButton.hidden = state?.presentation?.status !== "live";
+  const presentationLive = state?.presentation?.status === "live";
+  const interactionVisible = Boolean(state?.round || state?.survey);
+  endPresentationButton.hidden = !presentationLive;
+  endSessionButton.hidden = !interactionVisible;
+  endSessionButton.textContent = presentationLive ? "End interaction" : "End session";
   const incomingNow = Number(state?.now) || 0;
   if (incomingNow && incomingNow < lastStateNow) return;
   lastStateNow = Math.max(lastStateNow, incomingNow);
@@ -1371,7 +1375,6 @@ function applyState(state) {
   if (state.survey) {
     hideWheel();
     roundState = state;
-    endSessionButton.hidden = state.survey.status !== "open";
     if (
       currentView === "surveyResults" &&
       state.survey.status === "closed" &&
@@ -1402,7 +1405,6 @@ function applyState(state) {
     }
 
     hideWheel();
-    endSessionButton.hidden = false;
 
     if (
       currentView === "boot" ||
@@ -1421,8 +1423,6 @@ function applyState(state) {
     }
     return;
   }
-
-  endSessionButton.hidden = false;
 
   if (round.mode === "hands") {
     hideWheel();

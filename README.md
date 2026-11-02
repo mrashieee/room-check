@@ -33,7 +33,7 @@ It is **offline-first**: the presenter laptop owns the slides and the presentati
 - **No-slide sessions:** start a controller session without a deck for polls, hands and surveys. The controller QR appears before the session starts.
 - **Phone controller:** pair a phone by QR or host password, then change slides, fit the projector, scroll tall slides, run quick polls and raise Live Hands. It also works without slides.
 - **Silent audience screen:** `/join` shows a calm attention screen, then switches to voting, hand raising or survey questions when the host starts them.
-- **Host console:** create polls and multi-question surveys, reveal results, run the wheel, customise the theme and manage backups.
+- **Host console:** create polls and multi-question surveys, reveal results, run the wheel, customise the theme and manage backups. **End session** becomes **End interaction** while a presentation is live.
 - **Works without a controller:** a live presentation can be ended directly from the host header with **End presentation**.
 - **Tunnel-ready audience link:** run `npm run share` and the QR/link automatically use a temporary public HTTPS address.
 - **Share card:** `/share` shows the audience QR and link, with a downloadable 1920×1080 PNG for a slide.

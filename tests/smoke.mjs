@@ -572,6 +572,7 @@ async function main() {
     await hostControlPage.goto(server.base + "/host", { waitUntil: "domcontentloaded" });
     await waitVisible(hostControlPage.locator("#host-app"));
     await waitVisible(hostControlPage.locator("#host-end-presentation"));
+    assert.equal(await hostControlPage.locator("#end-session-button").isHidden(), true);
     hostControlPage.once("dialog", (dialog) => dialog.accept());
     await hostControlPage.click("#host-end-presentation");
     await hostControlPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
