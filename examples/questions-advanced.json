@@ -1,0 +1,24 @@
+{
+  "title": "Advanced question set",
+  "questions": [
+    {
+      "question": "What should we build next?",
+      "options": ["Electric", "Warming up", "Need coffee", "Send help"],
+      "durationSec": 60,
+      "spinOnTie": true,
+      "allowCustom": true
+    },
+    {
+      "question": "How useful was this session?",
+      "answers": ["Very", "Somewhat", "Not really"],
+      "duration": 30,
+      "tieBreaker": false,
+      "writeIns": false
+    },
+    {
+      "question": "Who should lead it?",
+      "answer": ["Amina", "Ravi"],
+      "timer": 0
+    }
+  ]
+}

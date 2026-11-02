@@ -2,6 +2,30 @@
 
 All notable changes to Room Check are documented here.
 
+## Unreleased
+
+### Fixed
+
+- Multi-question poll sessions no longer switch the projector to the survey view
+- Controller tie-break responses no longer reveal the winner before the wheel finishes
+- Hands toggles now require an explicit raise (`true`/`false` strings count as lowering)
+- Slide files validate presentation/slide IDs, blocking path traversal from stored state
+- Theme logos are no longer cached immutably, so logo changes apply immediately
+- Host question drafts preserve the per-question write-in toggle across reloads
+- Poll and survey write-in settings now respect per-question overrides
+
+### Changed
+
+- Host mutation endpoints consistently include live vote counts; tie-break spin pool size is included
+- Poll and survey percentages share one largest-remainder helper so totals sum to 100
+- Strict validation: non-numeric timers and non-boolean tie/write-in flags return 400
+- Controller token comparison is timing-safe; `SESSION_SECRET` requires 32+ characters
+- Public vote/hand/survey endpoints are rate-limited (60/min per IP + player); rounds cap at 5,000 respondents
+- Signing out closes host WebSocket sessions; reset-password also rotates the session secret
+- Corrupt `state.json` is backed up before starting fresh; state saves fsync before rename
+- State sync uses a server revision counter instead of wall-clock time
+- `npm run check` covers every JS file via glob; new `test:unit`, `preflight`, `version:check` and `release:check` commands
+
 ## 3.0.0 — 2026-11-02
 
 ### Added

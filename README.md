@@ -605,9 +605,12 @@ Check the [CHANGELOG](./CHANGELOG.md) for release notes.
 ## Development
 
 ```bash
-npm run dev
-npm run check
-npm run test:smoke
+npm run dev:isolated   # throwaway DATA_DIR on port 3100; real .data untouched
+npm run check          # syntax-check every server/script/test/browser file
+npm run test:unit      # fast HTTP tests, no browser
+npm run test:smoke     # 15-workflow Chromium suite
+npm run preflight      # event-day machine readiness
+npm run version:check  # package.json vs README badge vs CHANGELOG
 ```
 
 A GitHub Actions workflow runs syntax checks and the Chromium smoke test on pushes and pull requests.
@@ -627,11 +630,15 @@ npm start             # run the server with .env
 npm run share         # run with a temporary public Cloudflare tunnel
 npm run reset-password
 npm run backup-data   # copy .data to a timestamped backup
-npm run check         # syntax checks
+npm run check         # syntax checks (covers every public/*.js, scripts, tests)
+npm run test:unit     # fast HTTP-level tests: backup rotation, tie-break secrecy, rate limits, token invalidation
 npm run test:smoke    # automated Chromium smoke test
+npm run preflight     # event-day readiness: Node, port, disk, QR, backup
+npm run version:check # version consistency across package.json, README, CHANGELOG
+npm run release:check # pre-tag gate: clean tree, no private files, checks pass
 ```
 
-`npm run test:smoke` starts a temporary server on a free port with a throwaway data directory, then exercises the protected landing, customiser save, fullscreen, image/PDF slides, presenter controls, controller token/password pairing, polls, write-ins, hands, surveys, share copy/PNG, slide access, all end-session paths and the `/thanks` pages. It uses `playwright-core` and a Chromium executable. Set `CHROME_PATH` if Chromium is not in a standard location.
+`npm run test:smoke` starts a temporary server on a free port with a throwaway data directory, then exercises the protected landing, customiser save, fullscreen, image/PDF slides, presenter controls, controller token/password pairing, polls, write-ins, hands, surveys, share copy/PNG, slide access, all end-session paths and the `/thanks` pages. It uses `playwright-core` and a Chromium executable. Set `CHROME_PATH` if Chromium is not in a standard location. `npm run test:unit` covers the same server without a browser: backup rotation, session auth, strict input validation, tie-break secrecy, vote rate limiting, logo caching and controller-token invalidation.
 
 Manual QA flow:
 
@@ -695,12 +702,60 @@ LICENSE
 
 Stack: Node.js, Express, `ws`, `qrcode`, `pdfjs-dist`, and vanilla browser JavaScript.
 
+## Limits
+
+| Item | Limit |
+| --- | --- |
+| Slides per deck | 80 |
+| Slide file size | 25 MB each (PNG, JPG, WebP); PDFs over 100 MB are rejected client-side |
+| Poll answers | 2–10 |
+| Poll timer | 10–600 seconds, or manual |
+| Survey questions | 1–20, 2–10 answers each |
+| Survey timer | up to 3600 seconds, or manual |
+| Write-in options | 100 per poll/question, merged by spelling |
+| Voters per round/survey | 5,000 respondents, 60 requests/min per IP + player |
+| QR generation | 60 requests/min per client |
+| Host session | 12 hours, HttpOnly + SameSite cookie |
+| Presentation retention | inactive decks pruned after 7 days (`PRESENTATION_RETENTION_DAYS`) |
+| Backups | newest 10 kept (`BACKUP_KEEP`) |
+
+## State lifecycle
+
+| State | Meaning |
+| --- | --- |
+| `ready` | Deck built, controller QR valid, nothing live |
+| `live` | Projector showing deck or interaction; controller token valid |
+| `closed` | Ended; controller token invalid until reopened |
+
+- **Reopen** returns a closed presentation to `ready`; slides and token are kept.
+- **Discard deck** deletes slide files and interactions but keeps the presentation record, title and controller pairing; status returns to `ready`.
+- **End presentation / End session** clears the interaction, marks the room closed and sends host screens to `/thanks-host`, the audience to `/thanks`.
+- **Start another session** clears the closed state; the audience returns to `/join` standby automatically.
+- A closed survey keeps its results on `/join` instead of showing `/thanks`.
+
+## API reference
+
+Public (no auth): `GET /api/config`, `GET /api/state`, `GET /api/theme`, `/api/theme/logo`, `/api/qr`, `/api/update`, `POST /api/vote`, `/api/hands`, `/api/survey/answer`.
+
+Host cookie required: everything under `/api/host/*` — setup, login, state, presentation CRUD/start/close/token, polls, surveys, sessions, hands, reveal, tie-break, reset, end, palettes, theme, logo.
+
+Controller (host cookie or `X-Controller-Token` header / `?token=`): `GET /api/controller/state`, `GET /api/presentation/slide/:id`, everything under `/api/presentation/*`.
+
+Errors are JSON `{ error, code? }`; auth failures are `401`, bad input `400`, conflicts such as voting on a closed round `409`, rate limits `429`.
+
+## Browser and projector support
+
+Tested targets: Chromium desktop (projector, host console), iPhone Safari and Android Chrome (audience, controller), 1920×1080 projector with a 1366×768 fallback, and 390px phones. Real-device rehearsal notes live in `.github/ISSUE_TEMPLATE/event-rehearsal.md`.
+
 ## Roadmap
+
+### Shipped in 3.0.0
+
+- 15-workflow Chromium smoke test plus CI, one-click audience-link copy, and the full offline presenter assistant: projector deck, controller QR, no-slide sessions, write-ins, split thanks flows and tunnel-aware share card.
 
 ### Next
 
-- Automated Playwright smoke tests for setup, presentation, controller, polls, surveys, hands and share card.
-- Better tunnel lifecycle messages and a one-click audience-link copy from the presenter.
+- Real-device and projector validation (see the rehearsal issue template).
 - Slide transition controls between images/PDF pages: fade, push, wipe and duration, applied by the projector and controller without breaking fit/scroll.
 - Per-slide transition metadata saved with the deck, with safe defaults for older decks.
 - Optional import of transition metadata from structured decks in a later phase. Images and PDFs remain static pages, so true per-object PowerPoint animations would require a separate deck importer or pre-rendered video export.
