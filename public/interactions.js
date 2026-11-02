@@ -123,6 +123,8 @@ const revealButton = $("#reveal-button");
 const hostConnection = $("#host-connection");
 const hostConnectionLabel = $("#host-connection-label");
 const toast = $("#toast");
+const sessionEndedNotice = $("#session-ended-notice");
+const startNewSessionButton = $("#start-new-session");
 const timerDial = $("#timer-dial");
 const timerValue = $("#timer-value");
 const timerLabel = $("#timer-label");
@@ -1387,6 +1389,7 @@ function applyState(state, rev = 0) {
 
   if (state.survey) {
     hideWheel();
+    sessionEndedNotice.hidden = true;
     roundState = state;
     if (
       currentView === "surveyResults" &&
@@ -1412,10 +1415,14 @@ function applyState(state, rev = 0) {
     roundState = state;
 
     if (state.closed) {
-      allowUnload = true;
-      location.href = "/thanks-host";
+      roundState = state;
+      sessionEndedNotice.hidden = false;
+      hideWheel();
+      populateSetup();
+      setView("setup");
       return;
     }
+    sessionEndedNotice.hidden = true;
 
     hideWheel();
 
@@ -1439,6 +1446,7 @@ function applyState(state, rev = 0) {
 
   if (round.mode === "hands") {
     hideWheel();
+    sessionEndedNotice.hidden = true;
     roundState = state;
     lastRound = round;
     showStage(round);
@@ -1449,12 +1457,14 @@ function applyState(state, rev = 0) {
 
   if (round.status === "open") {
     hideWheel();
+    sessionEndedNotice.hidden = true;
     roundState = state;
     lastRound = round;
     showStage(round);
     return;
   }
 
+  sessionEndedNotice.hidden = true;
   roundState = state;
   lastRound = round;
   showResults(round);
@@ -1741,6 +1751,23 @@ async function newQuestion() {
     handleActionError(error);
   } finally {
     actionInFlight = false;
+  }
+}
+
+async function startNewSession() {
+  if (actionInFlight) return;
+  actionInFlight = true;
+  setActionBusy(startNewSessionButton, true, "Starting…");
+  try {
+    const result = await api("/api/host/reset", { method: "POST", body: {} });
+    applyState(result.state, result.rev);
+    questionInput.focus();
+    questionInput.select();
+  } catch (error) {
+    handleActionError(error);
+  } finally {
+    actionInFlight = false;
+    setActionBusy(startNewSessionButton, false);
   }
 }
 
@@ -2159,6 +2186,7 @@ wheelOverlay.addEventListener("keydown", (event) => {
 });
 $("#cancel-round-button").addEventListener("click", askReset);
 againButton.addEventListener("click", playAgain);
+startNewSessionButton.addEventListener("click", startNewSession);
 newQuestionButton.addEventListener("click", newQuestion);
 nextQuestionButton.addEventListener("click", nextSessionQuestion);
 surveyFinishButton.addEventListener("click", finishSurvey);

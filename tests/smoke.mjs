@@ -526,14 +526,23 @@ async function main() {
     await waitVisible(projectorPage.locator(".ended-copy h1"));
     await controllerPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
     await waitVisible(controllerPage.locator(".ended-copy h1"));
+    assert.match(await text(controllerPage.locator(".thanks-support-title")), /Give Room Check a star/);
+    assert.equal(await controllerPage.locator(".ended-star .github-mark").count(), 1);
+    assert.match(await controllerPage.locator("#thanks-qr").getAttribute("src"), /\/api\/qr\?data=/);
 
-    console.log("11/15 host redirects to thanks");
+    console.log("11/15 host sees ended session");
     await hostPage.goto(server.base + "/interactions", { waitUntil: "domcontentloaded" });
-    await hostPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
-    await waitVisible(hostPage.locator(".ended-copy h1"));
-    assert.match(await text(hostPage.locator(".thanks-support-title")), /Give Room Check a star/);
-    assert.equal(await hostPage.locator(".ended-star .github-mark").count(), 1);
-    assert.match(await hostPage.locator("#thanks-qr").getAttribute("src"), /\/api\/qr\?data=/);
+    await waitVisible(hostPage.locator("#setup-view"));
+    await waitVisible(hostPage.locator("#session-ended-notice"));
+    assert.match(await text(hostPage.locator("#session-ended-notice")), /session has ended/i);
+    await hostPage.click("#start-new-session");
+    await hostPage.waitForFunction(
+      () => !document.querySelector("#session-ended-notice") || document.querySelector("#session-ended-notice").hidden,
+      null,
+      { timeout: 10_000 },
+    );
+    await waitVisible(hostPage.locator("#setup-view"));
+    await audiencePage.waitForURL((url) => url.pathname === "/join", { timeout: 15_000 });
 
     console.log("12/15 end session from home");
     const pollStart = await hostPage.evaluate(async () => {
