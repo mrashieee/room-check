@@ -1640,6 +1640,7 @@ async function startRound(event) {
                     mode: "poll",
                     title,
                     ...prepared[0],
+                    allowCustom: allowCustomInput.checked,
                   }
                 : {
                     mode: "hands",

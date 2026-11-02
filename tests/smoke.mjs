@@ -536,8 +536,11 @@ async function main() {
     await audiencePage.waitForURL((url) => url.pathname === "/join", { timeout: 10_000 });
     await homeEndPage.fill("#game-title", "Host End Test");
     await homeEndPage.fill("#question-input", "End from host?");
+    await homeEndPage.uncheck("#allow-custom");
     await homeEndPage.click("#start-button");
     await waitVisible(homeEndPage.locator("#open-stage"));
+    await waitVisible(audiencePage.locator("#screen-vote"));
+    assert.equal(await audiencePage.locator("#vote-write-in").isHidden(), true);
     await homeEndPage.click("#end-session-button");
     await homeEndPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
     await waitVisible(homeEndPage.locator(".ended-copy h1"));
