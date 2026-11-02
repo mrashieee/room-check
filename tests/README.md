@@ -21,7 +21,7 @@ The test starts a temporary Room Check server on a free local port with a throwa
 - fullscreen toggles on landing, host and projector
 - no-slide controller session with QR and no-slide display
 - end session from controller, home, host and projector, including host End presentation and `/thanks-host`
-- `/thanks` audience content and return to `/join` standby; `/thanks-host` Start another session
+- `/thanks` audience content and return to `/join` standby; `/thanks-host` Start another session returns home
 
 ## Browser requirement
 
@@ -35,7 +35,7 @@ No browser is downloaded by `npm install`.
 
 ## CI
 
-`.github/workflows/ci.yml` runs `npm run check` and `npm run test:smoke` on pushes to `main`/`feature/**` and pull requests. GitHub-hosted Ubuntu provides `/usr/bin/google-chrome`.
+`.github/workflows/check.yml` runs `npm run check` and `npm run test:smoke` on pushes and pull requests. GitHub-hosted Ubuntu provides `/usr/bin/google-chrome`.
 
 ## Notes
 

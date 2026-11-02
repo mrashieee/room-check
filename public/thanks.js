@@ -38,13 +38,13 @@ startButton?.addEventListener("click", async () => {
       body: "{}",
     });
     if (response.status === 401) {
-      location.href = "/host";
+      location.href = "/";
       return;
     }
     if (!response.ok) throw new Error("Could not start another session.");
-    location.href = "/host";
+    location.href = "/";
   } catch {
-    location.href = "/host";
+    location.href = "/";
   } finally {
     startButton.disabled = false;
   }

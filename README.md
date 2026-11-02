@@ -37,7 +37,7 @@ It is **offline-first**: the presenter laptop owns the slides and the presentati
 - **Works without a controller:** a live presentation can be ended directly from the host header with **End presentation**.
 - **Tunnel-ready audience link:** run `npm run share` and the QR/link automatically use a temporary public HTTPS address.
 - **Share card:** `/share` shows the audience QR and link, with a downloadable 1920×1080 PNG for a slide.
-- **Thanks pages:** `/thanks` is the audience version with no host links; `/thanks-host` adds **Start another session** for host-side screens. Both carry the support message, accented GitHub icon and GitHub QR.
+- **Thanks pages:** `/thanks` is the audience version with no host links; `/thanks-host` adds **Start another session** for host-side screens and returns to `/`. Both carry the support message, accented GitHub icon and GitHub QR.
 - **Audience standby:** when the host starts another session, the audience `/thanks` page returns automatically to `/join` standby.
 - **Protected home:** `/` requires the host password and opens the presenter dashboard after login.
 - **Desktop shell:** on desktop, the header and footer stay visible while only the middle content scrolls. Phones keep normal page scrolling.
@@ -610,7 +610,7 @@ npm run check
 npm run test:smoke
 ```
 
-A GitHub Actions workflow runs syntax checks and the Chromium smoke test on pushes to `main`/`feature/**` and pull requests.
+A GitHub Actions workflow runs syntax checks and the Chromium smoke test on pushes and pull requests.
 
 ### Accessibility
 
@@ -686,7 +686,7 @@ scripts/
 └── backup-data.mjs         cross-platform .data backup
 tests/smoke.mjs             automated Chromium smoke test
 tests/fixtures/             smoke-test slide and PDF fixtures
-.github/workflows/ci.yml    syntax and smoke CI
+.github/workflows/check.yml syntax and smoke CI
 docs/                       README screenshots
 CHANGELOG.md                release history
 .env.example

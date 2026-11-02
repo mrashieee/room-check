@@ -123,6 +123,10 @@ async function main() {
     headless: true,
     args: ["--no-sandbox", "--disable-dev-shm-usage"],
   });
+  const pageErrors = [];
+  const trackPage = (page, name) => {
+    page.on("pageerror", (error) => pageErrors.push(`${name}: ${error.message}`));
+  };
 
   try {
     const hostContext = await browser.newContext({
@@ -130,13 +134,14 @@ async function main() {
       permissions: ["clipboard-read", "clipboard-write"],
     });
     const hostPage = await hostContext.newPage();
+    trackPage(hostPage, "host");
 
-    console.log("1/13 protected landing");
+    console.log("1/15 protected landing");
     await hostPage.goto(server.base + "/", { waitUntil: "domcontentloaded" });
     await waitVisible(hostPage.locator("#auth-setup-form"));
     assert.match(hostPage.url(), /\/host\?next=\/$/);
 
-    console.log("2/13 host setup and landing");
+    console.log("2/15 host setup and landing");
     await hostPage.fill("#setup-code", server.setupCode);
     await hostPage.fill("#new-password", password);
     await hostPage.fill("#confirm-password", password);
@@ -173,6 +178,11 @@ async function main() {
       const response = await hostPage.goto(server.base + route, { waitUntil: "domcontentloaded" });
       assert.equal(response.status(), 404, `${route} should be gone`);
     }
+    await hostPage.goto(server.base + "/updates", { waitUntil: "domcontentloaded" });
+    await waitVisible(hostPage.locator("#update-status"));
+    assert.equal(await hostPage.locator(".site-header .brand").getAttribute("href"), "/");
+    await hostPage.click("#check-again");
+    await waitVisible(hostPage.locator("#update-status"));
     await hostPage.goto(server.base + "/host", { waitUntil: "domcontentloaded" });
     await waitVisible(hostPage.locator("#host-app"));
     await hostPage.click("#fullscreen-button");
@@ -184,7 +194,7 @@ async function main() {
     await hostPage.click("#customizer-close");
     await hostPage.waitForFunction(() => document.querySelector("#customizer-overlay")?.hidden);
 
-    console.log("3/13 projector setup and deck upload");
+    console.log("3/15 projector setup and deck upload");
     await hostPage.goto(server.base + "/present", { waitUntil: "domcontentloaded" });
     await waitVisible(hostPage.locator("#present-setup"));
     await hostPage.setInputFiles("#present-files", [
@@ -222,15 +232,17 @@ async function main() {
     await hostPage.click("#present-resume");
     await waitVisible(hostPage.locator("#present-display"));
     const homePage = await hostContext.newPage();
+    trackPage(homePage, "home");
     await homePage.goto(server.base + "/", { waitUntil: "domcontentloaded" });
     await homePage.waitForFunction(() => !document.querySelector("#landing-end-session")?.disabled, null, { timeout: 10_000 });
     assert.equal(await homePage.locator("#landing-end-session").isDisabled(), false);
     await homePage.close();
     const projectorPage = await hostContext.newPage();
+    trackPage(projectorPage, "projector");
     await projectorPage.goto(server.base + "/present", { waitUntil: "domcontentloaded" });
     await waitVisible(projectorPage.locator("#present-display"));
 
-    console.log("4/13 controller pairing and slide access");
+    console.log("4/15 controller pairing and slide access");
     const hostState = await hostPage.evaluate(async () => {
       const response = await fetch("/api/host/state", { credentials: "same-origin" });
       return response.json();
@@ -267,6 +279,7 @@ async function main() {
       hasTouch: true,
     });
     const controllerPage = await controllerContext.newPage();
+    trackPage(controllerPage, "controller");
     await controllerPage.goto(
       `${server.base}/controller?token=${encodeURIComponent(token)}`,
       { waitUntil: "domcontentloaded" },
@@ -322,6 +335,7 @@ async function main() {
       hasTouch: true,
     });
     const passwordController = await passwordControllerContext.newPage();
+    trackPage(passwordController, "password-controller");
     await passwordController.goto(server.base + "/controller", { waitUntil: "domcontentloaded" });
     await waitVisible(passwordController.locator("#controller-login"));
     await passwordController.fill("#controller-password", password);
@@ -329,18 +343,19 @@ async function main() {
     await waitVisible(passwordController.locator("#controller-live"));
     await passwordControllerContext.close();
 
-    console.log("5/13 audience join");
+    console.log("5/15 audience join");
     const audienceContext = await browser.newContext({
       viewport: { width: 390, height: 844 },
       isMobile: true,
       hasTouch: true,
     });
     const audiencePage = await audienceContext.newPage();
+    trackPage(audiencePage, "audience");
     await audiencePage.goto(server.base + "/join", { waitUntil: "domcontentloaded" });
     await waitVisible(audiencePage.locator("#screen-presentation"));
     assert.match(await text(audiencePage.locator("#presentation-title")), /Smoke Test Deck/);
 
-    console.log("6/13 quick poll");
+    console.log("6/15 quick poll");
     await controllerPage.click('[data-tab="poll"]');
     await waitVisible(controllerPage.locator("#controller-poll-form"));
     await controllerPage.fill("#controller-poll-question", "Which slide is better?");
@@ -378,7 +393,7 @@ async function main() {
     await controllerPage.click("#controller-interaction-back");
     await waitVisible(audiencePage.locator("#screen-presentation"));
 
-    console.log("7/13 Live Hands");
+    console.log("7/15 Live Hands");
     await controllerPage.click('[data-tab="hands"]');
     await waitVisible(controllerPage.locator("#controller-hands-form"));
     await controllerPage.fill("#controller-hands-question", "Who is with us?");
@@ -394,7 +409,7 @@ async function main() {
     await controllerPage.click("#controller-interaction-back");
     await waitVisible(audiencePage.locator("#screen-presentation"));
 
-    console.log("8/13 survey");
+    console.log("8/15 survey");
     const surveyStart = await hostPage.evaluate(async () => {
       const response = await fetch("/api/host/survey/start", {
         method: "POST",
@@ -439,7 +454,7 @@ async function main() {
     assert.equal(surveyEnd, 200);
     await waitVisible(audiencePage.locator("#screen-survey-results"));
 
-    console.log("9/13 share card");
+    console.log("9/15 share card");
     await hostPage.goto(server.base + "/share", { waitUntil: "domcontentloaded" });
     await waitVisible(hostPage.locator("#share-ready"));
     assert.match(await text(hostPage.locator("#share-link")), /\/join$/);
@@ -457,7 +472,7 @@ async function main() {
     assert.equal(png.readUInt32BE(16), 1920);
     assert.equal(png.readUInt32BE(20), 1080);
 
-    console.log("10/13 end session from controller");
+    console.log("10/15 end session from controller");
     await controllerPage.goto(
       `${server.base}/controller?token=${encodeURIComponent(token)}`,
       { waitUntil: "domcontentloaded" },
@@ -474,7 +489,7 @@ async function main() {
     await controllerPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
     await waitVisible(controllerPage.locator(".ended-copy h1"));
 
-    console.log("11/13 host redirects to thanks");
+    console.log("11/15 host redirects to thanks");
     await hostPage.goto(server.base + "/host", { waitUntil: "domcontentloaded" });
     await hostPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
     await waitVisible(hostPage.locator(".ended-copy h1"));
@@ -482,7 +497,7 @@ async function main() {
     assert.equal(await hostPage.locator(".ended-star .github-mark").count(), 1);
     assert.match(await hostPage.locator("#thanks-qr").getAttribute("src"), /\/api\/qr\?data=/);
 
-    console.log("12/13 end session from home");
+    console.log("12/15 end session from home");
     const pollStart = await hostPage.evaluate(async () => {
       const response = await fetch("/api/host/open", {
         method: "POST",
@@ -511,8 +526,10 @@ async function main() {
     await homeEndPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
     await waitVisible(homeEndPage.locator(".ended-copy h1"));
     await homeEndPage.click("#thanks-start");
-    await homeEndPage.waitForURL((url) => url.pathname === "/host", { timeout: 15_000 });
-    await waitVisible(homeEndPage.locator("#setup-view"));
+    await homeEndPage.waitForURL((url) => url.pathname === "/", { timeout: 15_000 });
+    await waitVisible(homeEndPage.locator(".landing-option").first());
+    await homeEndPage.goto(server.base + "/host", { waitUntil: "domcontentloaded" });
+    await waitVisible(homeEndPage.locator("#host-app"));
     await audiencePage.waitForURL((url) => url.pathname === "/join", { timeout: 10_000 });
     await homeEndPage.fill("#game-title", "Host End Test");
     await homeEndPage.fill("#question-input", "End from host?");
@@ -523,7 +540,7 @@ async function main() {
     await waitVisible(homeEndPage.locator(".ended-copy h1"));
     await homeEndPage.close();
 
-    console.log("13/13 direct projector end");
+    console.log("13/15 direct projector end");
     await hostPage.goto(server.base + "/present", { waitUntil: "domcontentloaded" });
     await waitVisible(hostPage.locator("#present-setup"));
     await waitVisible(hostPage.locator("#present-start"));
@@ -539,12 +556,13 @@ async function main() {
     assert.equal(await hostPage.locator('.text-button[href="/share"]').count() >= 1, true);
     assert.equal(await hostPage.locator('.text-button[href="/"]').count() >= 1, true);
 
-    console.log("14/14 end presentation from host");
+    console.log("14/15 end presentation from host");
     await hostPage.goto(server.base + "/present", { waitUntil: "domcontentloaded" });
     await waitVisible(hostPage.locator("#present-setup"));
     await hostPage.click("#present-start");
     await waitVisible(hostPage.locator("#present-display"));
     const hostControlPage = await hostContext.newPage();
+    trackPage(hostControlPage, "host-control");
     await hostControlPage.goto(server.base + "/host", { waitUntil: "domcontentloaded" });
     await waitVisible(hostControlPage.locator("#host-app"));
     await waitVisible(hostControlPage.locator("#host-end-presentation"));
@@ -564,6 +582,8 @@ async function main() {
     await hostPage.reload({ waitUntil: "domcontentloaded" });
     await waitVisible(hostPage.locator("#present-setup"));
     await waitVisible(hostPage.locator("#present-qr-panel"));
+    await hostPage.click("#present-new-controller");
+    await hostPage.waitForFunction(() => document.querySelector("#present-status")?.textContent?.includes("New controller link"));
     assert.equal(await hostPage.locator("#present-start").isEnabled(), true);
     await hostPage.click("#present-start");
     await waitVisible(hostPage.locator("#present-display"));
@@ -578,6 +598,7 @@ async function main() {
       hasTouch: true,
     });
     const noSlidePage = await noSlideController.newPage();
+    trackPage(noSlidePage, "no-slide-controller");
     await noSlidePage.goto(`${server.base}/controller?token=${encodeURIComponent(noSlideToken)}`, {
       waitUntil: "domcontentloaded",
     });
@@ -585,6 +606,7 @@ async function main() {
     assert.match(await text(noSlidePage.locator("#controller-note")), /No slides yet/);
     await noSlideController.close();
 
+    assert.deepEqual(pageErrors, [], `Browser page errors: ${pageErrors.join("; ")}`);
     console.log("15/15 done");
     console.log("SMOKE OK");
   } finally {
