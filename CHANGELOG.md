@@ -33,6 +33,7 @@ All notable changes to Room Check are documented here.
 - `/thanks` and `/thanks-host` carry support copy, an accented GitHub star action and GitHub QR; only the host version has Start another session
 - Start another session resets the ended state, returns the host to `/` and the audience to `/join` standby
 - Host header exposes End presentation while live; the interaction button becomes End interaction and stays hidden when no poll/survey is active
+- Presenter setup exposes Stop presentation and a link to laptop host controls
 - Host and controller can toggle audience write-in answers per poll or survey
 - Controller QR is available before start and supports no-slide polls, hands and surveys
 - Presenter starts an empty session with Start session instead of requiring a slide

@@ -230,6 +230,8 @@ async function main() {
     await hostPage.click("#present-back");
     await waitVisible(hostPage.locator("#present-setup"));
     await waitVisible(hostPage.locator("#present-resume"));
+    await waitVisible(hostPage.locator("#present-stop-presentation"));
+    assert.equal(await hostPage.locator("#present-host-controls a").getAttribute("href"), "/host");
     await hostPage.click("#present-resume");
     await waitVisible(hostPage.locator("#present-display"));
     const homePage = await hostContext.newPage();
@@ -583,12 +585,19 @@ async function main() {
     console.log("15/15 no-slide controller session");
     await hostPage.goto(server.base + "/present", { waitUntil: "domcontentloaded" });
     await waitVisible(hostPage.locator("#present-setup"));
+    const tokenBeforeDiscard = await hostPage.evaluate(async () => {
+      const response = await fetch("/api/host/state", { credentials: "same-origin" });
+      return (await response.json()).presentationToken;
+    });
     hostPage.once("dialog", (dialog) => dialog.accept());
     await hostPage.click("#present-discard");
     await hostPage.waitForFunction(() => document.querySelector("#present-start")?.textContent?.includes("Start session"));
-    await hostPage.reload({ waitUntil: "domcontentloaded" });
-    await waitVisible(hostPage.locator("#present-setup"));
     await waitVisible(hostPage.locator("#present-qr-panel"));
+    const tokenAfterDiscard = await hostPage.evaluate(async () => {
+      const response = await fetch("/api/host/state", { credentials: "same-origin" });
+      return (await response.json()).presentationToken;
+    });
+    assert.equal(tokenAfterDiscard, tokenBeforeDiscard);
     await hostPage.click("#present-new-controller");
     await hostPage.waitForFunction(() => document.querySelector("#present-status")?.textContent?.includes("New controller link"));
     assert.equal(await hostPage.locator("#present-start").isEnabled(), true);

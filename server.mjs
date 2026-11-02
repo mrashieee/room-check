@@ -1781,11 +1781,27 @@ function prunePresentationFiles() {
   }
 }
 
-function clearPresentation() {
-  if (state.presentation) removePresentationFiles(state.presentation.id);
-  state.presentation = null;
+function discardPresentationDeck() {
+  const presentation = state.presentation;
+  if (!presentation) throw new HttpError(404, "Presentation not found.");
+  if (presentation.status === "live") {
+    throw new HttpError(409, "End the presentation before discarding the deck.");
+  }
+  removePresentationFiles(presentation.id);
+  presentation.slides = [];
+  presentation.currentIndex = 0;
+  presentation.scroll = 0;
+  presentation.status = "ready";
+  presentation.activeView = "slides";
+  presentation.startedAt = null;
+  presentation.closedAt = null;
+  state.round = null;
+  state.survey = null;
+  state.session = null;
+  state.sessionClosedAt = null;
   scheduleSave();
   broadcastState();
+  return presentation;
 }
 
 function controllerAuthorized(req) {
@@ -2791,9 +2807,17 @@ app.post("/api/host/presentation/close", requireHost, (req, res, next) => {
   }
 });
 
-app.delete("/api/host/presentation", requireHost, (req, res) => {
-  clearPresentation();
-  res.json({ ok: true, presentation: null });
+app.delete("/api/host/presentation", requireHost, (req, res, next) => {
+  try {
+    const presentation = discardPresentationDeck();
+    res.json({
+      ok: true,
+      presentation: publicPresentation(presentation),
+      token: presentation.controllerToken,
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.post("/api/presentation/interaction", requireController, (req, res, next) => {

@@ -17,6 +17,7 @@ const statusLine = document.querySelector("#present-status");
 const slideList = document.querySelector("#slide-list");
 const startButton = document.querySelector("#present-start");
 const resumeButton = document.querySelector("#present-resume");
+const stopPresentationButton = document.querySelector("#present-stop-presentation");
 const discardButton = document.querySelector("#present-discard");
 const qrPanel = document.querySelector("#present-qr-panel");
 const qrImage = document.querySelector("#present-qr");
@@ -145,6 +146,7 @@ function applyPresentation(next) {
   startButton.disabled = presentation.status === "live";
   startButton.textContent = presentation.slides.length === 0 ? "Start session" : "Start presentation";
   resumeButton.hidden = !(presentation.status === "live" && displayView.hidden);
+  stopPresentationButton.hidden = presentation.status !== "live";
   qrPanel.hidden = !controllerToken;
   if (controllerToken) {
     const url = `${controllerBase}/controller?token=${encodeURIComponent(controllerToken)}`;
@@ -694,11 +696,11 @@ async function stopPresentation() {
 async function discardPresentation() {
   if (!window.confirm("Discard this deck? The slides will be deleted.")) return;
   try {
-    await request("/api/host/presentation", { method: "DELETE" });
-    presentation = null;
-    controllerToken = "";
-    applyPresentation(null);
-    setStatus("Deck discarded. Add images or a PDF to build a new deck.");
+    const payload = await request("/api/host/presentation", { method: "DELETE" });
+    presentation = payload.presentation;
+    controllerToken = payload.token || controllerToken;
+    applyPresentation(presentation);
+    setStatus("Deck discarded. The controller link is still active; add slides or start a session.");
   } catch (error) {
     setStatus(error?.message || "Could not discard the deck.", { error: true });
   }
@@ -741,6 +743,7 @@ copyAudience.addEventListener("click", async () => {
 });
 startButton.addEventListener("click", startPresentation);
 resumeButton.addEventListener("click", showDisplay);
+stopPresentationButton.addEventListener("click", endPresentationSession);
 discardButton.addEventListener("click", discardPresentation);
 prevButton.addEventListener("click", () => control("prev"));
 nextButton.addEventListener("click", () => control("next"));
