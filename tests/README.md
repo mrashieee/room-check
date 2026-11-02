@@ -19,6 +19,7 @@ The test starts a temporary Room Check server on a free local port with a throwa
 - share-card copy, PNG export and routes
 - public slide access restrictions
 - fullscreen toggles on landing, host and projector
+- no-slide controller session with QR and no-slide display
 - end session from controller, home, host and projector, including host End presentation and `/thanks-host`
 - `/thanks` audience content and return to `/join` standby; `/thanks-host` Start another session
 

@@ -30,7 +30,8 @@ It is **offline-first**: the presenter laptop owns the slides and the presentati
 ## What it does
 
 - **Projector slides:** upload images or a PDF, show the deck full-screen at `/present`.
-- **Phone controller:** pair a phone by QR or host password, then change slides, fit the projector, scroll tall slides, run quick polls and raise Live Hands.
+- **No-slide sessions:** start a controller session without a deck for polls, hands and surveys. The controller QR appears before the session starts.
+- **Phone controller:** pair a phone by QR or host password, then change slides, fit the projector, scroll tall slides, run quick polls and raise Live Hands. It also works without slides.
 - **Silent audience screen:** `/join` shows a calm attention screen, then switches to voting, hand raising or survey questions when the host starts them.
 - **Host console:** create polls and multi-question surveys, reveal results, run the wheel, customise the theme and manage backups.
 - **Works without a controller:** a live presentation can be ended directly from the host header with **End presentation**.
@@ -639,12 +640,13 @@ Manual QA flow:
 3. Upload images and a PDF; start the presentation; pair the controller.
 4. Test slide navigation, fit width/page, tall-slide scrolling and remote scroll sync.
 5. Run a quick poll with 2–10 answers, a timer, a tie-breaker and a write-in.
-6. Run Live Hands and close it.
-7. Run a multi-question survey from `/host` and confirm the audience flow.
-8. Open `/share`; confirm the QR, link and PNG download.
-9. Run `npm run share`, reload `/share`, and confirm the public URL is used.
-10. End the session and confirm the host and audience end screens.
-11. Restart the server and confirm the presentation, theme and poll state persist.
+6. Start a no-slide session, pair the controller and run a poll.
+7. Run Live Hands and close it.
+8. Run a multi-question survey from `/host` and confirm the audience flow.
+9. Open `/share`; confirm the QR, link and PNG download.
+10. Run `npm run share`, reload `/share`, and confirm the public URL is used.
+11. End the session and confirm the `/thanks` pages.
+12. Restart the server and confirm the presentation, theme and poll state persist.
 
 ## Project layout
 

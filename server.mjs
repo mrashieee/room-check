@@ -1008,7 +1008,6 @@ function normalizeStoredPresentation(raw) {
       rotation: [0, 90, 180, 270].includes(Number(slide.rotation)) ? Number(slide.rotation) : 0,
     });
   }
-  if (raw.status === "live" && slides.length === 0) return null;
   const currentIndex = Math.min(
     Math.max(Number(raw.currentIndex) || 0, 0),
     Math.max(0, slides.length - 1),
@@ -1673,7 +1672,6 @@ function startPresentation() {
   const presentation = state.presentation;
   if (!presentation) throw new HttpError(409, "Create a presentation first.");
   if (presentation.status === "live") return presentation;
-  if (!presentation.slides.length) throw new HttpError(409, "Add at least one slide first.");
   if (revealTimer) {
     clearTimeout(revealTimer);
     revealTimer = null;
@@ -1779,7 +1777,7 @@ function controllerAuthorized(req) {
   return Boolean(
     token &&
       state.presentation &&
-      state.presentation.status === "live" &&
+      (state.presentation.status === "live" || state.presentation.status === "ready") &&
       token === state.presentation.controllerToken,
   );
 }

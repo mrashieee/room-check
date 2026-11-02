@@ -222,6 +222,20 @@ function render() {
 }
 
 function renderSlides() {
+  const noSlides = !presentation.slides.length;
+  slideImage.hidden = noSlides;
+  slidePanel.classList.toggle("is-empty", noSlides);
+  fitWidthButton.disabled = noSlides;
+  fitPageButton.disabled = noSlides;
+  prevButton.disabled = noSlides || controlBusy;
+  nextButton.disabled = noSlides || controlBusy;
+  rotateButton.disabled = noSlides || controlBusy;
+  if (noSlides) {
+    counter.textContent = "No slides";
+    note.textContent = "No slides yet. Use Poll or Hands.";
+    renderSlideList(0);
+    return;
+  }
   const index = Math.min(
     Math.max(Number(presentation.currentIndex) || 0, 0),
     Math.max(0, presentation.slides.length - 1),

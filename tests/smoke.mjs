@@ -555,7 +555,37 @@ async function main() {
     await hostPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
     await hostControlPage.close();
 
-    console.log("14/14 done");
+    console.log("15/15 no-slide controller session");
+    await hostPage.goto(server.base + "/present", { waitUntil: "domcontentloaded" });
+    await waitVisible(hostPage.locator("#present-setup"));
+    hostPage.once("dialog", (dialog) => dialog.accept());
+    await hostPage.click("#present-discard");
+    await hostPage.waitForFunction(() => document.querySelector("#present-start")?.textContent?.includes("Start session"));
+    await hostPage.reload({ waitUntil: "domcontentloaded" });
+    await waitVisible(hostPage.locator("#present-setup"));
+    await waitVisible(hostPage.locator("#present-qr-panel"));
+    assert.equal(await hostPage.locator("#present-start").isEnabled(), true);
+    await hostPage.click("#present-start");
+    await waitVisible(hostPage.locator("#present-display"));
+    await waitVisible(hostPage.locator("#present-no-slides"));
+    const noSlideToken = await hostPage.evaluate(async () => {
+      const response = await fetch("/api/host/state", { credentials: "same-origin" });
+      return (await response.json()).presentationToken;
+    });
+    const noSlideController = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+    });
+    const noSlidePage = await noSlideController.newPage();
+    await noSlidePage.goto(`${server.base}/controller?token=${encodeURIComponent(noSlideToken)}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await waitVisible(noSlidePage.locator("#controller-live"));
+    assert.match(await text(noSlidePage.locator("#controller-note")), /No slides yet/);
+    await noSlideController.close();
+
+    console.log("15/15 done");
     console.log("SMOKE OK");
   } finally {
     await browser.close().catch(() => {});

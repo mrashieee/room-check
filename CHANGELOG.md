@@ -29,9 +29,12 @@ All notable changes to Room Check are documented here.
 - Landing header exposes customise, fullscreen and End session
 - Landing customise opens the theme customiser in place instead of navigating to `/host`
 - Host-facing Room Check brands return to `/`
-- End session opens a dedicated `/thanks` page from the projector, host, home, controller and audience
-- `/thanks` is a standalone public thank-you page with support copy, an accented GitHub star action, GitHub QR and next-session actions
-- Start another session now resets the ended state before opening `/host`
+- End session opens `/thanks-host` from projector, host, home and controller; the audience opens `/thanks`
+- `/thanks` and `/thanks-host` carry support copy, an accented GitHub star action and GitHub QR; only the host version has Start another session
+- Start another session resets the ended state and returns the audience to `/join` standby
+- Host header exposes End presentation while live, so presentations work without a phone controller
+- Controller QR is available before start and supports no-slide polls, hands and surveys
+- Presenter starts an empty session with Start session instead of requiring a slide
 - Smoke coverage now includes fullscreen, customiser save, controller password pairing, presenter controls, share copy and every end-session path
 - Survey results still stay on `/join` after a survey closes
 - Presenter preflight audience link, LAN/tunnel label and copy action

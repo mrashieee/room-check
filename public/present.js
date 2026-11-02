@@ -31,6 +31,7 @@ const audienceNote = document.querySelector("#present-audience-note");
 const copyAudience = document.querySelector("#present-audience-copy");
 const slideWrap = document.querySelector(".present-slide-wrap");
 const displaySlide = document.querySelector("#present-slide");
+const noSlidesView = document.querySelector("#present-no-slides");
 const displayLabel = document.querySelector("#present-display-label");
 const interactionView = document.querySelector("#present-interaction");
 const interactionChip = document.querySelector("#present-interaction-chip");
@@ -126,10 +127,11 @@ async function request(path, options = {}) {
 function applyPresentation(next) {
   presentation = next;
   if (!presentation) {
-    setStatus("Add images or a PDF to build the deck.");
+    setStatus("Add images or a PDF to build the deck, or start a session without slides.");
     titleInput.value = "Presentation";
     slideList.replaceChildren();
-    startButton.disabled = true;
+    startButton.disabled = false;
+    startButton.textContent = "Start session";
     qrPanel.hidden = true;
     return;
   }
@@ -138,9 +140,10 @@ function applyPresentation(next) {
   applyFitMode();
   renderSlides();
   if (!presentation.slides.length) {
-    setStatus("No slides yet. Add images or a PDF above.");
+    setStatus("No slides yet. Start a session to use Poll, Hands or surveys from the controller.");
   }
-  startButton.disabled = presentation.slides.length === 0 || presentation.status === "live";
+  startButton.disabled = presentation.status === "live";
+  startButton.textContent = presentation.slides.length === 0 ? "Start session" : "Start presentation";
   resumeButton.hidden = !(presentation.status === "live" && displayView.hidden);
   qrPanel.hidden = !controllerToken;
   if (controllerToken) {
@@ -181,7 +184,12 @@ function renderSlides() {
 async function refreshPresentation() {
   const payload = await request("/api/host/presentation/state");
   controllerToken = payload.token || "";
-  applyPresentation(payload.presentation);
+  presentation = payload.presentation;
+  if (!presentation) {
+    await createOrRefreshPresentation();
+    return;
+  }
+  applyPresentation(presentation);
   if (presentation?.status === "live") {
     showDisplay();
   }
@@ -574,6 +582,7 @@ function renderDisplay() {
   const activeSurvey = survey;
   if (activeRound) {
     slideWrap.hidden = true;
+    noSlidesView.hidden = true;
     interactionView.hidden = false;
     setDisplayBarMode(activeRound.mode === "hands" ? "hands" : "poll");
     renderRound(activeRound);
@@ -581,6 +590,7 @@ function renderDisplay() {
   }
   if (activeSurvey) {
     slideWrap.hidden = true;
+    noSlidesView.hidden = true;
     interactionView.hidden = false;
     setDisplayBarMode("survey");
     renderSurvey(activeSurvey);
@@ -590,7 +600,17 @@ function renderDisplay() {
   interactionView.hidden = true;
   slideWrap.hidden = false;
   setDisplayBarMode("slides");
-  if (!presentation.slides?.length) return;
+  if (!presentation.slides?.length) {
+    displaySlide.hidden = true;
+    noSlidesView.hidden = false;
+    displayLabel.textContent = `${presentation.title || "Presentation"} · No slides`;
+    prevButton.disabled = true;
+    nextButton.disabled = true;
+    rotateButton.disabled = true;
+    return;
+  }
+  displaySlide.hidden = false;
+  noSlidesView.hidden = true;
   const index = Math.min(
     Math.max(Number(presentation.currentIndex) || 0, 0),
     presentation.slides.length - 1,

@@ -360,6 +360,31 @@ a.landing-option:hover .landing-option-copy span {
   flex: 0 0 auto;
 }
 
+.present-no-slides {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  padding: 8vw;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  text-align: left;
+}
+
+.present-no-slides[hidden] {
+  display: none !important;
+}
+
+.present-no-slides h2 {
+  max-width: 16ch;
+  margin: 10px 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(48px, 8vw, 104px);
+  letter-spacing: var(--tracking-display);
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+
 /* Full-screen slide display */
 
 .present-display {
@@ -621,6 +646,10 @@ a.landing-option:hover .landing-option-copy span {
   object-fit: contain;
   transform-origin: center center;
   transition: transform 180ms ease;
+}
+
+.controller-slide.is-empty {
+  display: none;
 }
 
 .controller-slide[data-fit="page"] img {
