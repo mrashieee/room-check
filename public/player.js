@@ -260,7 +260,7 @@ function renderVoteScreen(round, { force = false, selected = null } = {}) {
     if (roundChanged) {
       voteWriteInInput.value = "";
     }
-    voteWriteIn.hidden = Boolean(myCustomOption);
+    voteWriteIn.hidden = Boolean(myCustomOption) || round.allowCustom === false;
     voteWriteInNote.textContent = myCustomOption
       ? `You added “${myCustomOption.label}”. You can still change your vote.`
       : "Only you and the host can see this option while voting.";
@@ -417,7 +417,7 @@ function renderSurveyQuestion(statusMessage = "") {
   surveyBack.disabled = surveyIndex === 0 || surveyBusy;
   surveySaveStatus.textContent = statusMessage || "Choose one answer, then continue.";
   const created = mySurveyCreatedCustomOptions[question.id];
-  surveyWriteIn.hidden = Boolean(created);
+  surveyWriteIn.hidden = Boolean(created) || question.allowCustom === false;
   surveyWriteInNote.textContent = created
     ? `You added “${created.label}”. You can still change your answer.`
     : "Only you and the host can see this while the survey is open.";

@@ -185,6 +185,7 @@ async function main() {
     await waitVisible(hostPage.locator("#update-status"));
     await hostPage.goto(server.base + "/host", { waitUntil: "domcontentloaded" });
     await waitVisible(hostPage.locator("#host-app"));
+    assert.equal(await hostPage.locator("#allow-custom").isChecked(), true);
     await hostPage.click("#fullscreen-button");
     await hostPage.waitForFunction(() => Boolean(document.fullscreenElement));
     await hostPage.click("#fullscreen-button");
@@ -417,6 +418,7 @@ async function main() {
         body: JSON.stringify({
           title: "Smoke Survey",
           durationSec: 0,
+          allowCustom: false,
           questions: [
             { question: "First question?", options: ["A", "B"], durationSec: 0, spinOnTie: false },
             { question: "Second question?", options: ["C", "D"], durationSec: 0, spinOnTie: false },
@@ -427,6 +429,7 @@ async function main() {
     });
     assert.equal(surveyStart, 200);
     await waitVisible(audiencePage.locator("#screen-survey"));
+    assert.equal(await audiencePage.locator("#survey-write-in").isHidden(), true);
     await audiencePage.locator("#survey-options .vote-option").nth(0).click();
     await audiencePage.click("#survey-next");
     await audiencePage.waitForFunction(() =>

@@ -80,6 +80,7 @@ const questionInput = $("#question-input");
 const questionCount = $("#question-count");
 const titleInput = $("#game-title");
 const spinOnTieInput = $("#spin-on-tie");
+const allowCustomInput = $("#allow-custom");
 const joinUrlInput = $("#join-url-input");
 const setupUrl = $("#setup-url");
 const setupQr = $("#setup-qr");
@@ -257,6 +258,7 @@ function defaultQuestionDraft({ blank = false } = {}) {
     options: [...DEFAULT_OPTIONS],
     durationSec: 60,
     spinOnTie: true,
+    allowCustom: true,
   };
 }
 
@@ -266,6 +268,7 @@ function normalizeQuestionDraft(raw) {
     options: normalizeOptions(raw?.options).map((option) => option.label),
     durationSec: Number.isFinite(Number(raw?.durationSec)) ? Number(raw.durationSec) : 60,
     spinOnTie: raw?.spinOnTie !== false,
+    allowCustom: raw?.allowCustom !== false,
   };
 }
 
@@ -293,6 +296,7 @@ function currentDraft() {
     multi: multiQuestionToggle.checked,
     surveyDurationSec: readSurveyDuration(),
     title: titleInput.value.trim(),
+    allowCustom: allowCustomInput.checked,
     questions: draftQuestions.map((question) => ({
       question: question.question,
       options: [...question.options],
@@ -690,6 +694,7 @@ function populateSetup(draft) {
   );
   const multi = typeof chosen?.multi === "boolean" ? chosen.multi : draftQuestions.length > 1;
   multiQuestionToggle.checked = multi;
+  allowCustomInput.checked = chosen?.allowCustom !== false;
   setSurveyTimerChoice(Number(chosen?.surveyDurationSec) || 0);
   setMode(chosen?.mode === "hands" ? "hands" : "poll");
   loadActiveQuestion();
@@ -705,10 +710,12 @@ function populateSetupFromRound(round) {
       options: round.options.map((option) => option.label),
       durationSec: round.durationSec ?? 60,
       spinOnTie: round.spinOnTie !== false,
+      allowCustom: round.allowCustom !== false,
     }),
   ];
   activeQuestionIndex = 0;
   multiQuestionToggle.checked = false;
+  allowCustomInput.checked = round.allowCustom !== false;
   setSurveyTimerChoice(0);
   setMode(round.mode === "hands" ? "hands" : "poll");
   loadActiveQuestion();
@@ -1618,7 +1625,12 @@ async function startRound(event) {
       mode === "poll" && multi
         ? await api("/api/host/survey/start", {
             method: "POST",
-            body: { title, questions: prepared, durationSec: readSurveyDuration() },
+            body: {
+              title,
+              questions: prepared,
+              durationSec: readSurveyDuration(),
+              allowCustom: allowCustomInput.checked,
+            },
           })
         : await api("/api/host/open", {
             method: "POST",
@@ -1687,6 +1699,7 @@ async function playAgain() {
         options: lastRound.options.map((option) => option.label),
         durationSec: lastRound.durationSec,
         spinOnTie: lastRound.spinOnTie !== false,
+        allowCustom: lastRound.allowCustom !== false,
         mode: "poll",
       },
     });
@@ -2040,6 +2053,8 @@ spinOnTieInput.addEventListener("change", () => {
   }
   debounceSaveDraft();
 });
+
+allowCustomInput.addEventListener("change", debounceSaveDraft);
 
 $("#timer-choices").addEventListener("change", () => {
   if (draftQuestions[activeQuestionIndex]) {

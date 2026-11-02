@@ -16,6 +16,7 @@ const pollOptions = document.querySelector("#controller-poll-options");
 const pollAddOption = document.querySelector("#controller-add-option");
 const pollDuration = document.querySelector("#controller-poll-duration");
 const spinOnTie = document.querySelector("#controller-spin-on-tie");
+const allowCustom = document.querySelector("#controller-allow-custom");
 const pollStart = document.querySelector("#controller-poll-start");
 const handsForm = document.querySelector("#controller-hands-form");
 const handsQuestion = document.querySelector("#controller-hands-question");
@@ -473,6 +474,7 @@ async function startPoll() {
         options,
         durationSec: Number(pollDuration.value) || 0,
         spinOnTie: spinOnTie.checked,
+        allowCustom: allowCustom.checked,
       }),
     });
     await refresh();

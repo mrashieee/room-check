@@ -4562,11 +4562,31 @@ body.customizer-open {
   }
 
   body.player-page > .player-main {
+    width: 100%;
+    max-width: none;
     align-items: flex-start;
+    padding-inline: clamp(20px, 5vw, 64px);
+    scrollbar-width: thin;
+    scrollbar-color: var(--muted) transparent;
   }
 
   body.player-page > .player-main > .player-screen {
+    width: min(100%, 720px);
     margin-block: auto;
+    margin-inline: auto;
+  }
+
+  body.player-page > .player-main::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  body.player-page > .player-main::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  body.player-page > .player-main::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: var(--muted);
   }
 }
 

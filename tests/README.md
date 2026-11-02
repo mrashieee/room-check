@@ -14,7 +14,7 @@ The test starts a temporary Room Check server on a free local port with a throwa
 - image and PDF slide upload
 - projector next/previous, fit, rotate, deck/resume and display-bar end
 - controller token pairing, password pairing, fit, rotate, slide jump and slide controls
-- poll add/remove, vote, vote change and write-in
+- poll add/remove, vote, vote change, write-in and write-in disable toggle
 - reveal, Live Hands, survey back/next and results
 - share-card copy, PNG export and routes
 - public slide access restrictions

@@ -269,7 +269,7 @@ Press **End session** on the controller, the projector header or the full-screen
 8. Press **Reveal** when you are ready, or let the timer do it.
 9. Press **Done** to return to the slides.
 
-The controller and projector both show the timer. On a tie, the tie-breaker can spin and highlight the winner. Custom write-in answers are private to their creator and the host while voting; merged custom options appear in the final results.
+The controller and projector both show the timer. On a tie, the tie-breaker can spin and highlight the winner. Custom write-in answers are private to their creator and the host while voting; merged custom options appear in the final results. Use **Allow audience write-ins** in the host console or controller to disable them for a poll or survey.
 
 ### Full host console
 

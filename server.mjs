@@ -208,6 +208,7 @@ function validateRoundInput(body) {
     options,
     durationSec,
     spinOnTie: body.spinOnTie !== false,
+    allowCustom: body.allowCustom !== false,
   };
 }
 
@@ -234,6 +235,7 @@ function validateSessionInput(body) {
         options: raw?.options,
         durationSec: raw?.durationSec,
         spinOnTie: raw?.spinOnTie,
+        allowCustom: body.allowCustom !== false,
       });
     } catch (error) {
       throw new HttpError(
@@ -269,12 +271,14 @@ function validateSurveyInput(body) {
         options: raw?.options,
         durationSec: 0,
         spinOnTie: false,
+        allowCustom: body.allowCustom !== false,
       });
       return {
         id: crypto.randomUUID(),
         question: question.question,
         options: question.options,
         customOptions: [],
+        allowCustom: question.allowCustom !== false,
       };
     } catch (error) {
       throw new HttpError(
@@ -309,6 +313,7 @@ function createRound(details) {
     question: details.question,
     status: "open",
     startedAt,
+    allowCustom: details.allowCustom !== false,
   };
 
   if (base.mode === "hands") {
@@ -607,6 +612,7 @@ function publicSurvey(survey, { includeCounts = false } = {}) {
     questions: survey.questions.map((question) => ({
       id: question.id,
       question: question.question,
+      allowCustom: question.allowCustom !== false,
       options: question.options.map(({ id, label, color }) => ({ id, label, color })),
       ...(includeCounts
         ? {
@@ -686,6 +692,7 @@ function publicState({ includeCounts = false, includeSlides = false, slideToken 
       mode: "poll",
       title: round.title,
       question: round.question,
+      allowCustom: round.allowCustom !== false,
       options: round.options.map(({ id, label, color }) => ({ id, label, color })),
       ...(includeCounts
         ? {
@@ -1074,7 +1081,13 @@ function normalizeStoredSurvey(raw) {
     }
     if (options.length < LIMITS.minOptions || options.length > LIMITS.maxOptions) return null;
     const customOptions = normalizeStoredCustomOptions(rawQuestion.customOptions, options);
-    questions.push({ id: questionId, question: questionText, options, customOptions });
+    questions.push({
+      id: questionId,
+      question: questionText,
+      options,
+      customOptions,
+      allowCustom: rawQuestion.allowCustom !== false,
+    });
   }
 
   const responses = {};
@@ -1260,6 +1273,7 @@ function loadState() {
       question: normalizeQuestion(round.question),
       options: cleanHostOptions,
       customOptions: cleanCustomOptions,
+      allowCustom: round.allowCustom !== false,
       votes: cleanVotes,
       spinOnTie: Boolean(round.spinOnTie),
       durationSec: Number(round.durationSec) || 0,
@@ -1489,6 +1503,9 @@ function submitSurveyAnswer(playerId, questionId, optionId, customLabel = "") {
   const question = survey.questions.find((entry) => entry.id === questionId);
   if (!question) throw new HttpError(400, "That question is not part of this survey.");
   if (customLabel.trim()) {
+    if (question.allowCustom === false) {
+      throw new HttpError(403, "Write-in answers are turned off for this question.");
+    }
     optionId = resolveCustomOption(question, playerId, customLabel).id;
   } else if (!allOptions(question).some((option) => option.id === optionId)) {
     throw new HttpError(400, "Pick one of the answers on screen.");
@@ -3184,6 +3201,9 @@ app.post("/api/vote", (req, res, next) => {
     let optionId = typeof req.body?.optionId === "string" ? req.body.optionId : "";
     const customLabel = typeof req.body?.customLabel === "string" ? req.body.customLabel : "";
     if (customLabel.trim()) {
+      if (round.allowCustom === false) {
+        throw new HttpError(403, "Write-in answers are turned off for this poll.");
+      }
       optionId = resolveCustomOption(round, playerId, customLabel).id;
     } else if (!allOptions(round).some((option) => option.id === optionId)) {
       throw new HttpError(400, "Pick one of the answers on screen.");
