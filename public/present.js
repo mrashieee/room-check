@@ -55,6 +55,7 @@ const backButton = document.querySelector("#present-back");
 const fullscreenButton = document.querySelector("#present-fullscreen");
 const headerFullscreenButton = document.querySelector("#present-header-fullscreen");
 const endSessionButton = document.querySelector("#present-end-session");
+const endPresentationButton = document.querySelector("#present-end-presentation");
 const lockButton = document.querySelector("#present-lock");
 const stopButton = document.querySelector("#present-stop");
 
@@ -136,7 +137,7 @@ async function request(path, options = {}) {
     // Some endpoints return no body.
   }
   if (response.status === 401) {
-    location.href = "/host?next=/present";
+    location.href = "/interactions?next=/present";
     const error = new Error(payload?.error || "Host sign-in required.");
     error.status = 401;
     error.payload = payload;
@@ -160,6 +161,7 @@ function applyPresentation(next) {
     startButton.disabled = false;
     startButton.textContent = "Start session";
     qrPanel.hidden = true;
+    updateHeaderActions();
     return;
   }
   titleInput.value = presentation.title || "Presentation";
@@ -173,6 +175,7 @@ function applyPresentation(next) {
   startButton.textContent = presentation.slides.length === 0 ? "Start session" : "Start presentation";
   resumeButton.hidden = !(presentation.status === "live" && displayView.hidden);
   stopPresentationButton.hidden = presentation.status !== "live";
+  updateHeaderActions();
   qrPanel.hidden = !controllerToken;
   if (controllerToken) {
     const url = `${controllerBase}/controller?token=${encodeURIComponent(controllerToken)}`;
@@ -180,6 +183,14 @@ function applyPresentation(next) {
     qrUrl.dataset.url = url;
     qrImage.src = `/api/qr?data=${encodeURIComponent(url)}`;
   }
+}
+
+function updateHeaderActions() {
+  const live = presentation?.status === "live";
+  const interactionVisible = Boolean(round || survey);
+  endPresentationButton.hidden = !live;
+  endSessionButton.hidden = !interactionVisible;
+  endSessionButton.textContent = live ? "End interaction" : "End session";
 }
 
 function renderSlides() {
@@ -210,9 +221,11 @@ function renderSlides() {
 }
 
 async function refreshPresentation() {
-  const payload = await request("/api/host/presentation/state");
-  controllerToken = payload.token || "";
-  presentation = payload.presentation;
+  const payload = await request("/api/host/state");
+  controllerToken = payload.presentationToken || "";
+  presentation = payload.state?.presentation || null;
+  round = payload.state?.round || null;
+  survey = payload.state?.survey || null;
   if (!presentation) {
     await createOrRefreshPresentation();
     return;
@@ -468,6 +481,7 @@ async function refreshDisplayState() {
       applyPresentation(presentation);
       return;
     }
+    updateHeaderActions();
     renderDisplay();
   } catch {
     setProjectorConnection("offline", "Reconnecting");
@@ -711,7 +725,7 @@ async function startPresentation() {
 async function endPresentationSession() {
   if (presentation?.status !== "live") {
     allowUnload = true;
-    location.href = "/host";
+    location.href = "/interactions";
     return;
   }
   if (!window.confirm("End the presentation and show the thank-you screen?")) return;
@@ -722,6 +736,20 @@ async function endPresentationSession() {
     return;
   }
   presentation = { ...presentation, status: "closed" };
+  showThanks();
+}
+
+async function endSession() {
+  if (endSessionButton.hidden) return;
+  if (!window.confirm("End the current session? The audience will see the thank-you screen.")) {
+    return;
+  }
+  try {
+    await request("/api/host/end", { method: "POST" });
+  } catch (error) {
+    setStatus(error?.message || "Could not end the session.", { error: true });
+    return;
+  }
   showThanks();
 }
 
@@ -808,6 +836,8 @@ fitButton.addEventListener("click", () => {
 displaySlide.addEventListener("load", () => requestAnimationFrame(applyRemoteScroll));
 backButton.addEventListener("click", hideDisplayLocally);
 stopButton.addEventListener("click", endPresentationSession);
+endPresentationButton.addEventListener("click", endPresentationSession);
+endSessionButton.addEventListener("click", endSession);
 function toggleFullscreen() {
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(() => {});
@@ -817,7 +847,6 @@ function toggleFullscreen() {
 }
 fullscreenButton.addEventListener("click", toggleFullscreen);
 headerFullscreenButton.addEventListener("click", toggleFullscreen);
-endSessionButton.addEventListener("click", endPresentationSession);
 lockButton.addEventListener("click", async () => {
   try {
     await request("/api/host/logout", { method: "POST" });
@@ -825,7 +854,7 @@ lockButton.addEventListener("click", async () => {
     // Lock the UI regardless.
   }
   allowUnload = true;
-  location.href = "/host";
+  location.href = "/interactions";
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !displayView.hidden) {

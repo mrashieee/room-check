@@ -19,7 +19,7 @@ It is **offline-first**: the presenter laptop owns the slides and the presentati
 <table align="center">
   <tr>
     <td width="73%" valign="middle">
-      <img src="./docs/host-stage.png" alt="Room Check host screen with a QR code and live vote counter" width="100%" />
+      <img src="./docs/host-stage.png" alt="Room Check interactions screen with a QR code and live vote counter" width="100%" />
     </td>
     <td width="27%" valign="middle">
       <img src="./docs/player-mobile.png" alt="Room Check voting page on a phone" width="100%" />
@@ -33,7 +33,7 @@ It is **offline-first**: the presenter laptop owns the slides and the presentati
 - **No-slide sessions:** start a controller session without a deck for polls, hands and surveys. The controller QR appears before the session starts.
 - **Phone controller:** pair a phone by QR or host password, then change slides, fit the projector, scroll tall slides, run quick polls and raise Live Hands. It also works without slides.
 - **Silent audience screen:** `/join` shows a calm attention screen, then switches to voting, hand raising or survey questions when the host starts them.
-- **Host console:** create polls and multi-question surveys, reveal results, run the wheel, customise the theme and manage backups. **End session** becomes **End interaction** while a presentation is live.
+- **Interactions page:** create polls and multi-question surveys, reveal results, run the wheel, customise the theme and manage backups. **End session** becomes **End interaction** while a presentation is live.
 - **Works without a controller:** a live presentation can be ended from the host header or from **Stop presentation** in `/present` setup. `/present` also links to host controls for polls, surveys and hands.
 - **Tunnel-ready audience link:** run `npm run share` and the QR/link automatically use a temporary public HTTPS address.
 - **Share card:** `/share` shows the audience QR and link, with a downloadable 1920×1080 PNG for a slide.
@@ -88,9 +88,9 @@ npm install
 npm start
 ```
 
-Open the host console at [http://localhost:3000/host](http://localhost:3000/host). The terminal prints a one-time setup code. Enter it, create a password, and the host console unlocks.
+Open interactions at [http://localhost:3000/interactions](http://localhost:3000/interactions). The terminal prints a one-time setup code. Enter it, create a password, and the page unlocks.
 
-Then open [http://localhost:3000/present](http://localhost:3000/present) to build a deck, or [http://localhost:3000/host](http://localhost:3000/host) for a quick poll or survey.
+Then open [http://localhost:3000/present](http://localhost:3000/present) to build a deck, or [http://localhost:3000/interactions](http://localhost:3000/interactions) for a quick poll or survey.
 
 For an audience outside your Wi-Fi, stop `npm start` and run:
 
@@ -108,7 +108,7 @@ Wait for **Public link verified and ready**, then share the printed HTTPS link o
 | Audience on the same Wi-Fi | `npm start`, use the LAN audience link |
 | Audience on cellular or another network | `npm run share` |
 | Projector slides + phone controller | Open `/present`, then scan the controller QR |
-| Quick poll, survey or wheel | Open `/host` |
+| Quick poll, survey or wheel | Open `/interactions` |
 | Permanent domain and HTTPS | Run behind a reverse proxy with `PUBLIC_URL` set |
 
 `npm start` and `npm run share` both serve the app on port 3000. Run only one of them at a time.
@@ -147,7 +147,7 @@ The terminal prints something like:
 ROOM CHECK
 ──────────────────────────────────────────────────────────
 Audience     http://192.168.1.42:3000/join
-Host console http://localhost:3000/host
+Interactions http://localhost:3000/interactions
 Projector    http://localhost:3000/present
 Share card   http://localhost:3000/share
 Host auth    First-run setup needed
@@ -160,7 +160,7 @@ Open the host console and create your password.
 Open the host console:
 
 ```text
-http://localhost:3000/host
+http://localhost:3000/interactions
 ```
 
 On first launch:
@@ -273,7 +273,7 @@ The controller and projector both show the timer. On a tie, the tie-breaker can 
 
 ### Full host console
 
-Open `/host` for:
+Open `/interactions` for:
 
 - Single-question polls with 30/60/90/120-second or manual timers.
 - Multi-question surveys with audience-driven **Next question**, **Back** and review screens.
@@ -308,7 +308,7 @@ If the page says **Local network link**, run `npm run share` to get a public tun
 
 ## Customise the room
 
-Open `/host` and choose **Customise**, or open `/host?customize=1`.
+Open `/interactions` and choose **Customise**, or open `/interactions?customize=1`.
 
 - Six built-in palettes, with Shore as the default.
 - Custom colours, gradient, corner radius and button style.
@@ -573,7 +573,7 @@ Check the [CHANGELOG](./CHANGELOG.md) for release notes.
 
 1. Start Room Check before the audience arrives.
 2. If using `npm run share`, wait for the verified public link and test it on a phone using cellular data.
-3. Log in to `/host`, then open `/present` and load the deck.
+3. Log in to `/interactions`, then open `/present` and load the deck.
 4. Start the presentation and pair the phone controller.
 5. Open `/share` and add the audience QR to a slide, or show it before the talk.
 6. Keep the laptop awake, connected, and plugged in.
@@ -649,7 +649,7 @@ Manual QA flow:
 5. Run a quick poll with 2–10 answers, a timer, a tie-breaker and a write-in.
 6. Start a no-slide session, pair the controller and run a poll.
 7. Run Live Hands and close it.
-8. Run a multi-question survey from `/host` and confirm the audience flow.
+8. Run a multi-question survey from `/interactions` and confirm the audience flow.
 9. Open `/share`; confirm the QR, link and PNG download.
 10. Run `npm run share`, reload `/share`, and confirm the public URL is used.
 11. End the session and confirm the `/thanks` pages.

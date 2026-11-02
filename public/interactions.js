@@ -211,10 +211,10 @@ function showAuth(mode = "login", message = "") {
   loginForm.hidden = isSetup;
   authSetupForm.hidden = !isSetup;
 
-  authEyebrow.textContent = isSetup ? "First-run setup" : "Host console";
+  authEyebrow.textContent = isSetup ? "First-run setup" : "Interactions";
   authTitle.textContent = isSetup ? "Claim this room." : "Take the stage.";
   authLede.textContent = isSetup
-    ? "Create the password that protects this host console. You only need to do this once."
+    ? "Create the password that protects interactions on this device. You only need to do this once."
     : "Enter the host password to open the control room.";
   authFootnote.textContent = isSetup
     ? "The one-time setup code is printed in the terminal running Room Check."
@@ -1927,7 +1927,7 @@ async function init() {
         showAuth("login");
         return;
       }
-      showAuth("login", "Could not load the host console. Refresh to try again.");
+      showAuth("login", "Could not load interactions. Refresh to try again.");
       return;
     }
   }

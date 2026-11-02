@@ -16,7 +16,7 @@ npm run share   # remote audience, or: npm start (same Wi-Fi)
 ## Links
 
 - Projector: `/present`
-- Host console: `/host`
+- Interactions: `/interactions`
 - Audience: `/join` (or the printed tunnel URL + `/join`)
 - Share card + PNG: `/share`
 
@@ -32,7 +32,7 @@ npm run share   # remote audience, or: npm start (same Wi-Fi)
 ## During
 
 - One action per screen; reveal before moving on.
-- End presentation from `/host`, `/present` setup, or the display bar — no phone needed.
+- End presentation from `/interactions`, `/present` setup, or the display bar — no phone needed.
 - **End interaction** ends the poll/survey. **End presentation** closes the deck.
 - Start another session from `/thanks-host` returns the audience to `/join`.
 

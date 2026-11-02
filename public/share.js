@@ -208,7 +208,7 @@ async function loadShare() {
   } catch (error) {
     showError(
       error.status === 401
-        ? "Sign in on the host console, then return to this page."
+        ? "Sign in on the interactions page, then return to this page."
         : error.message || "Start the server, then return to this page.",
     );
   }

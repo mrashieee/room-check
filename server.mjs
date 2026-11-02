@@ -2544,7 +2544,7 @@ app.use(
 
 app.get("/", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  if (!isHostAuthed(req)) return res.redirect(302, "/host?next=/");
+  if (!isHostAuthed(req)) return res.redirect(302, "/interactions?next=/");
   res.sendFile(path.join(PUBLIC_DIR, "landing.html"));
 });
 
@@ -2584,9 +2584,14 @@ app.get("/join", (req, res) => {
 });
 
 app.get("/host", (req, res) => {
+  const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  res.redirect(302, `/interactions${query}`);
+});
+
+app.get("/interactions", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Robots-Tag", "noindex, nofollow");
-  res.sendFile(path.join(PUBLIC_DIR, "host.html"));
+  res.sendFile(path.join(PUBLIC_DIR, "interactions.html"));
 });
 
 app.get("/updates", (req, res) => {
@@ -3560,7 +3565,7 @@ server.listen(PORT, HOST_BIND, () => {
   console.log("  ROOM CHECK");
   console.log("  " + line);
   console.log("  Audience     " + audience);
-  console.log("  Host console http://localhost:" + PORT + "/host");
+  console.log("  Interactions   http://localhost:" + PORT + "/interactions");
   console.log("  Projector    http://localhost:" + PORT + "/present");
   console.log("  Share card   http://localhost:" + PORT + "/share");
   console.log("  Host auth    " + (authRecord ? "Password protected" : "First-run setup needed"));

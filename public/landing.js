@@ -63,7 +63,7 @@ async function endSession() {
       body: "{}",
     });
     if (response.status === 401) {
-      location.href = "/host?next=/";
+      location.href = "/interactions?next=/";
       return;
     }
     if (!response.ok) {

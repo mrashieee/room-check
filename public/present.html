@@ -26,7 +26,7 @@
     <a class="skip-link" href="#main">Skip to presentation setup</a>
 
     <header class="host-header">
-      <a class="brand brand--host" href="/" aria-label="Room Check host console">
+      <a class="brand brand--host" href="/" aria-label="Room Check">
         <span class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 32 32" role="img">
             <rect width="32" height="32" rx="1" fill="currentColor"></rect>
@@ -44,11 +44,12 @@
         <button class="icon-button" id="present-header-fullscreen" type="button" aria-label="Toggle full screen" title="Full screen">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
         </button>
-        <a class="icon-button" href="/host?customize=1" aria-label="Customise theme" title="Customise theme">
+        <a class="icon-button" href="/interactions?customize=1" aria-label="Customise theme" title="Customise theme">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17h1.2a1.8 1.8 0 0 0 1.2-3.15 1.8 1.8 0 0 1 1.2-3.15h1.2a3.7 3.7 0 0 0 3.7-3.7c0-3.85-3.75-7-8.5-7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path><circle cx="8.2" cy="9.2" r="1" fill="currentColor"></circle><circle cx="12" cy="7.2" r="1" fill="currentColor"></circle><circle cx="15.8" cy="9.2" r="1" fill="currentColor"></circle><circle cx="8.4" cy="13.1" r="1" fill="currentColor"></circle></svg>
         </a>
         <button class="text-button" id="present-end-session" type="button">End session</button>
         <button class="text-button" id="present-lock" type="button">Lock</button>
+        <button class="text-button" id="present-end-presentation" type="button" hidden>End presentation</button>
         <a class="text-button" href="/share" target="_blank" rel="noreferrer">Share</a>
         <a class="text-button" href="/">Home</a>
       </div>
@@ -58,8 +59,8 @@
       <section class="present-auth" id="present-auth" hidden>
         <p class="eyebrow">Offline presentation</p>
         <h1>Open the host room first.</h1>
-        <p class="lede">Sign in on the host console, then return here to build the slide deck and start the projector.</p>
-        <a class="button button--primary button--large" href="/host">Open host console</a>
+        <p class="lede">Sign in, then return here to build the slide deck and start the projector.</p>
+        <a class="button button--primary button--large" href="/interactions">Open interactions</a>
       </section>
 
       <section class="present-setup" id="present-setup" hidden>
@@ -104,7 +105,7 @@
               Show presentation
             </button>
             <button class="text-button" id="present-stop-presentation" type="button" hidden>Stop presentation</button>
-            <p class="present-status" id="present-host-controls"><a href="/host">Open host controls for polls, surveys and hands →</a></p>
+            <p class="present-status" id="present-host-controls"><a href="/interactions">Open host controls for polls, surveys and hands →</a></p>
             <button class="text-button" id="present-discard" type="button">Discard deck</button>
           </div>
 
@@ -176,7 +177,7 @@
             <button id="present-fit" type="button">Fit page</button>
             <button id="present-fullscreen" type="button">Full screen</button>
             <button id="present-back" type="button">Deck</button>
-            <button id="present-stop" type="button">End session</button>
+            <button id="present-stop" type="button">End presentation</button>
           </div>
         </div>
       </section>

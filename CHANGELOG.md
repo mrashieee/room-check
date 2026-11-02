@@ -25,6 +25,7 @@ All notable changes to Room Check are documented here.
 - Corrupt `state.json` is backed up before starting fresh; state saves fsync before rename
 - State sync uses a server revision counter instead of wall-clock time
 - `npm run check` covers every JS file via glob; new `test:unit`, `preflight`, `version:check` and `release:check` commands
+- The `/host` page is now `/interactions` (`/host` redirects, query preserved); present and interactions headers share the same order and styling
 
 ## 3.0.0 — 2026-11-02
 

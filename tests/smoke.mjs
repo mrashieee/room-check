@@ -139,7 +139,7 @@ async function main() {
     console.log("1/15 protected landing");
     await hostPage.goto(server.base + "/", { waitUntil: "domcontentloaded" });
     await waitVisible(hostPage.locator("#auth-setup-form"));
-    assert.match(hostPage.url(), /\/host\?next=\/$/);
+    assert.match(hostPage.url(), /\/interactions\?next=\/$/);
 
     console.log("2/15 host setup and landing");
     await hostPage.fill("#setup-code", server.setupCode);
@@ -183,7 +183,7 @@ async function main() {
     assert.equal(await hostPage.locator(".site-header .brand").getAttribute("href"), "/");
     await hostPage.click("#check-again");
     await waitVisible(hostPage.locator("#update-status"));
-    await hostPage.goto(server.base + "/host", { waitUntil: "domcontentloaded" });
+    await hostPage.goto(server.base + "/interactions", { waitUntil: "domcontentloaded" });
     await waitVisible(hostPage.locator("#host-app"));
     assert.equal(await hostPage.locator("#allow-custom").isChecked(), true);
     await hostPage.click("#fullscreen-button");
@@ -231,7 +231,35 @@ async function main() {
     await waitVisible(hostPage.locator("#present-setup"));
     await waitVisible(hostPage.locator("#present-resume"));
     await waitVisible(hostPage.locator("#present-stop-presentation"));
-    assert.equal(await hostPage.locator("#present-host-controls a").getAttribute("href"), "/host");
+    assert.equal(await hostPage.locator("#present-host-controls a").getAttribute("href"), "/interactions");
+    await hostPage.click("#present-resume");
+    await waitVisible(hostPage.locator("#present-display"));
+    assert.equal(await hostPage.locator("#present-end-presentation").isHidden(), false);
+    assert.equal(await hostPage.locator("#present-end-session").isHidden(), true);
+    const headerPoll = await hostPage.evaluate(async () => {
+      const response = await fetch("/api/host/open", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "poll", question: "Header check?", options: ["Yes", "No"] }),
+      });
+      return response.status;
+    });
+    assert.equal(headerPoll, 200);
+    await hostPage.click("#present-back");
+    await waitVisible(hostPage.locator("#present-setup"));
+    await hostPage.reload({ waitUntil: "domcontentloaded" });
+    await waitVisible(hostPage.locator("#present-setup"));
+    assert.equal(await hostPage.locator("#present-end-session").isHidden(), false);
+    assert.equal(await text(hostPage.locator("#present-end-session")), "End interaction");
+    const headerEnd = await hostPage.evaluate(async () => {
+      const response = await fetch("/api/host/reset", { method: "POST", credentials: "same-origin" });
+      return response.status;
+    });
+    assert.equal(headerEnd, 200);
+    await hostPage.reload({ waitUntil: "domcontentloaded" });
+    await waitVisible(hostPage.locator("#present-setup"));
+    assert.equal(await hostPage.locator("#present-end-session").isHidden(), true);
     await hostPage.click("#present-resume");
     await waitVisible(hostPage.locator("#present-display"));
     const homePage = await hostContext.newPage();
@@ -498,7 +526,7 @@ async function main() {
     await waitVisible(controllerPage.locator(".ended-copy h1"));
 
     console.log("11/15 host redirects to thanks");
-    await hostPage.goto(server.base + "/host", { waitUntil: "domcontentloaded" });
+    await hostPage.goto(server.base + "/interactions", { waitUntil: "domcontentloaded" });
     await hostPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
     await waitVisible(hostPage.locator(".ended-copy h1"));
     assert.match(await text(hostPage.locator(".thanks-support-title")), /Give Room Check a star/);
@@ -536,7 +564,7 @@ async function main() {
     await homeEndPage.click("#thanks-start");
     await homeEndPage.waitForURL((url) => url.pathname === "/", { timeout: 15_000 });
     await waitVisible(homeEndPage.locator(".landing-option").first());
-    await homeEndPage.goto(server.base + "/host", { waitUntil: "domcontentloaded" });
+    await homeEndPage.goto(server.base + "/interactions", { waitUntil: "domcontentloaded" });
     await waitVisible(homeEndPage.locator("#host-app"));
     await audiencePage.waitForURL((url) => url.pathname === "/join", { timeout: 10_000 });
     await homeEndPage.fill("#game-title", "Host End Test");
@@ -574,7 +602,7 @@ async function main() {
     await waitVisible(hostPage.locator("#present-display"));
     const hostControlPage = await hostContext.newPage();
     trackPage(hostControlPage, "host-control");
-    await hostControlPage.goto(server.base + "/host", { waitUntil: "domcontentloaded" });
+    await hostControlPage.goto(server.base + "/interactions", { waitUntil: "domcontentloaded" });
     await waitVisible(hostControlPage.locator("#host-app"));
     await waitVisible(hostControlPage.locator("#host-end-presentation"));
     assert.equal(await hostControlPage.locator("#end-session-button").isHidden(), true);

@@ -10,19 +10,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f6ecd7" />
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="description" content="Host console for Room Check." />
+    <meta name="description" content="Polls, surveys and Live Hands for Room Check." />
     <meta name="author" content="Muhammad Rashid K" />
     <meta name="copyright" content="Copyright (c) 2026 Muhammad Rashid K" />
-    <title>Room Check — Host console</title>
+    <title>Room Check — Interactions</title>
     <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
     <link rel="preload" href="/fonts/big-shoulders-display-800.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/golos-text.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/carnival.css" />
-    <script type="module" src="/host.js"></script>
+    <script type="module" src="/interactions.js"></script>
   </head>
   <body class="host-page">
-    <a class="skip-link" href="#host-main">Skip to the host console</a>
+    <a class="skip-link" href="#host-main">Skip to interactions</a>
 
     <div class="atmosphere atmosphere--host" aria-hidden="true">
       <span class="atmosphere-orb atmosphere-orb--lime"></span>
@@ -34,7 +34,7 @@
     <section class="login-view" id="login-view" aria-labelledby="auth-title" hidden>
       <div class="login-card">
         <div class="login-intro">
-          <a class="brand" href="/" aria-label="Room Check host console">
+          <a class="brand" href="/" aria-label="Room Check interactions">
             <span class="brand-mark" aria-hidden="true">
               <svg viewBox="0 0 32 32">
                 <rect width="32" height="32" rx="1" fill="currentColor"></rect>
@@ -43,7 +43,7 @@
             </span>
             <span class="brand-word">Room Check</span>
           </a>
-          <p class="eyebrow" id="auth-eyebrow">Host console</p>
+          <p class="eyebrow" id="auth-eyebrow">Interactions</p>
           <h1 id="auth-title">Take the stage.</h1>
           <p class="lede" id="auth-lede">Enter the host password to open the control room.</p>
         </div>
@@ -115,7 +115,7 @@
             />
           </div>
 
-          <p class="field-hint">This password protects the host console on this device.</p>
+          <p class="field-hint">This password protects the room on this device.</p>
           <p class="form-error" id="setup-error" role="alert" hidden></p>
           <button class="button button--primary button--wide" id="setup-submit" type="submit">Create password &amp; enter</button>
         </form>
@@ -132,7 +132,7 @@
 
     <div class="host-app" id="host-app" hidden>
       <header class="host-header">
-        <a class="brand brand--host" href="/" aria-label="Room Check host console">
+        <a class="brand brand--host" href="/" aria-label="Room Check interactions">
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 32 32">
               <rect width="32" height="32" rx="1" fill="currentColor"></rect>
@@ -140,7 +140,7 @@
             </svg>
           </span>
           <span class="brand-word">Room Check</span>
-          <span class="brand-tag">Host</span>
+          <span class="brand-tag">Interact</span>
         </a>
 
         <div class="host-header-actions">
