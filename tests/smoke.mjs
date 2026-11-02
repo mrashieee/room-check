@@ -195,6 +195,8 @@ async function main() {
     await hostPage.click("#customizer-close");
     await hostPage.waitForFunction(() => document.querySelector("#customizer-overlay")?.hidden);
     const exportPromise = hostPage.waitForEvent("download", { timeout: 20_000 });
+    await hostPage.check("#multi-question-toggle");
+    await waitVisible(hostPage.locator("#session-builder"));
     await hostPage.click("#export-questions");
     const exportDownload = await exportPromise;
     const exportPath = path.join(dataDir, "questions-export.json");
