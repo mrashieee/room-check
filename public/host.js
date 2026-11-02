@@ -286,6 +286,7 @@ function captureActiveQuestion() {
   current.options = options.map((option) => option.label);
   current.durationSec = readDuration();
   current.spinOnTie = spinOnTieInput.checked;
+  current.allowCustom = allowCustomInput.checked;
 }
 
 function currentDraft() {
@@ -302,6 +303,7 @@ function currentDraft() {
       options: [...question.options],
       durationSec: question.durationSec,
       spinOnTie: question.spinOnTie,
+      allowCustom: question.allowCustom !== false,
     })),
     activeIndex: activeQuestionIndex,
   };
@@ -346,6 +348,7 @@ function loadActiveQuestion() {
   questionInput.value = current.question || "";
   setTimerChoice(Number.isFinite(Number(current.durationSec)) ? Number(current.durationSec) : 60);
   spinOnTieInput.checked = current.spinOnTie !== false;
+  allowCustomInput.checked = current.allowCustom !== false;
   updateQuestionCount();
   renderOptionEditor();
   updateQuestionBuilder();
@@ -475,6 +478,7 @@ function parseImportedQuestions(payload) {
       options: answers,
       durationSec,
       spinOnTie: item?.spinOnTie !== false && item?.tieBreaker !== false,
+      allowCustom: item?.allowCustom ?? item?.writeIns ?? true,
     };
   });
 }
@@ -1151,6 +1155,11 @@ async function spinWheel() {
     wheelWinnerId = result.winnerOptionId;
     wheelDisc.classList.remove("is-waiting");
     const index = wheelOptions.findIndex((option) => option.optionId === wheelWinnerId);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      revealWheelWinner(wheelWinnerId);
+      wheelSpinBusy = false;
+      return;
+    }
     const slice = 360 / wheelOptions.length;
     const offset = 360 - ((index + 0.5) * slice) % 360;
     const rotation = 360 * 6 + offset;
@@ -1173,7 +1182,7 @@ async function spinWheel() {
       wheelFallbackTimer = null;
       try {
         const payload = await api("/api/host/state");
-        if (payload?.state) applyState(payload.state);
+        if (payload?.state) applyState(payload.state, payload.rev);
       } catch {
         // The WebSocket state will catch up if this fails.
       }
@@ -1360,15 +1369,19 @@ function showSurveyResults(index = surveyResultsIndex) {
   });
 }
 
-function applyState(state) {
+let lastStateRev = 0;
+
+function applyState(state, rev = 0) {
   if (!document.body.classList.contains("customizer-open")) applyTheme(state?.theme);
   const presentationLive = state?.presentation?.status === "live";
   const interactionVisible = Boolean(state?.round || state?.survey);
   endPresentationButton.hidden = !presentationLive;
   endSessionButton.hidden = !interactionVisible;
   endSessionButton.textContent = presentationLive ? "End interaction" : "End session";
+  const incomingRev = Number(rev) || 0;
+  if (incomingRev && incomingRev <= lastStateRev) return;
+  if (incomingRev) lastStateRev = incomingRev;
   const incomingNow = Number(state?.now) || 0;
-  if (incomingNow && incomingNow < lastStateNow) return;
   lastStateNow = Math.max(lastStateNow, incomingNow);
   if (connection) connection.syncServerTime(state);
 
@@ -1521,7 +1534,7 @@ async function closeHands() {
   setActionBusy(revealButton, true, "Closing…");
   try {
     const result = await api("/api/host/hands/close", { method: "POST", body: {} });
-    applyState(result.state);
+    applyState(result.state, result.rev);
   } catch (error) {
     handleActionError(error);
   } finally {
@@ -1540,7 +1553,7 @@ async function revealResults() {
   setActionBusy(revealButton, true, "Revealing…");
   try {
     const result = await api("/api/host/reveal", { method: "POST", body: {} });
-    applyState(result.state);
+    applyState(result.state, result.rev);
   } catch (error) {
     handleActionError(error);
   } finally {
@@ -1651,7 +1664,7 @@ async function startRound(event) {
                     spinOnTie: false,
                   },
           });
-    applyState(result.state);
+    applyState(result.state, result.rev);
   } catch (error) {
     handleActionError(error);
   } finally {
@@ -1665,7 +1678,7 @@ async function resetToSetup() {
   actionInFlight = true;
   try {
     const result = await api("/api/host/reset", { method: "POST", body: {} });
-    applyState(result.state);
+    applyState(result.state, result.rev);
   } catch (error) {
     handleActionError(error);
   } finally {
@@ -1704,7 +1717,7 @@ async function playAgain() {
         mode: "poll",
       },
     });
-    applyState(result.state);
+    applyState(result.state, result.rev);
   } catch (error) {
     handleActionError(error);
   } finally {
@@ -1721,7 +1734,7 @@ async function newQuestion() {
   actionInFlight = true;
   try {
     const result = await api("/api/host/reset", { method: "POST", body: {} });
-    applyState(result.state);
+    applyState(result.state, result.rev);
     questionInput.focus();
     questionInput.select();
   } catch (error) {
@@ -1784,7 +1797,7 @@ async function nextSessionQuestion() {
       location.href = "/thanks-host";
     } else {
       const result = await api("/api/host/session/next", { method: "POST", body: {} });
-      applyState(result.state);
+      applyState(result.state, result.rev);
     }
   } catch (error) {
     handleActionError(error);
@@ -1809,7 +1822,7 @@ function connectHostSocket() {
   if (connection) connection.close();
   connection = new LiveConnection({
     role: "host",
-    onState: applyState,
+    onState: (state, you, rev) => applyState(state, rev),
     onStatus(status) {
       renderConnection(
         hostConnection,
@@ -1831,7 +1844,7 @@ async function pollHostState() {
   hostPollBusy = true;
   try {
     const payload = await api("/api/host/state");
-    if (payload?.state) applyState(payload.state);
+    if (payload?.state) applyState(payload.state, payload.rev);
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
       handleAuthFailure();
@@ -1858,7 +1871,7 @@ async function enterConsole() {
   hostApp.hidden = false;
   await loadConfig();
   connectHostSocket();
-  applyState(stateResponse.state);
+  applyState(stateResponse.state, stateResponse.rev);
   loadUpdateNotice();
   startClock();
   if (nextPath) {
@@ -2124,6 +2137,26 @@ $("#copy-link-button").addEventListener("click", async () => {
 
 revealButton.addEventListener("click", revealResults);
 wheelSpinButton.addEventListener("click", spinWheel);
+wheelOverlay.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && wheelIsOpen && !wheelSpinBusy) {
+    event.preventDefault();
+    hideWheel();
+  }
+  if (event.key !== "Tab" || !wheelIsOpen) return;
+  const focusable = Array.from(
+    wheelOverlay.querySelectorAll("button:not(:disabled), [href], input:not(:disabled)"),
+  ).filter((element) => element.getClientRects().length > 0);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+});
 $("#cancel-round-button").addEventListener("click", askReset);
 againButton.addEventListener("click", playAgain);
 newQuestionButton.addEventListener("click", newQuestion);

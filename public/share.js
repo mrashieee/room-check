@@ -42,7 +42,7 @@ function showError(message) {
 function setShareLink(nextUrl, nextTitle, isPublic) {
   joinUrl = nextUrl;
   presentationTitle = nextTitle || "";
-  title.textContent = "Scan to join.";
+  title.textContent = presentationTitle ? `Scan to join ${presentationTitle}.` : "Scan to join.";
   linkLabel.textContent = joinUrl.replace(/^https?:\/\//, "");
   linkLabel.dataset.url = joinUrl;
   openLink.href = joinUrl;
@@ -180,7 +180,15 @@ qrImage.addEventListener("error", () => {
 
 copyButton.addEventListener("click", async () => {
   if (!joinUrl) return;
-  if (await copyText(joinUrl)) copyButton.setAttribute("aria-label", "Audience link copied");
+  if (await copyText(joinUrl)) {
+    const original = copyButton.getAttribute("aria-label");
+    copyButton.setAttribute("aria-label", "Audience link copied");
+    setTimeout(() => {
+      if (copyButton.getAttribute("aria-label") === "Audience link copied") {
+        copyButton.setAttribute("aria-label", original || "");
+      }
+    }, 2000);
+  }
 });
 
 downloadButton.addEventListener("click", downloadCard);

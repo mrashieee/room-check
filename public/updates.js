@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { copyText as copyToClipboard } from "./common.js";
 import { loadTheme } from "./theme.js";
 
 const statusPanel = document.querySelector("#update-status");
@@ -137,39 +138,15 @@ function renderMarkdown(markdown) {
   return html || "<p>No release notes were provided for this release.</p>";
 }
 
-function fallbackCopy(text) {
-  const field = document.createElement("textarea");
-  field.value = text;
-  field.setAttribute("readonly", "");
-  field.style.position = "fixed";
-  field.style.opacity = "0";
-  document.body.append(field);
-  field.select();
-  let copied = false;
-  try {
-    copied = document.execCommand("copy");
-  } catch {
-    copied = false;
-  }
-  field.remove();
-  return copied;
-}
-
 async function copyText(text, button) {
   const original = button.textContent;
-  button.textContent = "Copied";
+  const copied = await copyToClipboard(text);
+  button.textContent = copied ? "Copied" : "Copy failed";
   window.setTimeout(() => {
-    button.textContent = original;
-  }, 1500);
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-    } else if (!fallbackCopy(text)) {
-      button.textContent = "Copy failed";
+    if (button.textContent === "Copied" || button.textContent === "Copy failed") {
+      button.textContent = original;
     }
-  } catch {
-    if (!fallbackCopy(text)) button.textContent = "Copy failed";
-  }
+  }, 1500);
 }
 
 function addCopyButton(parent, text, label) {
@@ -361,6 +338,10 @@ async function checkForUpdates({ force = false } = {}) {
 }
 
 checkAgain.addEventListener("click", () => checkForUpdates({ force: true }));
-window.addEventListener("resize", matchUpdatePanelHeight);
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(matchUpdatePanelHeight, 150);
+});
 await loadTheme();
 await checkForUpdates();

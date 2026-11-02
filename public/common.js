@@ -131,7 +131,8 @@ export class LiveConnection {
       if (!message || message.type !== "state" || !message.state) return;
       this.syncServerTime(message.state);
       const you = Object.prototype.hasOwnProperty.call(message, "you") ? message.you : undefined;
-      this.onState(message.state, you);
+      const rev = Number(message.rev) || 0;
+      this.onState(message.state, you, rev);
     });
 
     socket.addEventListener("close", () => {
@@ -239,7 +240,13 @@ export async function copyText(text) {
       const field = document.createElement("textarea");
       field.value = text;
       field.setAttribute("readonly", "");
+      field.setAttribute("tabindex", "-1");
+      field.setAttribute("aria-hidden", "true");
       field.style.position = "fixed";
+      field.style.top = "0";
+      field.style.left = "0";
+      field.style.width = "1px";
+      field.style.height = "1px";
       field.style.opacity = "0";
       document.body.appendChild(field);
       field.select();
@@ -339,16 +346,11 @@ export function launchConfetti(canvas, { duration = 4800 } = {}) {
       confettiFrame = requestAnimationFrame(draw);
     } else {
       context.clearRect(0, 0, width, height);
+      window.removeEventListener("resize", resize);
     }
   };
 
   confettiFrame = requestAnimationFrame(draw);
-  window.addEventListener(
-    "resize",
-    () => {
-      resize();
-    },
-    { once: true },
-  );
+  window.addEventListener("resize", resize);
 }
 

@@ -411,9 +411,14 @@ function renderInteraction() {
   }
 }
 
+let lastStateRev = 0;
+
 async function refresh() {
   try {
     const payload = await request("/api/controller/state");
+    const incomingRev = Number(payload?.rev) || 0;
+    if (incomingRev && incomingRev <= lastStateRev) return;
+    if (incomingRev) lastStateRev = incomingRev;
     presentation = payload.state?.presentation || null;
     round = payload.state?.round || null;
     survey = payload.state?.survey || null;
@@ -479,7 +484,14 @@ async function startPoll() {
     });
     await refresh();
   } catch (error) {
-    note.textContent = error?.message || "Could not open the poll.";
+    if (error.status === 401) {
+      note.textContent = token
+        ? "This controller pairing expired. Scan the projector QR again."
+        : "Enter the host password to pair this controller.";
+      if (!token) loginPanel.hidden = false;
+    } else {
+      note.textContent = error?.message || "Could not open the poll.";
+    }
   } finally {
     pollStart.disabled = false;
   }
@@ -499,7 +511,14 @@ async function startHands() {
     });
     await refresh();
   } catch (error) {
-    note.textContent = error?.message || "Could not open Live Hands.";
+    if (error.status === 401) {
+      note.textContent = token
+        ? "This controller pairing expired. Scan the projector QR again."
+        : "Enter the host password to pair this controller.";
+      if (!token) loginPanel.hidden = false;
+    } else {
+      note.textContent = error?.message || "Could not open Live Hands.";
+    }
   } finally {
     handsStart.disabled = false;
   }
@@ -576,7 +595,8 @@ async function endPresentationSession() {
   }
 }
 
-async function login() {
+async function login(event) {
+  event?.preventDefault();
   loginError.hidden = true;
   loginButton.disabled = true;
   const original = loginButton.textContent;
@@ -620,10 +640,7 @@ tabs.addEventListener("click", (event) => {
   if (!button || round) return;
   setTab(button.dataset.tab);
 });
-loginButton.addEventListener("click", login);
-passwordInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") login();
-});
+loginPanel.addEventListener("submit", login);
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;

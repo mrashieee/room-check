@@ -3780,6 +3780,33 @@ kbd {
   .login-card {
     border-radius: 24px;
   }
+
+  .host-header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: 6px;
+  }
+
+  .present-display-bar {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .text-input,
+  .auth-input,
+  select.text-input,
+  textarea.text-input {
+    font-size: 16px;
+  }
+
+  .toast {
+    bottom: calc(env(safe-area-inset-bottom) + 72px);
+  }
 }
 
 @media (max-height: 780px) and (min-width: 761px) {

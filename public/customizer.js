@@ -541,7 +541,12 @@ function handleKeydown(event) {
   if (event.key !== "Tab") return;
   const focusable = Array.from(
     panel.querySelectorAll('button:not(:disabled), input:not(:disabled), [href], select:not(:disabled), textarea:not(:disabled)'),
-  ).filter((element) => element.offsetParent !== null);
+  ).filter(
+    (element) =>
+      element.getClientRects().length > 0 &&
+      !element.hasAttribute("disabled") &&
+      element.getAttribute("tabindex") !== "-1",
+  );
   if (!focusable.length) return;
   const first = focusable[0];
   const last = focusable[focusable.length - 1];

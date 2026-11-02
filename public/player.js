@@ -507,7 +507,7 @@ async function saveSurveyAnswer(questionId, optionId) {
       surveyIndex += 1;
     }
     surveyBusy = false;
-    handleState(result.state, result.you);
+    handleState(result.state, result.you, result.rev);
     surveySaveStatus.textContent = "Saved.";
   } catch (error) {
     surveyBusy = false;
@@ -859,10 +859,14 @@ function renderScreen() {
   }
 }
 
-function handleState(state, you) {
+let lastStateRev = 0;
+
+function handleState(state, you, rev = 0) {
   applyTheme(state?.theme);
+  const incomingRev = Number(rev) || 0;
+  if (incomingRev && incomingRev <= lastStateRev) return;
+  if (incomingRev) lastStateRev = incomingRev;
   const incomingNow = Number(state?.now) || 0;
-  if (incomingNow && incomingNow < lastStateNow) return;
   lastStateNow = Math.max(lastStateNow, incomingNow);
   if (connection) connection.syncServerTime(state);
 
@@ -986,12 +990,12 @@ function updateClock() {
     return;
   }
   if (!currentState?.round || currentState.round.status !== "open") {
-    voteClock.hidden = currentScreen !== "vote";
+    voteClock.hidden = currentScreen !== "vote" && currentScreen !== "voted";
     return;
   }
 
   const round = currentState.round;
-  if (currentScreen === "vote") {
+  if (currentScreen === "vote" || currentScreen === "voted") {
     voteClock.hidden = false;
     if (!round.endsAt) {
       voteClock.classList.remove("is-urgent");
@@ -1039,7 +1043,7 @@ handsToggle.addEventListener("click", async () => {
     myHandRaised = Boolean(result.you?.raised);
     handsBusy = false;
     if (navigator.vibrate) navigator.vibrate(raised ? [12, 30, 16] : 10);
-    handleState(result.state, result.you);
+    handleState(result.state, result.you, result.rev);
   } catch (error) {
     handsBusy = false;
     renderHands(round);
@@ -1069,7 +1073,7 @@ async function submitSurveyWriteIn() {
       : {};
     surveyWriteInInput.value = "";
     surveyBusy = false;
-    handleState(result.state, result.you);
+    handleState(result.state, result.you, result.rev);
   } catch (error) {
     surveyBusy = false;
     const message = error?.message || "Could not add that answer.";
@@ -1160,7 +1164,7 @@ async function submitVoteWriteIn() {
     voteWriteInInput.value = "";
     changingVote = false;
     voteWasUpdated = Boolean(result.updated);
-    handleState(result.state, result.you);
+    handleState(result.state, result.you, result.rev);
   } catch (error) {
     voteWriteInNote.textContent = error?.message || "Could not add that option.";
   } finally {
@@ -1205,7 +1209,7 @@ voteForm.addEventListener("submit", async (event) => {
     changingVote = false;
     voteWasUpdated = Boolean(result.updated);
     if (navigator.vibrate) navigator.vibrate([12, 40, 18]);
-    handleState(result.state, result.you);
+    handleState(result.state, result.you, result.rev);
     if (currentScreen === "vote") renderScreen();
   } catch (error) {
     submitting = false;
@@ -1226,7 +1230,11 @@ voteForm.addEventListener("submit", async (event) => {
       return;
     }
 
-    setLoginError(error.message || "That didn’t go through. Try again.");
+    if (error.status === 429) {
+      setLoginError("Too many votes at once. Wait a few seconds and try again.");
+    } else {
+      setLoginError(error.message || "That didn’t go through. Try again.");
+    }
     updateSubmitState();
   }
 });
@@ -1239,7 +1247,7 @@ async function pollState() {
   try {
     const payload = await api(`/api/state?playerId=${encodeURIComponent(playerId)}`);
     if (payload?.state) {
-      handleState(payload.state, payload.you);
+      handleState(payload.state, payload.you, payload.rev);
     }
   } catch {
     // WebSocket reconnect remains the primary path.

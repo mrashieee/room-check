@@ -23,6 +23,7 @@
     <script type="module" src="/controller.js"></script>
   </head>
   <body class="controller-page">
+    <a class="skip-link" href="#main">Skip to controller</a>
     <header class="site-header">
       <span class="brand" aria-label="Room Check">
         <span class="brand-mark" aria-hidden="true">
@@ -45,7 +46,7 @@
         <span class="controller-state" id="controller-state">Waiting</span>
       </div>
 
-      <p class="microcopy" id="controller-note">Waiting for the projector.</p>
+      <p class="microcopy" id="controller-note" role="status" aria-live="polite">Waiting for the projector.</p>
 
       <div class="controller-tabs" id="controller-tabs" hidden>
         <button type="button" data-tab="slides">Slides</button>
@@ -101,14 +102,14 @@
         </div>
       </section>
 
-      <div class="controller-login" id="controller-login" hidden>
+      <form class="controller-login" id="controller-login" hidden>
         <label class="field-label" for="controller-password">Host password</label>
         <div class="field">
           <input class="text-input" id="controller-password" type="password" autocomplete="current-password" placeholder="Host password" />
         </div>
-        <button class="button button--primary" id="controller-login-submit" type="button">Pair controller</button>
+        <button class="button button--primary" id="controller-login-submit" type="submit">Pair controller</button>
         <p class="form-error" id="controller-login-error" role="alert" hidden></p>
-      </div>
+      </form>
 
       <section id="controller-live" hidden>
         <div class="controller-slide" id="controller-slide-panel">

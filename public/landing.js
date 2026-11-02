@@ -30,7 +30,8 @@ async function refreshState() {
   try {
     const response = await fetch("/api/host/state", { credentials: "same-origin" });
     if (response.status === 401) {
-      location.href = "/host?next=/";
+      presentationLive = false;
+      setEndState(false);
       return;
     }
     if (!response.ok) return;

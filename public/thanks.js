@@ -50,8 +50,23 @@ startButton?.addEventListener("click", async () => {
   }
 });
 
-loadTheme();
-if (audienceThanks) {
+function startStandbyWatch() {
+  if (!audienceThanks || standbyTimer) return;
   watchForStandby();
   standbyTimer = setInterval(watchForStandby, 2000);
+}
+
+function stopStandbyWatch() {
+  clearInterval(standbyTimer);
+  standbyTimer = null;
+}
+
+loadTheme();
+if (audienceThanks) {
+  startStandbyWatch();
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") startStandbyWatch();
+    else stopStandbyWatch();
+  });
+  window.addEventListener("beforeunload", stopStandbyWatch);
 }

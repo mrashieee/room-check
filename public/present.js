@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { formatVoteCount, pluralize } from "./common.js";
+import { copyText, formatVoteCount, pluralize } from "./common.js";
 import { loadTheme } from "./theme.js";
 
 const authView = document.querySelector("#present-auth");
@@ -115,6 +115,13 @@ async function request(path, options = {}) {
     payload = await response.json();
   } catch {
     // Some endpoints return no body.
+  }
+  if (response.status === 401) {
+    location.href = "/host?next=/present";
+    const error = new Error(payload?.error || "Host sign-in required.");
+    error.status = 401;
+    error.payload = payload;
+    throw error;
   }
   if (!response.ok) {
     const error = new Error(payload?.error || "Request failed.");
@@ -290,28 +297,39 @@ async function uploadImage(file) {
 }
 
 async function uploadPdf(file) {
+  if (file.size > 100 * 1024 * 1024) {
+    throw new Error(`${file.name} is larger than 100 MB. Split the PDF and try again.`);
+  }
   const pdfjs = await import("/vendor/pdfjs/pdf.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.mjs";
   const data = await file.arrayBuffer();
   const pdf = await pdfjs.getDocument({ data }).promise;
-  const available = Math.max(0, 80 - (presentation?.slides.length || 0));
-  const pages = Math.min(pdf.numPages, available);
-  if (pages === 0) throw new Error("The deck already has the maximum number of slides.");
-  for (let pageNumber = 1; pageNumber <= pages; pageNumber += 1) {
-    setStatus(`Converting PDF page ${pageNumber} of ${pages}…`);
-    const page = await pdf.getPage(pageNumber);
-    const viewport = page.getViewport({ scale: 1.5 });
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    const context = canvas.getContext("2d", { alpha: false });
-    await page.render({ canvasContext: context, viewport }).promise;
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-    if (!blob) throw new Error("Could not render a PDF page.");
-    await uploadSlide(blob, `${file.name.replace(/\.pdf$/i, "")} — ${pageNumber}`);
-  }
-  if (pdf.numPages > pages) {
-    setStatus(`Added ${pages} pages. The deck limit is 80 slides.`);
+  try {
+    const available = Math.max(0, 80 - (presentation?.slides.length || 0));
+    const pages = Math.min(pdf.numPages, available);
+    if (pages === 0) throw new Error("The deck already has the maximum number of slides.");
+    for (let pageNumber = 1; pageNumber <= pages; pageNumber += 1) {
+      setStatus(`Converting PDF page ${pageNumber} of ${pages}…`);
+      const page = await pdf.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 1.5 });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const context = canvas.getContext("2d", { alpha: false });
+      await page.render({ canvasContext: context, viewport }).promise;
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("Could not render a PDF page.");
+      await uploadSlide(blob, `${file.name.replace(/\.pdf$/i, "")} — ${pageNumber}`);
+    }
+    if (pdf.numPages > pages) {
+      setStatus(`Added ${pages} pages. The deck limit is 80 slides.`);
+    }
+  } finally {
+    try {
+      await pdf.destroy();
+    } catch {
+      // Already cleaned up.
+    }
   }
 }
 
@@ -618,7 +636,10 @@ function renderDisplay() {
     presentation.slides.length - 1,
   );
   const slide = presentation.slides[index];
-  if (displaySlide.getAttribute("src") !== slide.src) displaySlide.src = slide.src;
+  if (displaySlide.dataset.slideId !== slide.id) {
+    displaySlide.dataset.slideId = slide.id;
+    displaySlide.src = slide.src;
+  }
   displaySlide.alt = slide.name || `Slide ${index + 1}`;
   displaySlide.style.transform = `rotate(${Number(slide.rotation) || 0}deg)`;
   displayLabel.textContent = `${presentation.title || "Presentation"} · ${index + 1} / ${presentation.slides.length}`;
@@ -711,10 +732,9 @@ fileInput.addEventListener("change", () => handleFiles(Array.from(fileInput.file
 copyController.addEventListener("click", async () => {
   const url = qrUrl.dataset.url || "";
   if (!url) return;
-  try {
-    await navigator.clipboard.writeText(url);
-    copyController.setAttribute("aria-label", "Controller link copied");
-  } catch {
+  if (await copyText(url)) {
+    flashCopied(copyController, "Controller link copied");
+  } else {
     setStatus("Could not copy the controller link.");
   }
 });
@@ -734,13 +754,22 @@ newController.addEventListener("click", async () => {
 });
 copyAudience.addEventListener("click", async () => {
   if (!audienceJoinUrl) return;
-  try {
-    await navigator.clipboard.writeText(audienceJoinUrl);
-    copyAudience.setAttribute("aria-label", "Audience link copied");
-  } catch {
+  if (await copyText(audienceJoinUrl)) {
+    flashCopied(copyAudience, "Audience link copied");
+  } else {
     setStatus("Could not copy the audience link.");
   }
 });
+
+function flashCopied(button, message) {
+  const original = button.getAttribute("aria-label");
+  button.setAttribute("aria-label", message);
+  setTimeout(() => {
+    if (button.getAttribute("aria-label") === message) {
+      button.setAttribute("aria-label", original || "");
+    }
+  }, 2000);
+}
 startButton.addEventListener("click", startPresentation);
 resumeButton.addEventListener("click", showDisplay);
 stopPresentationButton.addEventListener("click", endPresentationSession);
@@ -776,11 +805,17 @@ lockButton.addEventListener("click", async () => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !displayView.hidden) {
+    if (document.fullscreenElement) return;
     event.preventDefault();
     hideDisplayLocally();
     return;
   }
   if (displayView.hidden) return;
+  const target = event.target;
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target?.isContentEditable) {
+    return;
+  }
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
   if (event.key === "ArrowLeft") control("prev");
   if (event.key === "ArrowRight") control("next");
 });
