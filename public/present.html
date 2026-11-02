@@ -1,0 +1,185 @@
+<!doctype html>
+<!--
+  Room Check
+  Copyright (c) 2026 Muhammad Rashid K
+  SPDX-License-Identifier: MIT
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f6ecd7" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="Room Check offline presentation display." />
+    <meta name="author" content="Muhammad Rashid K" />
+    <meta name="copyright" content="Copyright (c) 2026 Muhammad Rashid K" />
+    <title>Room Check — Present</title>
+    <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
+    <link rel="preload" href="/fonts/big-shoulders-display-800.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/golos-text.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/carnival.css" />
+    <link rel="stylesheet" href="/presentation.css" />
+    <script type="module" src="/present.js"></script>
+  </head>
+  <body class="present-page">
+    <a class="skip-link" href="#main">Skip to presentation setup</a>
+
+    <header class="host-header">
+      <a class="brand brand--host" href="/" aria-label="Room Check host console">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" role="img">
+            <rect width="32" height="32" rx="1" fill="currentColor"></rect>
+            <path d="M9.5 12.5v7M16 9v14M22.5 13.5v5" fill="none" stroke="#101210" stroke-width="3" stroke-linecap="round"></path>
+          </svg>
+        </span>
+        <span class="brand-word">Room Check</span>
+        <span class="brand-tag">Present</span>
+      </a>
+      <div class="host-header-actions">
+        <div class="connection-pill" id="present-connection" data-status="online" role="status">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span id="present-connection-label">Projector</span>
+        </div>
+        <button class="icon-button" id="present-header-fullscreen" type="button" aria-label="Toggle full screen" title="Full screen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </button>
+        <a class="icon-button" href="/host?customize=1" aria-label="Customise theme" title="Customise theme">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17h1.2a1.8 1.8 0 0 0 1.2-3.15 1.8 1.8 0 0 1 1.2-3.15h1.2a3.7 3.7 0 0 0 3.7-3.7c0-3.85-3.75-7-8.5-7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path><circle cx="8.2" cy="9.2" r="1" fill="currentColor"></circle><circle cx="12" cy="7.2" r="1" fill="currentColor"></circle><circle cx="15.8" cy="9.2" r="1" fill="currentColor"></circle><circle cx="8.4" cy="13.1" r="1" fill="currentColor"></circle></svg>
+        </a>
+        <button class="text-button" id="present-end-session" type="button">End session</button>
+        <button class="text-button" id="present-lock" type="button">Lock</button>
+        <a class="text-button" href="/share" target="_blank" rel="noreferrer">Share</a>
+        <a class="text-button" href="/">Home</a>
+      </div>
+    </header>
+
+    <main class="present-main" id="main">
+      <section class="present-auth" id="present-auth" hidden>
+        <p class="eyebrow">Offline presentation</p>
+        <h1>Open the host room first.</h1>
+        <p class="lede">Sign in on the host console, then return here to build the slide deck and start the projector.</p>
+        <a class="button button--primary button--large" href="/host">Open host console</a>
+      </section>
+
+      <section class="present-setup" id="present-setup" hidden>
+        <p class="eyebrow">Offline presentation</p>
+        <h1>Build the deck.</h1>
+        <p class="lede">Upload images or a PDF. Your phone becomes the controller; the projector shows the slides.</p>
+
+        <div class="present-setup-grid">
+          <div class="present-panel">
+            <h2>Deck</h2>
+            <div class="present-field">
+              <label class="field-label" for="present-title">Presentation title</label>
+              <input class="text-input" id="present-title" type="text" maxlength="52" value="Presentation" autocomplete="off" />
+            </div>
+
+            <div class="present-field present-audience">
+              <div class="field-label-row">
+                <span class="field-label">Audience link</span>
+                <span class="present-audience-mode" id="present-audience-mode">—</span>
+              </div>
+              <div class="present-qr-url-row">
+                <p class="present-qr-url" id="present-audience-url">—</p>
+                <button class="icon-button icon-button--light" id="present-audience-copy" type="button" aria-label="Copy audience link" title="Copy audience link">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="1.8"></path></svg>
+                </button>
+              </div>
+              <p class="present-status" id="present-audience-note">Loading the audience link…</p>
+            </div>
+
+            <div class="present-field">
+              <button class="present-file" id="present-pick" type="button">Add images or PDF</button>
+              <input id="present-files" type="file" accept="image/*,application/pdf" multiple hidden />
+              <p class="present-status" id="present-status">Images: PNG, JPG or WebP. PDF pages are converted to slides. HEIC photos may need exporting as JPG first.</p>
+            </div>
+
+            <div class="slide-list" id="slide-list" aria-label="Slides"></div>
+
+            <button class="button button--primary button--large present-start" id="present-start" type="button" disabled>
+              Start presentation
+            </button>
+            <button class="button button--secondary present-start" id="present-resume" type="button" hidden>
+              Show presentation
+            </button>
+            <button class="text-button" id="present-stop-presentation" type="button" hidden>Stop presentation</button>
+            <p class="present-status" id="present-host-controls"><a href="/host">Open host controls for polls, surveys and hands →</a></p>
+            <button class="text-button" id="present-discard" type="button">Discard deck</button>
+          </div>
+
+          <aside class="present-panel present-qr" id="present-qr-panel" hidden>
+            <div class="present-qr-head">
+              <h2>Phone controller</h2>
+              <span class="live-chip live-chip--warm"><span class="scan-pulse" aria-hidden="true"></span> Scan me</span>
+            </div>
+            <p class="microcopy">Scan once to control slides from your phone.</p>
+            <div class="qr-frame qr-frame--preview present-qr-frame">
+              <img id="present-qr" alt="QR code for the phone controller" width="320" height="320" />
+              <span class="qr-corner qr-corner--tl" aria-hidden="true"></span>
+              <span class="qr-corner qr-corner--tr" aria-hidden="true"></span>
+              <span class="qr-corner qr-corner--bl" aria-hidden="true"></span>
+              <span class="qr-corner qr-corner--br" aria-hidden="true"></span>
+            </div>
+            <div class="present-qr-url-row">
+              <p class="present-qr-url" id="present-qr-url">—</p>
+              <button class="icon-button icon-button--light" id="present-copy" type="button" aria-label="Copy controller link" title="Copy controller link">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="1.8"></path></svg>
+              </button>
+            </div>
+            <p class="present-status" id="present-qr-note">The controller becomes active when the presentation starts.</p>
+            <button class="text-button" id="present-new-controller" type="button">New controller link</button>
+            <p class="present-status"><a href="/share" target="_blank" rel="noreferrer">Open the audience share card →</a></p>
+          </aside>
+        </div>
+      </section>
+
+      <section class="present-display" id="present-display" hidden aria-label="Presentation display">
+        <div class="present-slide-wrap">
+          <img id="present-slide" alt="" />
+        </div>
+        <div class="present-no-slides" id="present-no-slides" hidden>
+          <p class="eyebrow">Room Check</p>
+          <h2>No slides. Use the controller for Poll, Hands or surveys.</h2>
+        </div>
+        <section class="present-interaction" id="present-interaction" hidden aria-live="polite">
+          <div class="present-interaction-inner">
+            <div class="present-interaction-top">
+              <span class="live-chip" id="present-interaction-chip">
+                <span class="live-dot" aria-hidden="true"></span>
+                <span id="present-interaction-state">Voting live</span>
+              </span>
+              <span class="present-interaction-meta" id="present-interaction-meta">Presentation</span>
+            </div>
+            <h1 id="present-interaction-question"></h1>
+            <p class="present-interaction-lede" id="present-interaction-lede"></p>
+            <div class="present-interaction-stats">
+              <strong id="present-interaction-count">0</strong>
+              <span class="present-interaction-stat-copy">
+                <span id="present-interaction-count-label">votes in</span>
+                <span class="present-interaction-divider" aria-hidden="true"></span>
+                <span id="present-interaction-detail">3 answers</span>
+              </span>
+            </div>
+            <p class="present-interaction-timer" id="present-interaction-timer" hidden></p>
+            <div class="present-interaction-options" id="present-interaction-options" hidden></div>
+            <div class="present-interaction-results" id="present-interaction-results" hidden></div>
+            <p class="present-interaction-custom" id="present-interaction-custom" hidden></p>
+          </div>
+        </section>
+        <div class="present-display-bar">
+          <span id="present-display-label">Slide 1 / 1</span>
+          <div class="present-display-actions">
+            <button id="present-prev" type="button">Previous</button>
+            <button id="present-next" type="button">Next</button>
+            <button id="present-rotate" type="button">Rotate</button>
+            <button id="present-fit" type="button">Fit page</button>
+            <button id="present-fullscreen" type="button">Full screen</button>
+            <button id="present-back" type="button">Deck</button>
+            <button id="present-stop" type="button">End session</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

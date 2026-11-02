@@ -1,6 +1,6 @@
 /* Hallmark · checked: 2026-10-30 · genre: editorial (Carnival)
  * floor: visual test · fixed: atmosphere, eyebrows, tracked labels, soft depth, neon palette, rounded chrome
- * built: the project · redesign: restyle · v2.5.1
+ * built: the project · redesign: restyle · v3.0.0
  */
 
 @font-face {
@@ -412,6 +412,46 @@ html[data-button-style="outline"] .button--primary:hover {
   box-shadow: var(--shadow-card);
 }
 
+html[data-button-style="outline"] .button--secondary {
+  border-color: var(--color-accent);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  box-shadow: 4px 4px 0 var(--color-accent);
+}
+
+html[data-button-style="outline"] .button--secondary:hover {
+  border-color: var(--color-ink);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  box-shadow: var(--shadow-card);
+}
+
+html[data-button-style="outline"] .icon-button {
+  border-color: var(--color-accent);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  box-shadow: 3px 3px 0 var(--color-accent);
+}
+
+html[data-button-style="outline"] .icon-button:hover {
+  border-color: var(--color-ink);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  box-shadow: var(--shadow-card);
+}
+
+html[data-button-style="outline"] .add-option,
+html[data-button-style="outline"] .add-question-button {
+  border-color: var(--color-accent);
+  color: var(--color-ink);
+}
+
+html[data-button-style="outline"] .add-option:hover,
+html[data-button-style="outline"] .add-question-button:hover {
+  border-color: var(--color-ink);
+  background: var(--color-paper);
+}
+
 html[data-button-style="minimal"] .button {
   box-shadow: none;
 }
@@ -432,6 +472,27 @@ html[data-button-style="minimal"] .button--secondary {
   border-color: transparent;
   background: transparent;
   color: var(--color-ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+html[data-button-style="minimal"] .icon-button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-ink);
+  box-shadow: none;
+}
+
+html[data-button-style="minimal"] .icon-button:hover {
+  border-color: transparent;
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+}
+
+html[data-button-style="minimal"] .add-option,
+html[data-button-style="minimal"] .add-question-button {
+  border-color: transparent;
+  background: transparent;
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -915,6 +976,26 @@ html[data-button-style="minimal"] .button--secondary {
   stroke-width: 4;
 }
 
+.success-seal.is-updated {
+  animation: vote-updated-flash 720ms ease-out;
+}
+
+@keyframes vote-updated-flash {
+  0% {
+    background: var(--color-accent);
+    transform: scale(1);
+  }
+  35% {
+    background: var(--color-paper);
+    transform: scale(1.12);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--color-accent) 28%, transparent);
+  }
+  100% {
+    background: var(--color-accent);
+    transform: scale(1);
+  }
+}
+
 .player-screen--voted .lede {
   color: var(--muted-strong);
 }
@@ -942,6 +1023,49 @@ html[data-button-style="minimal"] .button--secondary {
   font-size: 20px;
   font-weight: 600;
   letter-spacing: 0;
+}
+
+.write-in {
+  margin: 18px 0;
+  padding: 14px;
+  border: var(--rule-bar) dashed var(--color-ink);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-2);
+}
+
+.write-in .field-label {
+  display: block;
+  margin-bottom: 7px;
+}
+
+.write-in-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.write-in-row .text-input {
+  min-width: 0;
+  flex: 1;
+}
+
+.write-in-row .button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.write-in .microcopy {
+  margin: 8px 0 0;
+}
+
+@media (max-width: 420px) {
+  .write-in-row {
+    flex-wrap: wrap;
+  }
+
+  .write-in-row .button {
+    width: 100%;
+  }
 }
 
 .voted-actions {
@@ -2199,6 +2323,20 @@ html[data-button-style="minimal"] .button--secondary {
   width: var(--rule-bar);
   height: 32px;
   background: var(--color-ink);
+}
+
+.stage-custom-options {
+  max-width: 60ch;
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.survey-custom-options {
+  color: var(--color-accent-2) !important;
+  font-size: 11px !important;
 }
 
 .stage-controls {
@@ -4386,4 +4524,79 @@ body.customizer-open {
   flex: 0 0 auto;
   min-height: 280px;
   max-height: 360px;
+}
+
+/* Desktop app shell: header and footer stay visible; the middle scrolls. */
+@media (min-width: 821px) {
+  body.landing-page,
+  body.player-page,
+  body.updates-page {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  body.landing-page,
+  body.player-page,
+  body.updates-page {
+    display: flex;
+    flex-direction: column;
+  }
+
+  body.landing-page > .host-header,
+  body.player-page > .site-header,
+  body.updates-page > .site-header,
+  body.landing-page > .player-footer,
+  body.player-page > .player-footer,
+  body.updates-page > .player-footer {
+    flex: 0 0 auto;
+  }
+
+  body.landing-page > .landing-main,
+  body.player-page > .player-main,
+  body.updates-page > .updates-main {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  body.player-page > .player-main {
+    width: 100%;
+    max-width: none;
+    align-items: flex-start;
+    padding-inline: clamp(20px, 5vw, 64px);
+    scrollbar-width: thin;
+    scrollbar-color: var(--muted) transparent;
+  }
+
+  body.player-page > .player-main > .player-screen {
+    width: min(100%, 720px);
+    margin-block: auto;
+    margin-inline: auto;
+  }
+
+  body.player-page > .player-main::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  body.player-page > .player-main::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  body.player-page > .player-main::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: var(--muted);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

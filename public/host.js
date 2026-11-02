@@ -21,7 +21,7 @@ import {
 } from "./common.js";
 import { applyTheme, loadTheme } from "./theme.js";
 import { contrastRatio } from "./theme-config.js";
-import { initCustomizer } from "./customizer.js";
+import { initCustomizer, openCustomizer } from "./customizer.js";
 
 const DRAFT_KEY = "roomcheck.hostDraft.v2";
 const LEGACY_DRAFT_KEY = "roomcheck.hostDraft.v1";
@@ -31,6 +31,10 @@ const MAX_QUESTIONS = 20;
 const OPTION_COLORS = ["lime", "coral", "blue", "pink", "violet", "sand", "mint", "ice", "peach", "rose"];
 const DEFAULT_OPTIONS = ["Electric", "Warming up", "Need coffee", "Send help"];
 const TIMER_CIRCUMFERENCE = 2 * Math.PI * 52;
+const nextPath = (() => {
+  const value = new URLSearchParams(location.search).get("next") || "";
+  return value.startsWith("/") && !value.startsWith("//") ? value : "";
+})();
 
 const loginView = $("#login-view");
 const hostApp = $("#host-app");
@@ -52,7 +56,6 @@ const setupView = $("#setup-view");
 const openStage = $("#open-stage");
 const resultsStage = $("#results-stage");
 const surveyStage = $("#survey-stage");
-const endedStage = $("#ended-stage");
 const setupForm = $("#setup-form");
 const modeChoices = $("#mode-choices");
 const sessionBuilder = $("#session-builder");
@@ -77,6 +80,7 @@ const questionInput = $("#question-input");
 const questionCount = $("#question-count");
 const titleInput = $("#game-title");
 const spinOnTieInput = $("#spin-on-tie");
+const allowCustomInput = $("#allow-custom");
 const joinUrlInput = $("#join-url-input");
 const setupUrl = $("#setup-url");
 const setupQr = $("#setup-qr");
@@ -95,6 +99,7 @@ const stageStatLabel = $("#stage-stat-label");
 const stageDetailNote = $("#stage-detail-note");
 const stageShortcuts = $("#stage-shortcuts");
 const stageProgress = $("#stage-progress");
+const stageCustomOptions = $("#stage-custom-options");
 const surveyStageEyebrow = $("#survey-stage-eyebrow");
 const surveyStageTitle = $("#survey-stage-title");
 const surveyTotal = $("#survey-total");
@@ -125,11 +130,11 @@ const timerRingValue = $("#timer-ring-value");
 const confettiCanvas = $("#confetti-canvas");
 const fullscreenButton = $("#fullscreen-button");
 const endSessionButton = $("#end-session-button");
+const endPresentationButton = $("#host-end-presentation");
 const updateNotice = $("#update-notice");
 const updateNoticeTitle = $("#update-notice-title");
 const updateNoticeCopy = $("#update-notice-copy");
 const updateDismiss = $("#update-dismiss");
-const endedBackButton = $("#ended-back-button");
 const resultsEyebrowHost = $("#results-eyebrow-host");
 const nextQuestionButton = $("#next-question-button");
 const againButton = $("#again-button");
@@ -163,6 +168,7 @@ let clockTimer = null;
 let qrTimer = null;
 let saveDraftTimer = null;
 let actionInFlight = false;
+let allowUnload = false;
 let config = null;
 let hostPollTimer = null;
 let hostPollBusy = false;
@@ -188,7 +194,6 @@ function setView(view) {
   resultsStage.hidden = view !== "results";
   surveyStage.hidden = view !== "survey";
   surveyResultsStage.hidden = view !== "surveyResults";
-  endedStage.hidden = view !== "ended";
 }
 
 function handleAuthFailure() {
@@ -253,6 +258,7 @@ function defaultQuestionDraft({ blank = false } = {}) {
     options: [...DEFAULT_OPTIONS],
     durationSec: 60,
     spinOnTie: true,
+    allowCustom: true,
   };
 }
 
@@ -262,6 +268,7 @@ function normalizeQuestionDraft(raw) {
     options: normalizeOptions(raw?.options).map((option) => option.label),
     durationSec: Number.isFinite(Number(raw?.durationSec)) ? Number(raw.durationSec) : 60,
     spinOnTie: raw?.spinOnTie !== false,
+    allowCustom: raw?.allowCustom !== false,
   };
 }
 
@@ -289,6 +296,7 @@ function currentDraft() {
     multi: multiQuestionToggle.checked,
     surveyDurationSec: readSurveyDuration(),
     title: titleInput.value.trim(),
+    allowCustom: allowCustomInput.checked,
     questions: draftQuestions.map((question) => ({
       question: question.question,
       options: [...question.options],
@@ -686,6 +694,7 @@ function populateSetup(draft) {
   );
   const multi = typeof chosen?.multi === "boolean" ? chosen.multi : draftQuestions.length > 1;
   multiQuestionToggle.checked = multi;
+  allowCustomInput.checked = chosen?.allowCustom !== false;
   setSurveyTimerChoice(Number(chosen?.surveyDurationSec) || 0);
   setMode(chosen?.mode === "hands" ? "hands" : "poll");
   loadActiveQuestion();
@@ -701,10 +710,12 @@ function populateSetupFromRound(round) {
       options: round.options.map((option) => option.label),
       durationSec: round.durationSec ?? 60,
       spinOnTie: round.spinOnTie !== false,
+      allowCustom: round.allowCustom !== false,
     }),
   ];
   activeQuestionIndex = 0;
   multiQuestionToggle.checked = false;
+  allowCustomInput.checked = round.allowCustom !== false;
   setSurveyTimerChoice(0);
   setMode(round.mode === "hands" ? "hands" : "poll");
   loadActiveQuestion();
@@ -817,6 +828,11 @@ function showStage(round) {
   const progress = sessionProgressText(roundState?.session);
   stageProgress.hidden = !progress;
   stageProgress.textContent = progress;
+  const customOptions = round.customOptions || [];
+  stageCustomOptions.hidden = customOptions.length === 0;
+  stageCustomOptions.textContent = customOptions.length
+    ? `Added: ${customOptions.map((option) => option.label).join(", ")}`
+    : "";
   openStage.classList.toggle("is-hands", isHands);
   openStage.classList.toggle("is-closed", handsClosed);
   stageLiveLabel.textContent = isHands ? (handsClosed ? "Hands closed" : "Hands live") : "Voting live";
@@ -1270,6 +1286,12 @@ function showSurvey(survey) {
     const meta = document.createElement("span");
     meta.textContent = `${formatVoteCount(count)} ${pluralize(count, "person", "people")} answered`;
     copy.append(label, meta);
+    if (question.customOptions?.length) {
+      const custom = document.createElement("span");
+      custom.className = "survey-custom-options";
+      custom.textContent = `Added: ${question.customOptions.map((option) => option.label).join(", ")}`;
+      copy.append(custom);
+    }
 
     const countLabel = document.createElement("strong");
     countLabel.className = "survey-question-count";
@@ -1338,16 +1360,13 @@ function showSurveyResults(index = surveyResultsIndex) {
   });
 }
 
-function showEnded() {
-  hideWheel();
-  endSessionButton.hidden = true;
-  const qrSrc = qrImageUrl(GITHUB_URL);
-  if (githubQr.getAttribute("src") !== qrSrc) githubQr.src = qrSrc;
-  setView("ended");
-}
-
 function applyState(state) {
   if (!document.body.classList.contains("customizer-open")) applyTheme(state?.theme);
+  const presentationLive = state?.presentation?.status === "live";
+  const interactionVisible = Boolean(state?.round || state?.survey);
+  endPresentationButton.hidden = !presentationLive;
+  endSessionButton.hidden = !interactionVisible;
+  endSessionButton.textContent = presentationLive ? "End interaction" : "End session";
   const incomingNow = Number(state?.now) || 0;
   if (incomingNow && incomingNow < lastStateNow) return;
   lastStateNow = Math.max(lastStateNow, incomingNow);
@@ -1356,7 +1375,6 @@ function applyState(state) {
   if (state.survey) {
     hideWheel();
     roundState = state;
-    endSessionButton.hidden = state.survey.status !== "open";
     if (
       currentView === "surveyResults" &&
       state.survey.status === "closed" &&
@@ -1381,16 +1399,15 @@ function applyState(state) {
     roundState = state;
 
     if (state.closed) {
-      showEnded();
+      allowUnload = true;
+      location.href = "/thanks-host";
       return;
     }
 
     hideWheel();
-    endSessionButton.hidden = false;
 
     if (
       currentView === "boot" ||
-      currentView === "ended" ||
       currentView === "survey" ||
       currentView === "surveyResults" ||
       hadRound
@@ -1406,8 +1423,6 @@ function applyState(state) {
     }
     return;
   }
-
-  endSessionButton.hidden = false;
 
   if (round.mode === "hands") {
     hideWheel();
@@ -1610,7 +1625,12 @@ async function startRound(event) {
       mode === "poll" && multi
         ? await api("/api/host/survey/start", {
             method: "POST",
-            body: { title, questions: prepared, durationSec: readSurveyDuration() },
+            body: {
+              title,
+              questions: prepared,
+              durationSec: readSurveyDuration(),
+              allowCustom: allowCustomInput.checked,
+            },
           })
         : await api("/api/host/open", {
             method: "POST",
@@ -1620,6 +1640,7 @@ async function startRound(event) {
                     mode: "poll",
                     title,
                     ...prepared[0],
+                    allowCustom: allowCustomInput.checked,
                   }
                 : {
                     mode: "hands",
@@ -1679,6 +1700,7 @@ async function playAgain() {
         options: lastRound.options.map((option) => option.label),
         durationSec: lastRound.durationSec,
         spinOnTie: lastRound.spinOnTie !== false,
+        allowCustom: lastRound.allowCustom !== false,
         mode: "poll",
       },
     });
@@ -1715,8 +1737,9 @@ async function finishSurvey() {
   actionInFlight = true;
   setActionBusy(surveyFinishButton, true, "Finishing…");
   try {
-    const result = await api("/api/host/end", { method: "POST", body: {} });
-    applyState(result.state);
+    await api("/api/host/end", { method: "POST", body: {} });
+    allowUnload = true;
+    location.href = "/thanks-host";
   } catch (error) {
     handleActionError(error);
   } finally {
@@ -1755,10 +1778,14 @@ async function nextSessionQuestion() {
   actionInFlight = true;
   setActionBusy(nextQuestionButton, true, last ? "Finishing…" : "Opening…");
   try {
-    const result = last
-      ? await api("/api/host/end", { method: "POST", body: {} })
-      : await api("/api/host/session/next", { method: "POST", body: {} });
-    applyState(result.state);
+    if (last) {
+      await api("/api/host/end", { method: "POST", body: {} });
+      allowUnload = true;
+      location.href = "/thanks-host";
+    } else {
+      const result = await api("/api/host/session/next", { method: "POST", body: {} });
+      applyState(result.state);
+    }
   } catch (error) {
     handleActionError(error);
   } finally {
@@ -1834,7 +1861,15 @@ async function enterConsole() {
   applyState(stateResponse.state);
   loadUpdateNotice();
   startClock();
-  if (currentView === "setup") questionInput.focus();
+  if (nextPath) {
+    location.replace(nextPath);
+    return;
+  }
+  if (new URLSearchParams(location.search).get("customize") === "1" && currentView === "setup") {
+    openCustomizer();
+  } else if (currentView === "setup") {
+    questionInput.focus();
+  }
 }
 
 async function loadUpdateNotice() {
@@ -2020,6 +2055,8 @@ spinOnTieInput.addEventListener("change", () => {
   debounceSaveDraft();
 });
 
+allowCustomInput.addEventListener("change", debounceSaveDraft);
+
 $("#timer-choices").addEventListener("change", () => {
   if (draftQuestions[activeQuestionIndex]) {
     draftQuestions[activeQuestionIndex].durationSec = readDuration();
@@ -2115,11 +2152,28 @@ $("#lock-button").addEventListener("click", async () => {
   } catch {
     // Lock the UI regardless.
   }
+  allowUnload = true;
   if (connection) connection.close();
   stopClock();
   stopHostPolling();
   location.reload();
 });
+
+async function endPresentationFromHost() {
+  if (!roundState?.presentation || roundState.presentation.status !== "live") return;
+  if (!window.confirm("End the presentation and show the thank-you screen?")) return;
+  endPresentationButton.disabled = true;
+  try {
+    await api("/api/host/presentation/close", { method: "POST", body: {} });
+    allowUnload = true;
+    location.href = "/thanks-host";
+  } catch (error) {
+    handleActionError(error);
+    endPresentationButton.disabled = false;
+  }
+}
+
+endPresentationButton.addEventListener("click", endPresentationFromHost);
 
 endSessionButton.addEventListener("click", async () => {
   if (
@@ -2131,8 +2185,9 @@ endSessionButton.addEventListener("click", async () => {
   }
   endSessionButton.disabled = true;
   try {
-    const result = await api("/api/host/end", { method: "POST", body: {} });
-    applyState(result.state);
+    await api("/api/host/end", { method: "POST", body: {} });
+    allowUnload = true;
+    location.href = "/thanks-host";
   } catch (error) {
     handleActionError(error);
   } finally {
@@ -2140,17 +2195,7 @@ endSessionButton.addEventListener("click", async () => {
   }
 });
 
-endedBackButton.addEventListener("click", async () => {
-  endedBackButton.disabled = true;
-  try {
-    const result = await api("/api/host/reset", { method: "POST", body: {} });
-    applyState(result.state);
-  } catch (error) {
-    handleActionError(error);
-  } finally {
-    endedBackButton.disabled = false;
-  }
-});
+
 
 document.addEventListener("keydown", (event) => {
   const target = event.target;
@@ -2182,12 +2227,19 @@ document.addEventListener("fullscreenchange", () => {
   fullscreenButton.setAttribute("aria-label", isFull ? "Exit full screen" : "Enter full screen");
 });
 
-window.addEventListener("beforeunload", () => {
+window.addEventListener("beforeunload", (event) => {
   if (connection) connection.close();
   stopClock();
   stopHostPolling();
   clearTimeout(qrTimer);
   clearTimeout(saveDraftTimer);
+  const liveRound = roundState?.round?.status === "open";
+  const liveSurvey = roundState?.survey?.status === "open";
+  const livePresentation = roundState?.presentation?.status === "live";
+  if (!allowUnload && (liveRound || liveSurvey || livePresentation)) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
 });
 
 init();

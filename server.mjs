@@ -57,7 +57,18 @@ const THEME_LOGO_TYPES = {
   "image/webp": "webp",
   "image/svg+xml": "svg",
 };
-
+const PRESENTATION_DIR = path.join(DATA_DIR, "presentation");
+const PRESENTATION_SLIDE_TYPES = new Map([
+  ["image/png", "png"],
+  ["image/jpeg", "jpg"],
+  ["image/webp", "webp"],
+]);
+const PRESENTATION_MAX_SLIDES = 80;
+const PRESENTATION_SLIDE_MAX_BYTES = 25 * 1024 * 1024;
+const PRESENTATION_RETENTION_DAYS = (() => {
+  const value = Number(process.env.PRESENTATION_RETENTION_DAYS || 7);
+  return Number.isFinite(value) ? Math.max(1, value) : 7;
+})();
 const LIMITS = {
   title: 52,
   question: 160,
@@ -68,6 +79,7 @@ const LIMITS = {
   maxDuration: 600,
   maxSurveyDuration: 3600,
   maxQuestions: 20,
+  maxCustomOptions: 100,
 };
 
 const OPTION_COLORS = ["lime", "coral", "blue", "pink", "violet", "sand", "mint", "ice", "peach", "rose"];
@@ -96,7 +108,7 @@ function findLanAddress() {
 }
 
 const LAN_URL = "http://" + (findLanAddress() || "localhost") + ":" + PORT;
-const JOIN_URL = PUBLIC_URL || LAN_URL;
+const JOIN_URL = (PUBLIC_URL || LAN_URL).replace(/\/+$/, "") + "/join";
 const IS_PUBLIC = Boolean(PUBLIC_URL);
 
 fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
@@ -116,6 +128,7 @@ let state = {
   round: null,
   survey: null,
   session: null,
+  presentation: null,
   sessionClosedAt: null,
   theme: normalizeTheme(DEFAULT_THEME),
 };
@@ -195,6 +208,7 @@ function validateRoundInput(body) {
     options,
     durationSec,
     spinOnTie: body.spinOnTie !== false,
+    allowCustom: body.allowCustom !== false,
   };
 }
 
@@ -221,6 +235,7 @@ function validateSessionInput(body) {
         options: raw?.options,
         durationSec: raw?.durationSec,
         spinOnTie: raw?.spinOnTie,
+        allowCustom: body.allowCustom !== false,
       });
     } catch (error) {
       throw new HttpError(
@@ -256,11 +271,14 @@ function validateSurveyInput(body) {
         options: raw?.options,
         durationSec: 0,
         spinOnTie: false,
+        allowCustom: body.allowCustom !== false,
       });
       return {
         id: crypto.randomUUID(),
         question: question.question,
         options: question.options,
+        customOptions: [],
+        allowCustom: question.allowCustom !== false,
       };
     } catch (error) {
       throw new HttpError(
@@ -295,6 +313,7 @@ function createRound(details) {
     question: details.question,
     status: "open",
     startedAt,
+    allowCustom: details.allowCustom !== false,
   };
 
   if (base.mode === "hands") {
@@ -315,6 +334,7 @@ function createRound(details) {
   return {
     ...base,
     options: details.options,
+    customOptions: [],
     durationSec: details.durationSec,
     spinOnTie: Boolean(details.spinOnTie),
     endsAt: details.durationSec > 0 ? startedAt + details.durationSec * 1000 : null,
@@ -325,18 +345,122 @@ function createRound(details) {
   };
 }
 
+function capitalizeFirstLetter(value) {
+  const text = String(value || "");
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+}
+
+function normalizeOptionText(value) {
+  return String(value || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean)
+    .sort()
+    .join(" ");
+}
+
+function levenshteinDistance(left, right) {
+  if (left === right) return 0;
+  if (!left.length) return right.length;
+  if (!right.length) return left.length;
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= left.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= right.length; j += 1) {
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        current[j - 1] + 1,
+        previous[j] + 1,
+        previous[j - 1] + cost,
+      );
+    }
+    previous = current;
+  }
+  return previous[right.length];
+}
+
+function optionSignature(value) {
+  const normalized = normalizeOptionText(value);
+  const digits = (normalized.match(/\d+/g) || []).join(",");
+  const singleLetters = normalized
+    .split(" ")
+    .filter((token) => token.length === 1)
+    .sort()
+    .join("");
+  return `${digits}|${singleLetters}`;
+}
+
+function similarOptionText(left, right) {
+  const a = normalizeOptionText(left);
+  const b = normalizeOptionText(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (optionSignature(left) !== optionSignature(right)) return false;
+  const maxLength = Math.max(a.length, b.length);
+  if (Math.min(a.length, b.length) < 3) return false;
+  const allowed = maxLength <= 5 ? 1 : maxLength <= 10 ? 2 : 3;
+  const distance = levenshteinDistance(a, b);
+  return distance <= allowed && distance / maxLength <= 0.34;
+}
+
+function findMatchingOption(label, options) {
+  return (options || []).find((option) => similarOptionText(label, option.label)) || null;
+}
+
+function resolveCustomOption(container, playerId, label) {
+  const cleaned = capitalizeFirstLetter(cleanString(label, LIMITS.option));
+  if (!cleaned) throw new HttpError(400, "Write an option first.");
+  const customOptions = Array.isArray(container.customOptions) ? container.customOptions : [];
+  if (customOptions.some((option) => option.createdBy === playerId)) {
+    throw new HttpError(409, "You can only add one option.");
+  }
+
+  const hostMatch = findMatchingOption(cleaned, container.options);
+  if (hostMatch) return hostMatch;
+  const customMatch = findMatchingOption(cleaned, customOptions);
+  if (customMatch) return customMatch;
+
+  if (customOptions.length >= LIMITS.maxCustomOptions) {
+    throw new HttpError(409, "The room has reached the custom option limit.");
+  }
+
+  const option = {
+    id: `custom-${crypto.randomUUID()}`,
+    label: cleaned,
+    color: OPTION_COLORS[(container.options.length + customOptions.length) % OPTION_COLORS.length],
+    createdBy: playerId,
+    normalized: normalizeOptionText(cleaned),
+  };
+  customOptions.push(option);
+  container.customOptions = customOptions;
+  return option;
+}
+
+function allOptions(container) {
+  return [...(container.options || []), ...(container.customOptions || [])];
+}
+
 function voteCount(round) {
   return Object.keys(round.votes || {}).length;
 }
 
 function buildResults(round) {
   const total = voteCount(round);
-  const counts = round.options.map((option) => ({
-    optionId: option.id,
-    label: option.label,
-    color: option.color,
-    count: 0,
-  }));
+  const customIds = new Set((round.customOptions || []).map((option) => option.id));
+  const counts = allOptions(round)
+    .map((option) => ({
+      optionId: option.id,
+      label: option.label,
+      color: option.color,
+      count: 0,
+      custom: customIds.has(option.id),
+    }))
+    .filter((entry) => !entry.custom || (round.votes && Object.values(round.votes).some((vote) => vote.optionId === entry.optionId)));
 
   for (const vote of Object.values(round.votes || {})) {
     const target = counts.find((entry) => entry.optionId === vote.optionId);
@@ -397,6 +521,35 @@ function publicSession() {
   };
 }
 
+function publicPresentation(presentation, { includeSlides = true, slideToken = "" } = {}) {
+  if (!presentation) return null;
+  const tokenQuery = slideToken ? `?token=${encodeURIComponent(slideToken)}` : "";
+  return {
+    id: presentation.id,
+    title: presentation.title,
+    status: presentation.status,
+    activeView: presentation.activeView || "slides",
+    fitMode: presentation.fitMode === "page" ? "page" : "width",
+    scroll: Number.isFinite(Number(presentation.scroll))
+      ? Math.min(1, Math.max(0, Number(presentation.scroll)))
+      : 0,
+    currentIndex: presentation.currentIndex,
+    slideCount: presentation.slides.length,
+    startedAt: presentation.startedAt || null,
+    closedAt: presentation.closedAt || null,
+    ...(includeSlides
+      ? {
+          slides: presentation.slides.map((slide) => ({
+            id: slide.id,
+            name: slide.name,
+            src: `/api/presentation/slide/${slide.id}${tokenQuery}`,
+            rotation: slide.rotation || 0,
+          })),
+        }
+      : {}),
+  };
+}
+
 function surveyCounts(survey) {
   const questions = {};
   let totalRespondents = 0;
@@ -415,7 +568,9 @@ function surveyCounts(survey) {
 
 function surveyResults(survey) {
   return survey.questions.map((question) => {
-    const counts = new Map(question.options.map((option) => [option.id, 0]));
+    const customIds = new Set((question.customOptions || []).map((option) => option.id));
+    const options = allOptions(question);
+    const counts = new Map(options.map((option) => [option.id, 0]));
     let total = 0;
     for (const response of Object.values(survey.responses || {})) {
       const optionId = response?.answers?.[question.id];
@@ -428,16 +583,19 @@ function surveyResults(survey) {
       questionId: question.id,
       question: question.question,
       total,
-      options: question.options.map((option) => {
-        const count = counts.get(option.id) || 0;
-        return {
-          optionId: option.id,
-          label: option.label,
-          color: option.color,
-          count,
-          percent: total > 0 ? Math.round((count / total) * 100) : 0,
-        };
-      }),
+      options: options
+        .map((option) => {
+          const count = counts.get(option.id) || 0;
+          return {
+            optionId: option.id,
+            label: option.label,
+            color: option.color,
+            count,
+            custom: customIds.has(option.id),
+            percent: total > 0 ? Math.round((count / total) * 100) : 0,
+          };
+        })
+        .filter((option) => !option.custom || option.count > 0),
     };
   });
 }
@@ -454,14 +612,20 @@ function publicSurvey(survey, { includeCounts = false } = {}) {
     questions: survey.questions.map((question) => ({
       id: question.id,
       question: question.question,
+      allowCustom: question.allowCustom !== false,
       options: question.options.map(({ id, label, color }) => ({ id, label, color })),
+      ...(includeCounts
+        ? {
+            customOptions: (question.customOptions || []).map(({ id, label }) => ({ id, label })),
+          }
+        : {}),
     })),
     ...(survey.status === "closed" ? { results: surveyResults(survey) } : {}),
     ...(includeCounts ? { counts: surveyCounts(survey) } : {}),
   };
 }
 
-function publicState({ includeCounts = false } = {}) {
+function publicState({ includeCounts = false, includeSlides = false, slideToken = "" } = {}) {
   if (state.survey) {
     const survey = state.survey;
     return {
@@ -469,6 +633,7 @@ function publicState({ includeCounts = false } = {}) {
       round: null,
       session: null,
       survey: publicSurvey(survey, { includeCounts }),
+      presentation: publicPresentation(state.presentation, { includeSlides, slideToken }),
       theme: state.theme,
       closed: survey.status === "closed",
       closedAt: survey.closedAt || null,
@@ -483,6 +648,7 @@ function publicState({ includeCounts = false } = {}) {
       round: null,
       session,
       survey: null,
+      presentation: publicPresentation(state.presentation, { includeSlides, slideToken }),
       theme: state.theme,
       closed: Boolean(state.sessionClosedAt),
       closedAt: state.sessionClosedAt || null,
@@ -494,6 +660,7 @@ function publicState({ includeCounts = false } = {}) {
       now: Date.now(),
       session,
       survey: null,
+      presentation: publicPresentation(state.presentation, { includeSlides, slideToken }),
       theme: state.theme,
       closed: false,
       closedAt: null,
@@ -516,6 +683,7 @@ function publicState({ includeCounts = false } = {}) {
     now: Date.now(),
     session,
     survey: null,
+    presentation: publicPresentation(state.presentation, { includeSlides, slideToken }),
     theme: state.theme,
     closed: false,
     closedAt: null,
@@ -524,7 +692,13 @@ function publicState({ includeCounts = false } = {}) {
       mode: "poll",
       title: round.title,
       question: round.question,
+      allowCustom: round.allowCustom !== false,
       options: round.options.map(({ id, label, color }) => ({ id, label, color })),
+      ...(includeCounts
+        ? {
+            customOptions: (round.customOptions || []).map(({ id, label }) => ({ id, label })),
+          }
+        : {}),
       status: round.status,
       durationSec: round.durationSec,
       spinOnTie: Boolean(round.spinOnTie),
@@ -544,9 +718,28 @@ function personalState(round, playerId, survey = null) {
     const response = playerId && Object.prototype.hasOwnProperty.call(survey.responses, playerId)
       ? survey.responses[playerId]
       : null;
+    const answers = response?.answers ? { ...response.answers } : {};
+    const customOptions = {};
+    const createdCustomOptions = {};
+    for (const question of survey.questions) {
+      const selected = (question.customOptions || []).find(
+        (option) => option.id === answers[question.id],
+      );
+      if (selected) {
+        customOptions[question.id] = { id: selected.id, label: selected.label };
+      }
+      const created = (question.customOptions || []).find(
+        (option) => option.createdBy === playerId,
+      );
+      if (created) {
+        createdCustomOptions[question.id] = { id: created.id, label: created.label };
+      }
+    }
     return {
       surveyId: survey.id,
-      answers: response?.answers ? { ...response.answers } : {},
+      answers,
+      customOptions,
+      createdCustomOptions,
       updatedAt: response?.updatedAt || null,
     };
   }
@@ -562,10 +755,20 @@ function personalState(round, playerId, survey = null) {
     playerId && Object.prototype.hasOwnProperty.call(round.votes, playerId)
       ? round.votes[playerId]
       : null;
+  const createdCustom = playerId
+    ? (round.customOptions || []).find((option) => option.createdBy === playerId)
+    : null;
+  const selectedCustom = hasVote
+    ? (round.customOptions || []).find((option) => option.id === hasVote.optionId)
+    : null;
   return {
     roundId: round.id,
     optionId: hasVote ? hasVote.optionId : null,
     raised: null,
+    customOption: createdCustom ? { id: createdCustom.id, label: createdCustom.label } : null,
+    selectedCustomOption: selectedCustom
+      ? { id: selectedCustom.id, label: selectedCustom.label }
+      : null,
   };
 }
 
@@ -575,21 +778,21 @@ function sendJson(ws, payload) {
   }
 }
 
+function statePayloadFor(client) {
+  const isHost = client.role === "host";
+  return {
+    type: "state",
+    state: isHost
+      ? publicState({ includeCounts: true, includeSlides: true })
+      : publicState({ includeSlides: false }),
+    you: isHost ? null : personalState(state.round, client.playerId, state.survey),
+  };
+}
+
 function broadcastState() {
-  const playerPayload = publicState();
-  const hostPayload = publicState({ includeCounts: true });
   for (const client of wss.clients) {
     if (client.readyState !== WebSocket.OPEN) continue;
-    client.send(
-      JSON.stringify({
-        type: "state",
-        state: client.role === "host" ? hostPayload : playerPayload,
-        you:
-          client.role === "host"
-            ? null
-            : personalState(state.round, client.playerId, state.survey),
-      }),
-    );
+    client.send(JSON.stringify(statePayloadFor(client)));
   }
 }
 
@@ -608,6 +811,7 @@ function persistState() {
       savedAt: Date.now(),
       round: state.round,
       survey: state.survey,
+      presentation: state.presentation,
       session: state.session,
       sessionClosedAt: state.sessionClosedAt || null,
       theme: state.theme,
@@ -643,6 +847,7 @@ function persistStateSync() {
           savedAt: Date.now(),
           round: state.round,
           survey: state.survey,
+          presentation: state.presentation,
           session: state.session,
           sessionClosedAt: state.sessionClosedAt || null,
           theme: state.theme,
@@ -758,6 +963,85 @@ function normalizeStoredSession(raw, round) {
   };
 }
 
+function normalizeStoredCustomOptions(rawOptions, baseOptions, limit = LIMITS.maxCustomOptions) {
+  if (!Array.isArray(rawOptions)) return [];
+  const seenIds = new Set((baseOptions || []).map((option) => option.id));
+  const seenCreators = new Set();
+  const options = [];
+  for (const raw of rawOptions) {
+    if (options.length >= limit) break;
+    const id = typeof raw?.id === "string" && raw.id ? raw.id : "";
+    const label = capitalizeFirstLetter(cleanString(raw?.label, LIMITS.option));
+    const createdBy = typeof raw?.createdBy === "string" ? raw.createdBy : "";
+    if (!id || !label || !/^[a-zA-Z0-9_-]{16,64}$/.test(createdBy)) continue;
+    if (seenIds.has(id) || seenCreators.has(createdBy)) continue;
+    seenIds.add(id);
+    seenCreators.add(createdBy);
+    options.push({
+      id,
+      label,
+      color: raw.color || OPTION_COLORS[options.length % OPTION_COLORS.length],
+      createdBy,
+      normalized: normalizeOptionText(label),
+    });
+  }
+  return options;
+}
+
+function presentationSlidePath(presentationId, slideId, ext) {
+  return path.join(PRESENTATION_DIR, presentationId, `${slideId}.${ext}`);
+}
+
+function normalizeStoredPresentation(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  if (typeof raw.id !== "string" || !raw.id) return null;
+  if (typeof raw.title !== "string") return null;
+  if (!["ready", "live", "closed"].includes(raw.status)) return null;
+  if (!Array.isArray(raw.slides)) return null;
+
+  const slides = [];
+  for (const slide of raw.slides) {
+    if (slides.length >= PRESENTATION_MAX_SLIDES) break;
+    if (!slide || typeof slide.id !== "string" || typeof slide.name !== "string") continue;
+    const ext = PRESENTATION_SLIDE_TYPES.get(slide.type) || (slide.ext === "jpg" ? "jpg" : slide.ext);
+    if (!PRESENTATION_SLIDE_TYPES.has(slide.type) && !["png", "jpg", "webp"].includes(ext)) continue;
+    const fileExt = ext || PRESENTATION_SLIDE_TYPES.get(slide.type);
+    if (!fs.existsSync(presentationSlidePath(raw.id, slide.id, fileExt))) continue;
+    slides.push({
+      id: slide.id,
+      name: cleanString(slide.name, 80) || "Slide",
+      type: slide.type || `image/${fileExt === "jpg" ? "jpeg" : fileExt}`,
+      ext: fileExt,
+      rotation: [0, 90, 180, 270].includes(Number(slide.rotation)) ? Number(slide.rotation) : 0,
+    });
+  }
+  const currentIndex = Math.min(
+    Math.max(Number(raw.currentIndex) || 0, 0),
+    Math.max(0, slides.length - 1),
+  );
+  return {
+    id: raw.id,
+    title: cleanString(raw.title, LIMITS.title) || "Presentation",
+    status: raw.status,
+    activeView: ["slides", "poll", "hands", "survey"].includes(raw.activeView)
+      ? raw.activeView
+      : "slides",
+    fitMode: raw.fitMode === "page" ? "page" : "width",
+    scroll: Number.isFinite(Number(raw.scroll))
+      ? Math.min(1, Math.max(0, Number(raw.scroll)))
+      : 0,
+    slides,
+    currentIndex,
+    controllerToken:
+      typeof raw.controllerToken === "string" && raw.controllerToken.length >= 24
+        ? raw.controllerToken
+        : crypto.randomBytes(24).toString("base64url"),
+    createdAt: Number(raw.createdAt) || Date.now(),
+    startedAt: Number(raw.startedAt) || null,
+    closedAt: Number(raw.closedAt) || null,
+  };
+}
+
 function normalizeStoredSurvey(raw) {
   if (!raw || typeof raw !== "object") return null;
   if (typeof raw.id !== "string" || !raw.id) return null;
@@ -796,7 +1080,14 @@ function normalizeStoredSurvey(raw) {
       });
     }
     if (options.length < LIMITS.minOptions || options.length > LIMITS.maxOptions) return null;
-    questions.push({ id: questionId, question: questionText, options });
+    const customOptions = normalizeStoredCustomOptions(rawQuestion.customOptions, options);
+    questions.push({
+      id: questionId,
+      question: questionText,
+      options,
+      customOptions,
+      allowCustom: rawQuestion.allowCustom !== false,
+    });
   }
 
   const responses = {};
@@ -807,7 +1098,7 @@ function normalizeStoredSurvey(raw) {
     const answers = {};
     for (const [questionId, optionId] of Object.entries(response.answers || {})) {
       const question = questions.find((entry) => entry.id === questionId);
-      if (question && question.options.some((option) => option.id === optionId)) {
+      if (question && allOptions(question).some((option) => option.id === optionId)) {
         answers[questionId] = optionId;
       }
     }
@@ -863,6 +1154,8 @@ function loadState() {
       const logoPath = path.join(DATA_DIR, `theme-logo.${THEME_LOGO_TYPES[state.theme.logo.type] || "bin"}`);
       if (!fs.existsSync(logoPath)) state.theme.logo = null;
     }
+
+    state.presentation = normalizeStoredPresentation(raw?.presentation);
 
     const survey = normalizeStoredSurvey(raw?.survey);
     if (survey) {
@@ -922,7 +1215,16 @@ function loadState() {
     if (!Array.isArray(round.options) || round.options.length < LIMITS.minOptions) return;
     if (round.status !== "open" && round.status !== "revealed") return;
 
-    const validOptions = new Set(round.options.map((option) => option.id));
+    const cleanHostOptions = round.options.map((option, index) => ({
+      id: option.id,
+      label: cleanString(option.label, LIMITS.option),
+      color: option.color || OPTION_COLORS[index % OPTION_COLORS.length],
+    }));
+    const cleanCustomOptions = normalizeStoredCustomOptions(round.customOptions, cleanHostOptions);
+    const validOptions = new Set([
+      ...cleanHostOptions.map((option) => option.id),
+      ...cleanCustomOptions.map((option) => option.id),
+    ]);
     const cleanVotes = {};
     for (const [playerId, vote] of Object.entries(round.votes || {})) {
       if (
@@ -969,11 +1271,9 @@ function loadState() {
       mode: "poll",
       title: cleanString(round.title, LIMITS.title) || "Room Check",
       question: normalizeQuestion(round.question),
-      options: round.options.map((option, index) => ({
-        id: option.id,
-        label: cleanString(option.label, LIMITS.option),
-        color: option.color || OPTION_COLORS[index % OPTION_COLORS.length],
-      })),
+      options: cleanHostOptions,
+      customOptions: cleanCustomOptions,
+      allowCustom: round.allowCustom !== false,
       votes: cleanVotes,
       spinOnTie: Boolean(round.spinOnTie),
       durationSec: Number(round.durationSec) || 0,
@@ -1077,6 +1377,9 @@ function openRound(details) {
   state.session = null;
   state.sessionClosedAt = null;
   state.round = createRound(details);
+  if (state.presentation?.status === "live") {
+    state.presentation.activeView = details.mode === "hands" ? "hands" : "poll";
+  }
   armRevealTimer();
   scheduleSave();
   broadcastState();
@@ -1106,6 +1409,9 @@ function startSession(details) {
     startedAt,
   };
   state.round = createRound(details.questions[0]);
+  if (state.presentation?.status === "live") {
+    state.presentation.activeView = "survey";
+  }
   armRevealTimer();
   scheduleSave();
   broadcastState();
@@ -1159,6 +1465,9 @@ function startSurvey(details) {
     closedAt: null,
     revealReason: null,
   };
+  if (state.presentation?.status === "live") {
+    state.presentation.activeView = "survey";
+  }
   armSurveyTimer();
   scheduleSave();
   broadcastState();
@@ -1181,7 +1490,7 @@ function closeSurvey(reason = "host") {
   return true;
 }
 
-function submitSurveyAnswer(playerId, questionId, optionId) {
+function submitSurveyAnswer(playerId, questionId, optionId, customLabel = "") {
   const survey = state.survey;
   if (!survey || survey.status !== "open") {
     throw new HttpError(409, "The survey is closed.");
@@ -1193,7 +1502,12 @@ function submitSurveyAnswer(playerId, questionId, optionId) {
 
   const question = survey.questions.find((entry) => entry.id === questionId);
   if (!question) throw new HttpError(400, "That question is not part of this survey.");
-  if (!question.options.some((option) => option.id === optionId)) {
+  if (customLabel.trim()) {
+    if (question.allowCustom === false) {
+      throw new HttpError(403, "Write-in answers are turned off for this question.");
+    }
+    optionId = resolveCustomOption(question, playerId, customLabel).id;
+  } else if (!allOptions(question).some((option) => option.id === optionId)) {
     throw new HttpError(400, "Pick one of the answers on screen.");
   }
 
@@ -1237,6 +1551,317 @@ function advanceSession() {
   return state.round;
 }
 
+function presentationDirFor(presentationId) {
+  return path.join(PRESENTATION_DIR, presentationId);
+}
+
+function removePresentationFiles(presentationId) {
+  if (!presentationId) return;
+  try {
+    fs.rmSync(presentationDirFor(presentationId), { recursive: true, force: true });
+  } catch {
+    // Files may already be gone.
+  }
+}
+
+function createPresentation(title) {
+  if (state.presentation?.status === "live") {
+    throw new HttpError(409, "Finish the live presentation before creating another.");
+  }
+  if (state.presentation) removePresentationFiles(state.presentation.id);
+  state.presentation = {
+    id: crypto.randomUUID(),
+    title: cleanString(title, LIMITS.title) || "Presentation",
+    status: "ready",
+    activeView: "slides",
+    fitMode: "width",
+    scroll: 0,
+    slides: [],
+    currentIndex: 0,
+    controllerToken: crypto.randomBytes(24).toString("base64url"),
+    createdAt: Date.now(),
+    startedAt: null,
+    closedAt: null,
+  };
+  scheduleSave();
+  broadcastState();
+  return state.presentation;
+}
+
+function identifyPresentationSlide(buffer, mime) {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    throw new HttpError(400, "Choose a slide image.");
+  }
+  if (buffer.length > PRESENTATION_SLIDE_MAX_BYTES) {
+    throw new HttpError(413, "Keep each slide under 25 MB.");
+  }
+  if (mime === "image/png") {
+    const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    if (!buffer.subarray(0, 8).equals(signature)) throw new HttpError(400, "That PNG is not valid.");
+    return "png";
+  }
+  if (mime === "image/jpeg") {
+    if (buffer[0] !== 0xff || buffer[1] !== 0xd8 || buffer[2] !== 0xff) {
+      throw new HttpError(400, "That JPEG is not valid.");
+    }
+    return "jpg";
+  }
+  if (mime === "image/webp") {
+    if (buffer.toString("ascii", 0, 4) !== "RIFF" || buffer.toString("ascii", 8, 12) !== "WEBP") {
+      throw new HttpError(400, "That WebP is not valid.");
+    }
+    return "webp";
+  }
+  throw new HttpError(415, "Use PNG, JPEG or WebP slide images.");
+}
+
+function addPresentationSlide(buffer, mime, name) {
+  const presentation = state.presentation;
+  if (!presentation) throw new HttpError(409, "Create a presentation first.");
+  if (presentation.status === "live") {
+    throw new HttpError(409, "End the presentation before changing the deck.");
+  }
+  if (presentation.status === "closed") {
+    presentation.status = "ready";
+    presentation.closedAt = null;
+    presentation.activeView = "slides";
+  }
+  if (presentation.slides.length >= PRESENTATION_MAX_SLIDES) {
+    throw new HttpError(409, `Keep the presentation to ${PRESENTATION_MAX_SLIDES} slides or fewer.`);
+  }
+  const ext = identifyPresentationSlide(buffer, mime);
+  const slide = {
+    id: crypto.randomUUID(),
+    name: cleanString(name, 80) || `Slide ${presentation.slides.length + 1}`,
+    type: mime,
+    ext,
+    rotation: 0,
+  };
+  const dir = presentationDirFor(presentation.id);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try {
+    fs.chmodSync(dir, 0o700);
+  } catch {
+    // A mounted volume may manage permissions.
+  }
+  const file = presentationSlidePath(presentation.id, slide.id, ext);
+  fs.writeFileSync(file, buffer, { mode: 0o600 });
+  try {
+    fs.chmodSync(file, 0o600);
+  } catch {
+    // Some filesystems do not support chmod.
+  }
+  presentation.slides.push(slide);
+  scheduleSave();
+  broadcastState();
+  return presentation;
+}
+
+function deletePresentationSlide(slideId) {
+  const presentation = state.presentation;
+  if (!presentation) throw new HttpError(404, "Presentation not found.");
+  if (presentation.status === "live") {
+    throw new HttpError(409, "End the presentation before changing the deck.");
+  }
+  if (presentation.status === "closed") {
+    presentation.status = "ready";
+    presentation.closedAt = null;
+    presentation.activeView = "slides";
+  }
+  const index = presentation.slides.findIndex((slide) => slide.id === slideId);
+  if (index === -1) throw new HttpError(404, "Slide not found.");
+  const [slide] = presentation.slides.splice(index, 1);
+  try {
+    fs.unlinkSync(presentationSlidePath(presentation.id, slide.id, slide.ext));
+  } catch {
+    // Already gone.
+  }
+  presentation.currentIndex = Math.min(
+    presentation.currentIndex,
+    Math.max(0, presentation.slides.length - 1),
+  );
+  scheduleSave();
+  broadcastState();
+  return presentation;
+}
+
+function startPresentation() {
+  const presentation = state.presentation;
+  if (!presentation) throw new HttpError(409, "Create a presentation first.");
+  if (presentation.status === "live") return presentation;
+  if (revealTimer) {
+    clearTimeout(revealTimer);
+    revealTimer = null;
+  }
+  if (tieBreakTimer) {
+    clearTimeout(tieBreakTimer);
+    tieBreakTimer = null;
+  }
+  state.round = null;
+  state.survey = null;
+  presentation.status = "live";
+  presentation.activeView = "slides";
+  presentation.currentIndex = 0;
+  presentation.scroll = 0;
+  presentation.startedAt = Date.now();
+  presentation.closedAt = null;
+  state.sessionClosedAt = null;
+  scheduleSave();
+  broadcastState();
+  return presentation;
+}
+
+function controlPresentation(action, index, fitMode, scroll) {
+  const presentation = state.presentation;
+  if (!presentation) throw new HttpError(404, "Presentation not found.");
+  if (presentation.status !== "live") throw new HttpError(409, "The presentation is not live.");
+  if (action === "close") {
+    presentation.status = "closed";
+    presentation.closedAt = Date.now();
+    state.round = null;
+    state.survey = null;
+    state.sessionClosedAt = Date.now();
+  } else if (action === "slides") {
+    state.round = null;
+    state.survey = null;
+    presentation.activeView = "slides";
+  } else if (action === "fit") {
+    if (fitMode !== "width" && fitMode !== "page") {
+      throw new HttpError(400, "Choose fit width or fit page.");
+    }
+    presentation.fitMode = fitMode;
+    if (fitMode === "page") presentation.scroll = 0;
+  } else if (action === "scroll") {
+    const value = Number(scroll);
+    if (!Number.isFinite(value)) throw new HttpError(400, "Choose a valid scroll position.");
+    if (Number.isInteger(Number(index)) && Number(index) !== presentation.currentIndex) {
+      return presentation;
+    }
+    presentation.scroll = Math.min(1, Math.max(0, value));
+  } else if (action === "rotate") {
+    const slide = presentation.slides[presentation.currentIndex];
+    if (!slide) throw new HttpError(409, "There is no current slide to rotate.");
+    slide.rotation = ((Number(slide.rotation) || 0) + 90) % 360;
+    presentation.scroll = 0;
+  } else if (action === "next") {
+    presentation.currentIndex = Math.min(presentation.slides.length - 1, presentation.currentIndex + 1);
+    presentation.scroll = 0;
+  } else if (action === "prev") {
+    presentation.currentIndex = Math.max(0, presentation.currentIndex - 1);
+    presentation.scroll = 0;
+  } else if (action === "goto") {
+    const next = Number(index);
+    if (!Number.isInteger(next) || next < 0 || next >= presentation.slides.length) {
+      throw new HttpError(400, "That slide does not exist.");
+    }
+    presentation.currentIndex = next;
+    presentation.scroll = 0;
+  } else {
+    throw new HttpError(400, "Unknown presentation action.");
+  }
+  scheduleSave();
+  broadcastState();
+  return presentation;
+}
+
+function prunePresentationFiles() {
+  if (!fs.existsSync(PRESENTATION_DIR)) return;
+  const cutoff = Date.now() - PRESENTATION_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const activeId = state.presentation?.id || null;
+  for (const entry of fs.readdirSync(PRESENTATION_DIR)) {
+    if (entry === activeId) continue;
+    const target = path.join(PRESENTATION_DIR, entry);
+    try {
+      if (fs.statSync(target).mtimeMs < cutoff) {
+        fs.rmSync(target, { recursive: true, force: true });
+      }
+    } catch {
+      // A damaged or already-removed directory is fine to skip.
+    }
+  }
+}
+
+function discardPresentationDeck() {
+  const presentation = state.presentation;
+  if (!presentation) throw new HttpError(404, "Presentation not found.");
+  if (presentation.status === "live") {
+    throw new HttpError(409, "End the presentation before discarding the deck.");
+  }
+  removePresentationFiles(presentation.id);
+  presentation.slides = [];
+  presentation.currentIndex = 0;
+  presentation.scroll = 0;
+  presentation.status = "ready";
+  presentation.activeView = "slides";
+  presentation.startedAt = null;
+  presentation.closedAt = null;
+  state.round = null;
+  state.survey = null;
+  state.session = null;
+  state.sessionClosedAt = null;
+  scheduleSave();
+  broadcastState();
+  return presentation;
+}
+
+function controllerAuthorized(req) {
+  if (isHostAuthed(req)) return true;
+  const token = String(req.headers["x-controller-token"] || req.query?.token || "");
+  return Boolean(
+    token &&
+      state.presentation &&
+      (state.presentation.status === "live" || state.presentation.status === "ready") &&
+      token === state.presentation.controllerToken,
+  );
+}
+
+function startPresentationInteraction(mode, details) {
+  const presentation = state.presentation;
+  if (!presentation || presentation.status !== "live") {
+    throw new HttpError(409, "Start the presentation first.");
+  }
+  if (state.round?.status === "open") {
+    throw new HttpError(409, "Finish the current interaction first.");
+  }
+  if (state.survey?.status === "open") {
+    throw new HttpError(409, "Finish the current survey first.");
+  }
+  if (revealTimer) {
+    clearTimeout(revealTimer);
+    revealTimer = null;
+  }
+  if (tieBreakTimer) {
+    clearTimeout(tieBreakTimer);
+    tieBreakTimer = null;
+  }
+  state.survey = null;
+  state.round = createRound(details);
+  presentation.activeView = mode === "hands" ? "hands" : "poll";
+  armRevealTimer();
+  scheduleSave();
+  broadcastState();
+  return state.round;
+}
+
+function endPresentationInteraction() {
+  const presentation = state.presentation;
+  if (!presentation) throw new HttpError(404, "Presentation not found.");
+  if (revealTimer) {
+    clearTimeout(revealTimer);
+    revealTimer = null;
+  }
+  if (tieBreakTimer) {
+    clearTimeout(tieBreakTimer);
+    tieBreakTimer = null;
+  }
+  state.round = null;
+  state.survey = null;
+  presentation.activeView = "slides";
+  scheduleSave();
+  broadcastState();
+  return presentation;
+}
+
 function resetRound() {
   if (revealTimer) {
     clearTimeout(revealTimer);
@@ -1273,6 +1898,7 @@ function endSession() {
   }
   state.round = null;
   state.session = null;
+  if (state.presentation?.status === "live") state.presentation.activeView = "slides";
   state.sessionClosedAt = Date.now();
   scheduleSave();
   broadcastState();
@@ -1514,6 +2140,19 @@ async function saveAuthRecord(record) {
 }
 
 const loginAttempts = new Map();
+const qrAttempts = new Map();
+
+function qrAllowed(ip) {
+  const now = Date.now();
+  const entry = qrAttempts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    qrAttempts.set(ip, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  if (entry.count >= 60) return false;
+  entry.count += 1;
+  return true;
+}
 
 function loginAllowed(ip) {
   const now = Date.now();
@@ -1538,6 +2177,13 @@ function recordLoginFailure(ip) {
 function requireHost(req, res, next) {
   if (!isHostAuthed(req)) {
     return res.status(401).json({ error: "Host access required.", code: "host_required" });
+  }
+  next();
+}
+
+function requireController(req, res, next) {
+  if (!controllerAuthorized(req)) {
+    return res.status(401).json({ error: "Controller access required.", code: "controller_required" });
   }
   next();
 }
@@ -1710,7 +2356,7 @@ function identifyLogo(buffer, mime) {
 
 const app = express();
 app.disable("x-powered-by");
-app.set("trust proxy", true);
+app.set("trust proxy", "loopback");
 
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -1725,12 +2371,13 @@ app.use((req, res, next) => {
       "script-src 'self'",
       "font-src 'self'",
       "connect-src 'self' ws: wss:",
+      "worker-src 'self'",
       "base-uri 'none'",
       "form-action 'self'",
       "frame-ancestors 'none'",
     ].join("; "),
   );
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), display-capture=(), geolocation=()");
   next();
 });
 
@@ -1749,9 +2396,48 @@ app.use(
   }),
 );
 
+app.use(
+  "/vendor/pdfjs",
+  express.static(path.join(__dirname, "node_modules", "pdfjs-dist", "build"), {
+    index: false,
+    maxAge: "1h",
+  }),
+);
+
 app.get("/", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.sendFile(path.join(PUBLIC_DIR, "player.html"));
+  if (!isHostAuthed(req)) return res.redirect(302, "/host?next=/");
+  res.sendFile(path.join(PUBLIC_DIR, "landing.html"));
+});
+
+app.get("/present", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.sendFile(path.join(PUBLIC_DIR, "present.html"));
+});
+
+app.get("/controller", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.sendFile(path.join(PUBLIC_DIR, "controller.html"));
+});
+
+app.get("/share", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.sendFile(path.join(PUBLIC_DIR, "share.html"));
+});
+
+app.get("/thanks", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.sendFile(path.join(PUBLIC_DIR, "thanks.html"));
+});
+
+app.get("/thanks-host", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.sendFile(path.join(PUBLIC_DIR, "thanks-host.html"));
 });
 
 app.get("/join", (req, res) => {
@@ -1827,6 +2513,10 @@ app.get("/api/theme/logo", (req, res) => {
 
 app.get("/api/qr", async (req, res, next) => {
   try {
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    if (!qrAllowed(ip)) {
+      throw new HttpError(429, "Too many QR requests. Wait a minute and try again.");
+    }
     const data = typeof req.query.data === "string" ? req.query.data.trim() : "";
     if (!data || data.length > 500 || !/^https?:\/\//i.test(data)) {
       throw new HttpError(400, "A valid http or https link is required for the QR code.");
@@ -1937,7 +2627,314 @@ app.post("/api/host/logout", (req, res) => {
 
 app.get("/api/host/state", requireHost, (req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.json({ state: publicState({ includeCounts: true }) });
+  res.json({
+    state: publicState({ includeCounts: true, includeSlides: true }),
+    presentationToken: state.presentation?.controllerToken || null,
+  });
+});
+
+app.get("/api/controller/state", requireController, (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const slideToken = String(req.headers["x-controller-token"] || req.query?.token || "");
+  res.json({
+    state: publicState({ includeSlides: true, slideToken }),
+  });
+});
+
+app.get("/api/presentation/slide/:id", requireController, (req, res) => {
+  const presentation = state.presentation;
+  if (!presentation) return res.status(404).end();
+  const slide = presentation.slides.find((entry) => entry.id === req.params.id);
+  if (!slide) return res.status(404).end();
+  const file = presentationSlidePath(presentation.id, slide.id, slide.ext);
+  if (!fs.existsSync(file)) {
+    console.error("Presentation slide missing", {
+      presentationId: presentation.id,
+      slideId: slide.id,
+      ext: slide.ext,
+      file,
+    });
+    return res.status(404).end();
+  }
+  try {
+    const buffer = fs.readFileSync(file);
+    res.setHeader("Cache-Control", "private, max-age=300");
+    res.type(slide.type || "image/png");
+    res.send(buffer);
+  } catch (error) {
+    console.error("Could not read presentation slide", {
+      file,
+      message: error.message,
+    });
+    res.status(404).end();
+  }
+});
+
+app.get("/api/host/presentation/state", requireHost, (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json({
+    presentation: publicPresentation(state.presentation),
+    token: state.presentation?.controllerToken || null,
+  });
+});
+
+app.post("/api/host/presentation/reopen", requireHost, (req, res, next) => {
+  try {
+    const presentation = state.presentation;
+    if (!presentation) throw new HttpError(404, "Presentation not found.");
+    if (presentation.status === "live") {
+      throw new HttpError(409, "End the live presentation before editing the deck.");
+    }
+    presentation.status = "ready";
+    presentation.closedAt = null;
+    presentation.activeView = "slides";
+    scheduleSave();
+    broadcastState();
+    res.json({
+      presentation: publicPresentation(presentation),
+      token: presentation.controllerToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/host/presentation/title", requireHost, (req, res, next) => {
+  try {
+    if (!state.presentation) throw new HttpError(404, "Presentation not found.");
+    if (state.presentation.status !== "ready") {
+      throw new HttpError(409, "The title can only be changed before the presentation starts.");
+    }
+    state.presentation.title = cleanString(req.body?.title, LIMITS.title) || "Presentation";
+    scheduleSave();
+    broadcastState();
+    res.json({
+      presentation: publicPresentation(state.presentation),
+      token: state.presentation.controllerToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/host/presentation/create", requireHost, (req, res, next) => {
+  try {
+    const presentation = createPresentation(req.body?.title);
+    res.status(201).json({
+      presentation: publicPresentation(presentation),
+      token: presentation.controllerToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post(
+  "/api/host/presentation/slides",
+  requireHost,
+  express.raw({
+    type: ["image/png", "image/jpeg", "image/webp"],
+    limit: "25mb",
+  }),
+  (req, res, next) => {
+    try {
+      let name = "";
+      try {
+        name = decodeURIComponent(String(req.headers["x-slide-name"] || ""));
+      } catch {
+        name = String(req.headers["x-slide-name"] || "");
+      }
+      const presentation = addPresentationSlide(req.body, req.headers["content-type"], name);
+      res.status(201).json({
+        presentation: publicPresentation(presentation),
+        token: presentation.controllerToken,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+app.delete("/api/host/presentation/slides/:id", requireHost, (req, res, next) => {
+  try {
+    const presentation = deletePresentationSlide(req.params.id);
+    res.json({
+      presentation: publicPresentation(presentation),
+      token: presentation.controllerToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/host/presentation/start", requireHost, (req, res, next) => {
+  try {
+    const presentation = startPresentation();
+    res.json({
+      presentation: publicPresentation(presentation),
+      token: presentation.controllerToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/host/presentation/token", requireHost, (req, res, next) => {
+  try {
+    if (!state.presentation) throw new HttpError(404, "Presentation not found.");
+    state.presentation.controllerToken = crypto.randomBytes(24).toString("base64url");
+    scheduleSave();
+    broadcastState();
+    res.json({
+      presentation: publicPresentation(state.presentation),
+      token: state.presentation.controllerToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/host/presentation/close", requireHost, (req, res, next) => {
+  try {
+    if (!state.presentation) throw new HttpError(404, "Presentation not found.");
+    if (state.presentation.status === "live") controlPresentation("close");
+    res.json({
+      presentation: publicPresentation(state.presentation),
+      token: state.presentation?.controllerToken || null,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete("/api/host/presentation", requireHost, (req, res, next) => {
+  try {
+    const presentation = discardPresentationDeck();
+    res.json({
+      ok: true,
+      presentation: publicPresentation(presentation),
+      token: presentation.controllerToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/presentation/interaction", requireController, (req, res, next) => {
+  try {
+    const mode = req.body?.mode === "hands" ? "hands" : "poll";
+    const details = validateRoundInput({
+      mode,
+      title: req.body?.title,
+      question: req.body?.question,
+      options: req.body?.options,
+      durationSec: req.body?.durationSec,
+      spinOnTie: req.body?.spinOnTie,
+    });
+    const round = startPresentationInteraction(mode, details);
+    res.json({ ok: true, roundId: round.id, state: publicState() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/presentation/interaction/reveal", requireController, (req, res) => {
+  const revealed = revealRound("host");
+  if (!revealed) return res.status(409).json({ error: "There is no open poll to reveal." });
+  res.json({ ok: true, state: publicState() });
+});
+
+app.post("/api/presentation/interaction/tiebreak", requireController, (req, res, next) => {
+  try {
+    const round = state.round;
+    if (!round || round.status !== "revealed" || round.mode !== "poll") {
+      throw new HttpError(409, "Reveal the poll before spinning the wheel.");
+    }
+    if (!round.spinOnTie) {
+      throw new HttpError(409, "The tie-breaker wheel is not enabled for this poll.");
+    }
+    const results = buildResults(round);
+    if (results.winners.length < 2) {
+      throw new HttpError(409, "This poll is not tied.");
+    }
+    if (round.tieBreak) {
+      throw new HttpError(409, "The tie-breaker has already been used for this round.");
+    }
+    const winnerOptionId = results.winners[crypto.randomInt(results.winners.length)];
+    const now = Date.now();
+    round.tieBreak = {
+      status: "spinning",
+      pool: [...results.winners],
+      winnerOptionId,
+      startedAt: now,
+      endsAt: now + TIEBREAK_MS,
+      completedAt: null,
+    };
+    armTieBreakTimer();
+    scheduleSave();
+    broadcastState();
+    res.json({
+      ok: true,
+      winnerOptionId,
+      endsAt: round.tieBreak.endsAt,
+      state: publicState(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/presentation/interaction/close-hands", requireController, (req, res) => {
+  const round = state.round;
+  if (!round || round.mode !== "hands") {
+    return res.status(409).json({ error: "There is no live-hands round open." });
+  }
+  if (round.status === "open") {
+    round.status = "closed";
+    round.closedAt = Date.now();
+    scheduleSave();
+    broadcastState();
+  }
+  res.json({ ok: true, state: publicState() });
+});
+
+app.post("/api/presentation/interaction/end", requireController, (req, res, next) => {
+  try {
+    const presentation = endPresentationInteraction();
+    res.json({ ok: true, presentation: publicPresentation(presentation), state: publicState() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/presentation/end", requireController, (req, res, next) => {
+  try {
+    if (!state.presentation) throw new HttpError(404, "Presentation not found.");
+    if (state.presentation.status === "live") controlPresentation("close");
+    const slideToken = String(req.headers["x-controller-token"] || req.query?.token || "");
+    res.json({
+      ok: true,
+      presentation: publicPresentation(state.presentation, { slideToken }),
+      state: publicState(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/presentation/control", requireController, (req, res, next) => {
+  try {
+    const presentation = controlPresentation(
+      req.body?.action,
+      req.body?.index,
+      req.body?.fitMode,
+      req.body?.scroll,
+    );
+    const slideToken = String(req.headers["x-controller-token"] || req.query?.token || "");
+    res.json({ presentation: publicPresentation(presentation, { slideToken }) });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get("/api/host/palettes", requireHost, (req, res) => {
@@ -2052,7 +3049,8 @@ app.post("/api/survey/answer", (req, res, next) => {
     }
     const questionId = typeof req.body?.questionId === "string" ? req.body.questionId : "";
     const optionId = typeof req.body?.optionId === "string" ? req.body.optionId : "";
-    const survey = submitSurveyAnswer(playerId, questionId, optionId);
+    const customLabel = typeof req.body?.customLabel === "string" ? req.body.customLabel : "";
+    const survey = submitSurveyAnswer(playerId, questionId, optionId, customLabel);
     res.json({
       ok: true,
       state: publicState(),
@@ -2224,8 +3222,14 @@ app.post("/api/vote", (req, res, next) => {
       throw new HttpError(400, "This browser could not be identified. Reload and try again.");
     }
 
-    const optionId = typeof req.body?.optionId === "string" ? req.body.optionId : "";
-    if (!round.options.some((option) => option.id === optionId)) {
+    let optionId = typeof req.body?.optionId === "string" ? req.body.optionId : "";
+    const customLabel = typeof req.body?.customLabel === "string" ? req.body.customLabel : "";
+    if (customLabel.trim()) {
+      if (round.allowCustom === false) {
+        throw new HttpError(403, "Write-in answers are turned off for this poll.");
+      }
+      optionId = resolveCustomOption(round, playerId, customLabel).id;
+    } else if (!allOptions(round).some((option) => option.id === optionId)) {
       throw new HttpError(400, "Pick one of the answers on screen.");
     }
 
@@ -2263,7 +3267,21 @@ app.use((error, req, res, next) => {
 });
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ noServer: true });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 512 * 1024 });
+
+function allowedWebSocketOrigin(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try {
+    const originUrl = new URL(origin);
+    const host = req.headers["x-forwarded-host"] || req.headers.host;
+    if (host && originUrl.host === host) return true;
+    if (PUBLIC_URL && originUrl.origin === new URL(PUBLIC_URL).origin) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
 
 server.on("upgrade", (req, socket, head) => {
   let url;
@@ -2278,7 +3296,14 @@ server.on("upgrade", (req, socket, head) => {
     return;
   }
 
-  const role = url.searchParams.get("role") === "host" ? "host" : "player";
+  if (!allowedWebSocketOrigin(req)) {
+    socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
+    socket.destroy();
+    return;
+  }
+
+  const requestedRole = url.searchParams.get("role");
+  const role = requestedRole === "host" ? "host" : "player";
   if (role === "host" && !isHostAuthed(req)) {
     socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
     socket.destroy();
@@ -2297,15 +3322,7 @@ server.on("upgrade", (req, socket, head) => {
 });
 
 wss.on("connection", (ws) => {
-  const currentState = publicState();
-  sendJson(ws, {
-    type: "state",
-    state: ws.role === "host" ? publicState({ includeCounts: true }) : currentState,
-    you:
-      ws.role === "host"
-        ? null
-        : personalState(state.round, ws.playerId, state.survey),
-  });
+  sendJson(ws, statePayloadFor(ws));
 
   ws.on("pong", () => {
     ws.isAlive = true;
@@ -2334,6 +3351,7 @@ const heartbeat = setInterval(() => {
 initAuth();
 loadCustomPalettes();
 loadState();
+prunePresentationFiles();
 armRevealTimer();
 armTieBreakTimer();
 armSurveyTimer();
@@ -2349,13 +3367,15 @@ server.on("error", (error) => {
 });
 
 server.listen(PORT, HOST_BIND, () => {
-  const audience = IS_PUBLIC ? JOIN_URL : LAN_URL;
+  const audience = JOIN_URL;
   const line = "─".repeat(58);
   console.log("");
   console.log("  ROOM CHECK");
   console.log("  " + line);
   console.log("  Audience     " + audience);
   console.log("  Host console http://localhost:" + PORT + "/host");
+  console.log("  Projector    http://localhost:" + PORT + "/present");
+  console.log("  Share card   http://localhost:" + PORT + "/share");
   console.log("  Host auth    " + (authRecord ? "Password protected" : "First-run setup needed"));
   console.log("  Mode         " + (IS_PUBLIC ? "Public link" : "Same Wi-Fi / LAN"));
   console.log("  " + line);

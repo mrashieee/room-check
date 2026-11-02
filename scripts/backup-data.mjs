@@ -23,3 +23,19 @@ const destination = path.join(path.dirname(dataDir), `.data-backup-${stamp}`);
 
 fs.cpSync(dataDir, destination, { recursive: true, force: false, errorOnExist: true });
 console.log(`Backed up ${dataDir} to ${destination}`);
+
+const keepValue = Number(process.env.BACKUP_KEEP || 10);
+const keep = Number.isFinite(keepValue) ? Math.max(1, keepValue) : 10;
+const parent = path.dirname(dataDir);
+const backups = fs
+  .readdirSync(parent)
+  .filter((name) => name.startsWith(".data-backup-"))
+  .map((name) => path.join(parent, name))
+  .filter((entry) => fs.statSync(entry).isDirectory())
+  .sort()
+  .reverse();
+for (const old of backups.slice(keep)) {
+  fs.rmSync(old, { recursive: true, force: true });
+  console.log(`Removed old backup ${old}`);
+}
+console.log(`Keeping the newest ${keep} backup${keep === 1 ? "" : "s"}.`);

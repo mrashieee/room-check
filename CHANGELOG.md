@@ -2,17 +2,98 @@
 
 All notable changes to Room Check are documented here.
 
+## 3.0.0 — 2026-11-02
+
+### Added
+
+- Offline-first presenter assistant with projector slides, phone controller and a silent audience screen
+- Landing page with **Presentation** and **Poll, survey or hands** entries, without numbering
+- `/present` projector setup and full-screen display with image/PDF slide uploads
+- `/controller` phone controller with QR-token pairing, host-password fallback, fit width/page and tall-slide scrolling
+- Remote scroll sync: scrolling the controller preview scrolls the projector
+- Audience attention screen on `/join` while slides are presented
+- Controller tabs for Slides, Poll and Hands
+- Quick polls with 2–10 answers, timers, tie-breaker spins, result highlighting and private write-ins
+- Multi-question surveys with audience-driven progression, review screens, QR joining and post-survey graphs
+- Live Hands with a raised-hand count on the projector
+- End session from the controller, projector header or full-screen display bar
+- Host end screen and matching audience thank-you screen
+- `/share` audience QR/link card with a downloadable 1920×1080 PNG
+- Tunnel-aware share link: `npm run share` sets `PUBLIC_URL` so the QR and share card use the public address
+- Desktop shell keeps the header and footer visible while the middle content scrolls; phones keep normal page scrolling
+- Landing cards use the same neutral card style, with Presentation matching Poll, survey or hands
+- Landing header uses Home; the host and presenter headers also expose Share
+- Presentation header End session uses the same muted treatment as the host header
+- Desktop landing fills the viewport, aligns content to the top-left and hides the scrollbar
+- Landing page is protected by host login and returns there after login
+- Landing header exposes customise, fullscreen and End session
+- Landing customise opens the theme customiser in place instead of navigating to `/host`
+- Host-facing Room Check brands return to `/`
+- End session opens `/thanks-host` from projector, host, home and controller; the audience opens `/thanks`
+- `/thanks` and `/thanks-host` carry support copy, an accented GitHub star action and GitHub QR; only the host version has Start another session
+- Start another session resets the ended state, returns the host to `/` and the audience to `/join` standby
+- Host header exposes End presentation while live; the interaction button becomes End interaction and stays hidden when no poll/survey is active
+- Presenter setup exposes Stop presentation and a link to laptop host controls
+- Host and controller can toggle audience write-in answers per poll or survey
+- Controller QR is available before start and supports no-slide polls, hands and surveys
+- Presenter starts an empty session with Start session instead of requiring a slide
+- Smoke coverage now includes fullscreen, customiser save, controller password pairing, presenter controls, share copy and every end-session path
+- Survey results still stay on `/join` after a survey closes
+- Presenter preflight audience link, LAN/tunnel label and copy action
+- Inactive presentation retention and backup rotation
+- WebSocket origin checks, QR rate limiting and controller-link rotation
+- Customiser background inerting and reduced-motion accessibility
+- GitHub Actions syntax and browser smoke workflow
+- Projector connection feedback and live-session close/reload warning
+- Automated Chromium smoke test covering setup, slides, controller, polls, hands, surveys, share card, slide access and end session
+- Slide images now require the host cookie or controller token; public state no longer exposes slide URLs
+- Controller state endpoint scoped to the active controller token
+- Host theme customiser, named palettes, custom logo, backups and update page remain available
+
+### Changed
+
+- The app is now offline-first and tunnel-based. The projector owns the slides; the audience screen handles interactions only.
+- The audience link is a normal web page delivered by the tunnel. The tunnel is not a media relay.
+- `/present` always opens the offline projector.
+- `/join` is the only audience route. The old online room and live audience routes are gone.
+- The share card now shows the audience join link and presentation title, not a room code.
+- Documentation rewritten for the offline/tunnel workflow.
+
+### Removed
+
+- Online presentation mode, online rooms and room codes
+- WebRTC screen/camera sharing, microphone mixing, STUN/TURN configuration and ICE endpoints
+- Online host page, live audience page and online-only styles
+- Chat, emoji reactions, custom stickers and online pause controls
+- Online room lifecycle and signaling code
+
+### Fixed
+
+- Audience logos no longer navigate back to the landing page; host-facing brands return home
+- Divider alignment and projector clarity improvements at 1080p
+- Updating a vote flashes the audience confirmation seal
+- End session remains reachable while the projector is full-screen
+- Custom write-in labels capitalize the first letter and merge spelling/typo variants
+- Result lists can contain more than 10 options
+
 ## 2.5.1 — 2026-10-31
 
 Bug-fix release for the live survey flow.
 
-### Fixed
+### Survey flow
 
-- Survey voters choose **Next question** instead of being advanced automatically
-- The audience sees survey results after the survey closes instead of the thank-you screen
-- Audience survey results are rendered as per-question answer cards
-- Survey Next and Back controls now respect the voter’s selected answer
-- Version updated to 2.5.1
+- Questions no longer advance automatically. Voters choose **Next question** when they are ready.
+- **Back** returns to the previous question, and the final question shows **Finish**.
+- Answers can be changed from the review screen with **Save answer**.
+- When a survey closes, the audience sees the survey results instead of the thank-you screen.
+- Audience results show each question with answer bars and percentages.
+- The host still sees live respondent counts and can view answer graphs after finishing.
+- Version updated to 2.5.1.
+
+### Unchanged
+
+- Single polls and Live Hands keep their existing flows.
+- Survey QR joining and the overall survey timer remain available.
 
 ## 2.5.0 — 2026-10-31
 

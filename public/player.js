@@ -22,6 +22,7 @@ import { contrastRatio } from "./theme-config.js";
 const playerId = getPlayerId();
 const screens = {
   connecting: $("#screen-connecting"),
+  presentation: $("#screen-presentation"),
   waiting: $("#screen-waiting"),
   vote: $("#screen-vote"),
   hands: $("#screen-hands"),
@@ -30,7 +31,6 @@ const screens = {
   surveyDone: $("#screen-survey-done"),
   surveyResults: $("#screen-survey-results"),
   results: $("#screen-results"),
-  thanks: $("#screen-thanks"),
   error: $("#screen-error"),
 };
 
@@ -54,17 +54,26 @@ const surveyQuestion = $("#survey-question");
 const surveyOptions = $("#survey-options");
 const surveyBack = $("#survey-back");
 const surveyNext = $("#survey-next");
+const surveyWriteIn = $("#survey-write-in");
+const surveyWriteInInput = $("#survey-write-in-input");
+const surveyWriteInSubmit = $("#survey-write-in-submit");
+const surveyWriteInNote = $("#survey-write-in-note");
 const surveySaveStatus = $("#survey-save-status");
 const surveyDoneProgress = $("#survey-done-progress");
 const surveyReview = $("#survey-review");
 const surveyResultsTitle = $("#survey-results-title");
 const surveyResultsList = $("#survey-results-list");
+const presentationTitle = $("#presentation-title");
 const votedOption = $("#voted-option");
 const votedCount = $("#voted-count");
 const votedCountLabel = $("#voted-count-label");
 const votedWaiting = $("#voted-waiting");
 const changeVoteButton = $("#change-vote-button");
 const changeVoteNote = $("#change-vote-note");
+const voteWriteIn = $("#vote-write-in");
+const voteWriteInInput = $("#vote-write-in-input");
+const voteWriteInSubmit = $("#vote-write-in-submit");
+const voteWriteInNote = $("#vote-write-in-note");
 const resultsTitle = $("#results-title");
 const resultsEyebrow = $("#results-eyebrow");
 const resultsWinner = $("#results-winner");
@@ -91,9 +100,14 @@ let surveyIndex = 0;
 let surveyAnswers = {};
 let surveyBusy = false;
 let surveyReturnToReview = false;
+let renderedSurveyQuestionKey = null;
 let renderedRoundId = null;
 let renderedResultsKey = null;
 let myVote = null;
+let myCustomOption = null;
+let mySelectedCustomOption = null;
+let mySurveyCustomOptions = {};
+let mySurveyCreatedCustomOptions = {};
 let myHandRaised = false;
 let handsBusy = false;
 let selectedOption = null;
@@ -125,7 +139,15 @@ function announce(message) {
 }
 
 function optionById(optionId) {
-  return currentState?.round?.options?.find((option) => option.id === optionId) || null;
+  return (
+    currentState?.round?.options?.find((option) => option.id === optionId) ||
+    currentState?.round?.results?.options?.find((option) => option.id === optionId) ||
+    null
+  );
+}
+
+function myVoteOption() {
+  return mySelectedCustomOption || optionById(myVote);
 }
 
 function sessionProgressText(session) {
@@ -160,38 +182,49 @@ function refreshChoiceInks() {
 
 document.addEventListener("roomcheck:theme", refreshChoiceInks);
 
+function appendVoteOption(option, index, { selected = false } = {}) {
+  const label = document.createElement("label");
+  label.className = "vote-option";
+  label.dataset.color = option.color || "lime";
+  label.style.setProperty("--i", String(index));
+  applyChoiceInk(label, label.dataset.color);
+  label.classList.toggle("is-selected", selected);
+
+  const input = document.createElement("input");
+  input.type = "radio";
+  input.name = "answer";
+  input.value = option.id;
+  input.checked = selected;
+
+  const letter = document.createElement("span");
+  letter.className = "option-letter";
+  letter.setAttribute("aria-hidden", "true");
+  letter.textContent = LETTERS[index] || String(index + 1);
+
+  const text = document.createElement("span");
+  text.className = "option-text";
+  text.textContent = option.label;
+
+  const check = document.createElement("span");
+  check.className = "option-check";
+  check.setAttribute("aria-hidden", "true");
+  check.innerHTML =
+    '<svg viewBox="0 0 20 20"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+
+  label.append(input, letter, text, check);
+  voteOptions.append(label);
+}
+
 function buildVoteOptions(round) {
   voteOptions.replaceChildren();
+  const hostIds = new Set(round.options.map((option) => option.id));
+  const privateOptions = [myCustomOption, mySelectedCustomOption]
+    .filter((option) => option && !hostIds.has(option.id))
+    .filter((option, index, list) => list.findIndex((entry) => entry.id === option.id) === index);
+  const allOptions = [...round.options, ...privateOptions];
 
-  round.options.forEach((option, index) => {
-    const label = document.createElement("label");
-    label.className = "vote-option";
-    label.dataset.color = option.color || "lime";
-    label.style.setProperty("--i", String(index));
-    applyChoiceInk(label, label.dataset.color);
-
-    const input = document.createElement("input");
-    input.type = "radio";
-    input.name = "answer";
-    input.value = option.id;
-
-    const letter = document.createElement("span");
-    letter.className = "option-letter";
-    letter.setAttribute("aria-hidden", "true");
-    letter.textContent = LETTERS[index] || String(index + 1);
-
-    const text = document.createElement("span");
-    text.className = "option-text";
-    text.textContent = option.label;
-
-    const check = document.createElement("span");
-    check.className = "option-check";
-    check.setAttribute("aria-hidden", "true");
-    check.innerHTML =
-      '<svg viewBox="0 0 20 20"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
-
-    label.append(input, letter, text, check);
-    voteOptions.append(label);
+  allOptions.forEach((option, index) => {
+    appendVoteOption(option, index, { selected: myVote === option.id });
   });
 }
 
@@ -224,6 +257,13 @@ function renderVoteScreen(round, { force = false, selected = null } = {}) {
       ? "Choose a new answer. Your current vote stays until you update it."
       : "Choose one. You can change it until voting closes.";
     voteSubmit.disabled = !selectedOption;
+    if (roundChanged) {
+      voteWriteInInput.value = "";
+    }
+    voteWriteIn.hidden = Boolean(myCustomOption) || round.allowCustom === false;
+    voteWriteInNote.textContent = myCustomOption
+      ? `You added “${myCustomOption.label}”. You can still change your vote.`
+      : "Only you and the host can see this option while voting.";
     window.scrollTo({ top: 0, behavior: "auto" });
   }
   const progress = sessionProgressText(currentState?.session);
@@ -248,7 +288,7 @@ function updateChangeVoteState() {
 }
 
 function renderVotedScreen(round) {
-  const chosen = optionById(myVote);
+  const chosen = myVoteOption();
   if (!chosen) {
     myVote = null;
     renderScreen();
@@ -269,6 +309,15 @@ function renderVotedScreen(round) {
     votedWaiting.textContent = "The room is weighing in…";
   }
   const changed = showScreen("voted");
+  if (voteWasUpdated) {
+    const seal = screens.voted?.querySelector(".success-seal");
+    if (seal) {
+      seal.classList.remove("is-updated");
+      void seal.offsetWidth;
+      seal.classList.add("is-updated");
+      setTimeout(() => seal.classList.remove("is-updated"), 900);
+    }
+  }
   if (changed) {
     announce(
       voteWasUpdated
@@ -285,39 +334,50 @@ function surveyFirstUnanswered(survey) {
   return index === -1 ? survey.questions.length : index;
 }
 
+function appendSurveyOption(question, option, index) {
+  const label = document.createElement("label");
+  label.className = "vote-option";
+  label.dataset.color = option.color || "lime";
+  label.style.setProperty("--i", String(index));
+  applyChoiceInk(label, label.dataset.color);
+
+  const input = document.createElement("input");
+  input.type = "radio";
+  input.name = "survey-answer";
+  input.value = option.id;
+  input.checked = surveyAnswers[question.id] === option.id;
+  label.classList.toggle("is-selected", input.checked);
+
+  const letter = document.createElement("span");
+  letter.className = "option-letter";
+  letter.setAttribute("aria-hidden", "true");
+  letter.textContent = LETTERS[index] || String(index + 1);
+
+  const text = document.createElement("span");
+  text.className = "option-text";
+  text.textContent = option.label;
+
+  const check = document.createElement("span");
+  check.className = "option-check";
+  check.setAttribute("aria-hidden", "true");
+  check.innerHTML =
+    '<svg viewBox="0 0 20 20"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+
+  label.append(input, letter, text, check);
+  surveyOptions.append(label);
+}
+
 function buildSurveyOptions(question) {
   surveyOptions.replaceChildren();
-  question.options.forEach((option, index) => {
-    const label = document.createElement("label");
-    label.className = "vote-option";
-    label.dataset.color = option.color || "lime";
-    label.style.setProperty("--i", String(index));
-    applyChoiceInk(label, label.dataset.color);
-
-    const input = document.createElement("input");
-    input.type = "radio";
-    input.name = "survey-answer";
-    input.value = option.id;
-    input.checked = surveyAnswers[question.id] === option.id;
-    label.classList.toggle("is-selected", input.checked);
-
-    const letter = document.createElement("span");
-    letter.className = "option-letter";
-    letter.setAttribute("aria-hidden", "true");
-    letter.textContent = LETTERS[index] || String(index + 1);
-
-    const text = document.createElement("span");
-    text.className = "option-text";
-    text.textContent = option.label;
-
-    const check = document.createElement("span");
-    check.className = "option-check";
-    check.setAttribute("aria-hidden", "true");
-    check.innerHTML =
-      '<svg viewBox="0 0 20 20"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
-
-    label.append(input, letter, text, check);
-    surveyOptions.append(label);
+  const hostIds = new Set(question.options.map((option) => option.id));
+  const privateOptions = [
+    mySurveyCreatedCustomOptions[question.id],
+    mySurveyCustomOptions[question.id],
+  ]
+    .filter((option) => option && !hostIds.has(option.id))
+    .filter((option, index, list) => list.findIndex((entry) => entry.id === option.id) === index);
+  [...question.options, ...privateOptions].forEach((option, index) => {
+    appendSurveyOption(question, option, index);
   });
 }
 
@@ -345,12 +405,23 @@ function renderSurveyQuestion(statusMessage = "") {
     return;
   }
   const question = survey.questions[surveyIndex];
+  const questionKey = `${survey.id}:${surveyIndex}`;
+  if (questionKey !== renderedSurveyQuestionKey) {
+    renderedSurveyQuestionKey = questionKey;
+    surveyWriteInInput.value = "";
+  }
   surveyEyebrow.textContent = survey.title || "Room Check survey";
   surveyQuestion.textContent = question.question;
   surveyProgress.hidden = false;
   surveyProgress.textContent = `Question ${surveyIndex + 1} of ${survey.questions.length}`;
   surveyBack.disabled = surveyIndex === 0 || surveyBusy;
   surveySaveStatus.textContent = statusMessage || "Choose one answer, then continue.";
+  const created = mySurveyCreatedCustomOptions[question.id];
+  surveyWriteIn.hidden = Boolean(created) || question.allowCustom === false;
+  surveyWriteInNote.textContent = created
+    ? `You added “${created.label}”. You can still change your answer.`
+    : "Only you and the host can see this while the survey is open.";
+  if (statusMessage) surveyWriteInNote.textContent = statusMessage;
   buildSurveyOptions(question);
   updateSurveyNextState();
   const changed = showScreen("survey");
@@ -374,7 +445,11 @@ function renderSurveyDone() {
 
   survey.questions.forEach((question, index) => {
     const answerId = surveyAnswers[question.id];
-    const answer = question.options.find((option) => option.id === answerId);
+    const answer =
+      question.options.find((option) => option.id === answerId) ||
+      mySurveyCustomOptions[question.id] ||
+      mySurveyCreatedCustomOptions[question.id] ||
+      null;
     const row = document.createElement("div");
     row.className = "survey-review-row";
 
@@ -448,7 +523,7 @@ function renderSurveyResults() {
   const survey = currentState?.survey;
   const results = survey?.results;
   if (!survey || !results?.length) {
-    renderThanks();
+    location.href = "/thanks";
     return;
   }
 
@@ -672,14 +747,20 @@ function renderResults(round) {
   }
 }
 
+function renderPresentationSilent() {
+  const presentation = currentState?.presentation;
+  if (!presentation) {
+    renderWaiting();
+    return;
+  }
+  presentationTitle.textContent = presentation.title || "Look up front.";
+  const changed = showScreen("presentation");
+  if (changed) announce("Presentation in progress. Look up at the big screen.");
+}
+
 function renderWaiting() {
   const changed = showScreen("waiting");
   if (changed) announce("Waiting for the host to start the poll.");
-}
-
-function renderThanks() {
-  const changed = showScreen("thanks");
-  if (changed) announce("Thanks for joining. You can star Room Check on GitHub.");
 }
 
 function renderHands(round) {
@@ -736,7 +817,8 @@ function renderScreen() {
       if (survey.results?.length) {
         renderSurveyResults();
       } else {
-        renderThanks();
+        location.href = "/thanks";
+        return;
       }
     } else if (surveyIndex >= survey.questions.length) {
       renderSurveyDone();
@@ -747,9 +829,13 @@ function renderScreen() {
   }
 
   const round = currentState?.round;
+  if (!round && currentState?.presentation?.status === "live") {
+    renderPresentationSilent();
+    return;
+  }
   if (!round) {
     if (currentState?.closed) {
-      renderThanks();
+      location.href = "/thanks";
     } else {
       renderWaiting();
     }
@@ -786,17 +872,34 @@ function handleState(state, you) {
   currentRoundId = state.round?.id || null;
   currentSurveyId = state.survey?.id || null;
 
+  if (state.closed && !state.survey?.results?.length) {
+    location.href = "/thanks";
+    return;
+  }
+
   if (currentSurveyId) {
     if (previousSurveyId !== currentSurveyId) {
       surveyAnswers =
         you?.surveyId === currentSurveyId && you.answers ? { ...you.answers } : {};
+      mySurveyCustomOptions =
+        you?.surveyId === currentSurveyId && you.customOptions ? { ...you.customOptions } : {};
+      mySurveyCreatedCustomOptions =
+        you?.surveyId === currentSurveyId && you.createdCustomOptions
+          ? { ...you.createdCustomOptions }
+          : {};
       surveyIndex = surveyFirstUnanswered(state.survey);
       surveyReturnToReview = false;
       surveyBusy = false;
     } else if (you?.surveyId === currentSurveyId && you.answers) {
       surveyAnswers = { ...you.answers };
+      mySurveyCustomOptions = you.customOptions ? { ...you.customOptions } : {};
+      mySurveyCreatedCustomOptions = you.createdCustomOptions
+        ? { ...you.createdCustomOptions }
+        : {};
     }
   } else {
+    mySurveyCustomOptions = {};
+    mySurveyCreatedCustomOptions = {};
     surveyAnswers = {};
     surveyIndex = 0;
     surveyBusy = false;
@@ -814,9 +917,14 @@ function handleState(state, you) {
     voteWasUpdated = false;
     if (state.round?.mode === "hands") {
       myVote = null;
+      myCustomOption = null;
+      mySelectedCustomOption = null;
       myHandRaised = Boolean(you && you.roundId === currentRoundId && you.raised);
     } else {
       myVote = you && you.roundId === currentRoundId ? you.optionId || null : null;
+      myCustomOption = you && you.roundId === currentRoundId ? you.customOption || null : null;
+      mySelectedCustomOption =
+        you && you.roundId === currentRoundId ? you.selectedCustomOption || null : null;
     }
     selectedOption = null;
     renderedRoundId = null;
@@ -828,10 +936,16 @@ function handleState(state, you) {
     if (state.round?.mode === "hands") {
       if (you && you.roundId === currentRoundId) myHandRaised = Boolean(you.raised);
       myVote = null;
+      myCustomOption = null;
+      mySelectedCustomOption = null;
     } else if (you && you.roundId === currentRoundId) {
       myVote = you.optionId || null;
+      myCustomOption = you.customOption || null;
+      mySelectedCustomOption = you.selectedCustomOption || null;
     } else if (!you && !currentRoundId) {
       myVote = null;
+      myCustomOption = null;
+      mySelectedCustomOption = null;
     }
   }
 
@@ -933,6 +1047,49 @@ handsToggle.addEventListener("click", async () => {
   }
 });
 
+async function submitSurveyWriteIn() {
+  const survey = currentState?.survey;
+  const question = survey?.questions?.[surveyIndex];
+  const label = surveyWriteInInput.value.trim();
+  if (!survey || !question || survey.status !== "open" || !label || surveyBusy) return;
+  surveyBusy = true;
+  surveyBack.disabled = true;
+  surveyNext.disabled = true;
+  surveyWriteInSubmit.disabled = true;
+  surveyWriteInNote.textContent = "Adding your answer…";
+  try {
+    const result = await api("/api/survey/answer", {
+      method: "POST",
+      body: { playerId, questionId: question.id, customLabel: label },
+    });
+    surveyAnswers = { ...(result.you?.answers || {}) };
+    mySurveyCustomOptions = result.you?.customOptions ? { ...result.you.customOptions } : {};
+    mySurveyCreatedCustomOptions = result.you?.createdCustomOptions
+      ? { ...result.you.createdCustomOptions }
+      : {};
+    surveyWriteInInput.value = "";
+    surveyBusy = false;
+    handleState(result.state, result.you);
+  } catch (error) {
+    surveyBusy = false;
+    const message = error?.message || "Could not add that answer.";
+    if (currentState?.survey?.status === "open") renderSurveyQuestion(message);
+    else surveyWriteInNote.textContent = message;
+  } finally {
+    surveyWriteInSubmit.disabled = false;
+    surveyBack.disabled = surveyIndex === 0;
+    updateSurveyNextState();
+  }
+}
+
+surveyWriteInSubmit.addEventListener("click", submitSurveyWriteIn);
+surveyWriteInInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    submitSurveyWriteIn();
+  }
+});
+
 surveyOptions.addEventListener("change", (event) => {
   const input = event.target.closest('input[name="survey-answer"]');
   const survey = currentState?.survey;
@@ -985,6 +1142,39 @@ changeVoteButton.addEventListener("click", () => {
   voteWasUpdated = false;
   renderVoteScreen(round, { force: true, selected: myVote });
   announce("Choose a new answer. Your current vote stays until you update it.");
+});
+
+async function submitVoteWriteIn() {
+  const round = currentState?.round;
+  const label = voteWriteInInput.value.trim();
+  if (!round || round.status !== "open" || !label || voteWriteInSubmit.disabled) return;
+  voteWriteInSubmit.disabled = true;
+  const original = voteWriteInSubmit.textContent;
+  voteWriteInSubmit.textContent = "Adding…";
+  voteWriteInNote.textContent = "Adding your option…";
+  try {
+    const result = await api("/api/vote", {
+      method: "POST",
+      body: { playerId, customLabel: label },
+    });
+    voteWriteInInput.value = "";
+    changingVote = false;
+    voteWasUpdated = Boolean(result.updated);
+    handleState(result.state, result.you);
+  } catch (error) {
+    voteWriteInNote.textContent = error?.message || "Could not add that option.";
+  } finally {
+    voteWriteInSubmit.disabled = false;
+    voteWriteInSubmit.textContent = original;
+  }
+}
+
+voteWriteInSubmit.addEventListener("click", submitVoteWriteIn);
+voteWriteInInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    submitVoteWriteIn();
+  }
 });
 
 voteForm.addEventListener("submit", async (event) => {
