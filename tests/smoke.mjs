@@ -124,9 +124,40 @@ async function main() {
     args: ["--no-sandbox", "--disable-dev-shm-usage"],
   });
   const pageErrors = [];
+  const pages = [];
   const trackPage = (page, name) => {
+    pages.push({ page, name });
     page.on("pageerror", (error) => pageErrors.push(`${name}: ${error.message}`));
   };
+
+  async function saveArtifacts(cause) {
+    const dir = process.env.SMOKE_ARTIFACTS;
+    if (!dir) return;
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(
+        path.join(dir, "failure.txt"),
+        `${new Date().toISOString()}\n${cause?.stack || cause}\n\nPage errors:\n${pageErrors.join("\n")}\n`,
+      );
+      try {
+        fs.writeFileSync(path.join(dir, "server.log"), server.getOutput());
+      } catch {
+        // Server output unavailable.
+      }
+      for (const { page, name } of pages) {
+        try {
+          if (!page.isClosed()) {
+            await page.screenshot({ path: path.join(dir, `${name}.png`) });
+          }
+        } catch {
+          // Page already gone; move on.
+        }
+      }
+      console.error(`Smoke artifacts saved to ${dir}`);
+    } catch (error) {
+      console.error(`Could not save smoke artifacts: ${error.message}`);
+    }
+  }
 
   try {
     const hostContext = await browser.newContext({
@@ -692,6 +723,9 @@ async function main() {
     assert.deepEqual(pageErrors, [], `Browser page errors: ${pageErrors.join("; ")}`);
     console.log("15/15 done");
     console.log("SMOKE OK");
+  } catch (error) {
+    await saveArtifacts(error);
+    throw error;
   } finally {
     await browser.close().catch(() => {});
     await stopServer(server);

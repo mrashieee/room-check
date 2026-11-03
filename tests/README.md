@@ -61,3 +61,4 @@ No browser is downloaded by `npm install`.
 - The temporary server disables the update check.
 - The tunnel is not tested here because it requires network access and a temporary public URL.
 - Keep fixtures in `tests/fixtures/` in sync if the upload flow changes.
+- Set `SMOKE_ARTIFACTS=/path/to/dir` to save a failure report (stack, page errors, server log and a screenshot per page) when a run fails. CI uploads these automatically.
