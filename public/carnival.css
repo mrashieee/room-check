@@ -3554,6 +3554,7 @@ body.customizer-open {
   width: min(880px, 100%);
   max-height: calc(100dvh - 48px);
   flex-direction: column;
+  overflow: hidden;
   border: var(--rule-bar) solid var(--color-ink);
   border-radius: var(--radius-card);
   background: var(--color-paper);
