@@ -1,4 +1,5 @@
 {
+  "_comment": "Advanced import example. Accepts a single object, an array, or {title, questions}. Per question: question (required, max 160 chars), answers|options|answer (2-10, unique, max 52 chars each), durationSec|duration|timer (0/30/60/90/120 seconds), spinOnTie|tieBreaker (default true), allowCustom|writeIns (default true). Top-level allowCustom applies when a question omits it.",
   "title": "Advanced question set",
   "questions": [
     {

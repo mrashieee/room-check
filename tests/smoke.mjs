@@ -156,6 +156,7 @@ async function main() {
     assert.equal(await text(hostPage.locator(".brand-tag").first()), "Home");
     assert.equal(await hostPage.locator(".landing-header .brand").getAttribute("href"), "/");
     assert.equal(await hostPage.locator("#landing-fullscreen").count(), 1);
+    const fullscreenAllowed = await hostPage.evaluate(() => document.fullscreenEnabled);
     assert.equal(await hostPage.locator("#customise-button").count(), 1);
     assert.equal(await hostPage.locator("#landing-end-session").isDisabled(), true);
     await hostPage.click("#customise-button");
@@ -166,10 +167,12 @@ async function main() {
     await hostPage.click("#theme-save");
     await hostPage.waitForFunction(() => document.querySelector("#customizer-overlay")?.hidden);
     await hostPage.waitForFunction(() => document.querySelector(".landing-main")?.inert === false);
-    await hostPage.click("#landing-fullscreen");
-    await hostPage.waitForFunction(() => Boolean(document.fullscreenElement));
-    await hostPage.click("#landing-fullscreen");
-    await hostPage.waitForFunction(() => !document.fullscreenElement);
+    if (fullscreenAllowed) {
+      await hostPage.click("#landing-fullscreen");
+      await hostPage.waitForFunction(() => Boolean(document.fullscreenElement));
+      await hostPage.click("#landing-fullscreen");
+      await hostPage.waitForFunction(() => !document.fullscreenElement);
+    }
     const hostThanksResponse = await hostPage.goto(server.base + "/thanks-host", { waitUntil: "domcontentloaded" });
     assert.equal(hostThanksResponse.status(), 200);
     assert.equal(await hostPage.locator("#thanks-start").count(), 1);
@@ -186,10 +189,12 @@ async function main() {
     await hostPage.goto(server.base + "/interactions", { waitUntil: "domcontentloaded" });
     await waitVisible(hostPage.locator("#host-app"));
     assert.equal(await hostPage.locator("#allow-custom").isChecked(), true);
-    await hostPage.click("#fullscreen-button");
-    await hostPage.waitForFunction(() => Boolean(document.fullscreenElement));
-    await hostPage.click("#fullscreen-button");
-    await hostPage.waitForFunction(() => !document.fullscreenElement);
+    if (fullscreenAllowed) {
+      await hostPage.click("#fullscreen-button");
+      await hostPage.waitForFunction(() => Boolean(document.fullscreenElement));
+      await hostPage.click("#fullscreen-button");
+      await hostPage.waitForFunction(() => !document.fullscreenElement);
+    }
     await hostPage.click("#customise-button");
     await waitVisible(hostPage.locator("#customizer-overlay"));
     await hostPage.click("#customizer-close");
@@ -231,10 +236,12 @@ async function main() {
     assert.equal(await text(hostPage.locator("#present-audience-mode")), "LAN");
     await hostPage.click("#present-start");
     await waitVisible(hostPage.locator("#present-display"), 20_000);
-    await hostPage.click("#present-fullscreen");
-    await hostPage.waitForFunction(() => Boolean(document.fullscreenElement));
-    await hostPage.click("#present-fullscreen");
-    await hostPage.waitForFunction(() => !document.fullscreenElement);
+    if (fullscreenAllowed) {
+      await hostPage.click("#present-fullscreen");
+      await hostPage.waitForFunction(() => Boolean(document.fullscreenElement));
+      await hostPage.click("#present-fullscreen");
+      await hostPage.waitForFunction(() => !document.fullscreenElement);
+    }
     await hostPage.click("#present-next");
     await hostPage.waitForFunction(() => document.querySelector("#present-display-label")?.textContent?.includes("2 / 4"));
     await hostPage.click("#present-prev");

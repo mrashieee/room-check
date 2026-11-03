@@ -142,8 +142,6 @@ const resultsEyebrowHost = $("#results-eyebrow-host");
 const nextQuestionButton = $("#next-question-button");
 const againButton = $("#again-button");
 const newQuestionButton = $("#new-question-button");
-const githubQr = $("#github-qr");
-const GITHUB_URL = "https://github.com/mrashieee/room-check";
 const wheelOverlay = $("#wheel-overlay");
 const wheelDisc = $("#wheel-disc");
 const wheelLegend = $("#wheel-legend");
@@ -2268,9 +2266,13 @@ async function endPresentationFromHost() {
 endPresentationButton.addEventListener("click", endPresentationFromHost);
 
 endSessionButton.addEventListener("click", async () => {
+  const liveInteraction =
+    roundState?.presentation?.status === "live" && Boolean(roundState?.round || roundState?.survey);
   if (
     !window.confirm(
-      "End the session? The audience will see a thank-you screen with the GitHub link.",
+      liveInteraction
+        ? "End the interaction? Voting closes and the audience sees the thank-you screen."
+        : "End the session? The audience will see a thank-you screen with the GitHub link.",
     )
   ) {
     return;

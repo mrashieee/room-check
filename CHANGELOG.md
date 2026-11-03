@@ -13,6 +13,20 @@ All notable changes to Room Check are documented here.
 - Theme logos are no longer cached immutably, so logo changes apply immediately
 - Host question drafts preserve the per-question write-in toggle across reloads
 - Poll and survey write-in settings now respect per-question overrides
+- Resetting a Live Hands round no longer sticks the host on the hands stage
+- Landing End session no longer closes a live deck; it ends the session like every other surface
+- End confirmations now say what actually happens while a presentation is live
+- Projector setup no longer flashes the auth screen on load; the reconnect poller no longer re-fires redirects on 401
+- Thanks-host retry after sign-out goes back to interactions instead of bouncing through home
+- Host question drafts and JSON imports accept per-question write-in flags
+- JSON import/export buttons share one style and live with the question set
+- Voter rate limits respect the configured proxy trust instead of a spoofable header
+- WebSocket origin and secure-cookie checks only honor forwarding headers from loopback peers
+- Vote throttle map can no longer grow without bound
+- State saves fsync the file and directory on both write paths
+- Unusable state files are backed up before starting fresh
+- Invalid update-check URLs fail fast instead of hiding behind the cache
+- Leading/trailing spaces no longer create a different password at setup vs login
 
 ### Changed
 
@@ -22,7 +36,7 @@ All notable changes to Room Check are documented here.
 - Controller token comparison is timing-safe; `SESSION_SECRET` requires 32+ characters
 - Public vote/hand/survey endpoints are rate-limited (60/min per IP + player); rounds cap at 5,000 respondents
 - Signing out closes host WebSocket sessions; reset-password also rotates the session secret
-- Corrupt `state.json` is backed up before starting fresh; state saves fsync before rename
+- Corrupt `state.json` is backed up before starting fresh; state saves fsync the file and directory
 - State sync uses a server revision counter instead of wall-clock time
 - `npm run check` covers every JS file via glob; new `test:unit`, `preflight`, `version:check` and `release:check` commands
 - The `/host` page is now `/interactions` (`/host` redirects, query preserved); present and interactions headers share the same order and styling

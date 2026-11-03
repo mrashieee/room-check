@@ -38,7 +38,7 @@ startButton?.addEventListener("click", async () => {
       body: "{}",
     });
     if (response.status === 401) {
-      location.href = "/";
+      location.href = "/interactions?next=/thanks-host";
       return;
     }
     if (!response.ok) throw new Error("Could not start another session.");

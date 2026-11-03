@@ -329,7 +329,8 @@ Configuration is optional and read from `.env` when using `npm start` or `npm ru
 | `BIND_ADDRESS` | `0.0.0.0` | Network address the server binds to |
 | `PUBLIC_URL` | automatic | Public base URL used by the audience QR code |
 | `DATA_DIR` | `./.data` | Directory for the password, session secret, presentation and poll state |
-| `SESSION_SECRET` | generated | Optional signing secret for host sessions |
+| `SESSION_SECRET` | generated | Optional signing secret for host sessions (min 32 chars if set) |
+| `TRUST_PROXY` | `loopback` | Comma-separated trusted proxies for forwarding headers |
 | `UPDATE_CHECK` | `on` | Set to `off` to disable GitHub release checks |
 | `UPDATE_REPO` | `mrashieee/room-check` | GitHub repository used by the update checker |
 | `UPDATE_API_URL` | GitHub latest-release API | Optional override for a mirror or local test |
@@ -662,8 +663,8 @@ server.mjs                 HTTP server, auth, presentation/poll state, WebSocket
 public/
 ├── player.html             audience join page
 ├── player.js               audience behavior: silent, poll, hands, survey
-├── host.html               full host console
-├── host.js                 host console behavior
+├── interactions.html       polls, surveys, hands and theme setup
+├── interactions.js         interaction setup, live stages and results
 ├── common.js               shared client helpers
 ├── theme-config.js         palettes, validation, theme variables
 ├── theme.js                applies theme, logo and favicon
@@ -690,11 +691,20 @@ public/
 scripts/
 ├── share.mjs               temporary Cloudflare tunnel
 ├── reset-password.mjs      password reset helper
-└── backup-data.mjs         cross-platform .data backup
-tests/smoke.mjs             automated Chromium smoke test
-tests/fixtures/             smoke-test slide and PDF fixtures
-.github/workflows/check.yml syntax and smoke CI
-docs/                       README screenshots
+├── backup-data.mjs         cross-platform .data backup
+├── preflight.mjs           event-day readiness check
+├── version-check.mjs       package.json vs README vs CHANGELOG
+└── release-check.mjs       pre-tag gate
+tests/
+├── smoke.mjs              automated Chromium smoke test
+├── unit.mjs               fast HTTP tests, no browser
+├── fixtures/              smoke-test slide and PDF fixtures
+└── README.md              what each suite covers
+examples/
+├── questions.json          minimal import example
+└── questions-advanced.json timers, aliases, write-in flags
+.github/workflows/check.yml check, version, unit and smoke CI (Node 22/24)
+docs/                       README screenshots and event checklist
 CHANGELOG.md                release history
 .env.example
 LICENSE
@@ -709,9 +719,9 @@ Stack: Node.js, Express, `ws`, `qrcode`, `pdfjs-dist`, and vanilla browser JavaS
 | Slides per deck | 80 |
 | Slide file size | 25 MB each (PNG, JPG, WebP); PDFs over 100 MB are rejected client-side |
 | Poll answers | 2–10 |
-| Poll timer | 10–600 seconds, or manual |
+| Poll timer | 10–600 seconds, or manual (UI offers 30/60/90/120/manual; import allows 0/30/60/90/120) |
 | Survey questions | 1–20, 2–10 answers each |
-| Survey timer | up to 3600 seconds, or manual |
+| Survey timer | 60–3600 seconds, or manual |
 | Write-in options | 100 per poll/question, merged by spelling |
 | Voters per round/survey | 5,000 respondents, 60 requests/min per IP + player |
 | QR generation | 60 requests/min per client |

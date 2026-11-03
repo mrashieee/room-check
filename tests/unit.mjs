@@ -107,7 +107,7 @@ try {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, "state.json"), "{}");
     for (let i = 1; i <= 4; i += 1) {
-      fs.mkdirSync(path.join(parent, `.data-backup-seed-${i}`));
+      fs.mkdirSync(path.join(parent, `.data-backup-0-seed-${i}`));
     }
     execFileSync(process.execPath, ["scripts/backup-data.mjs"], {
       cwd: root,
@@ -118,9 +118,11 @@ try {
       .readdirSync(parent)
       .filter((name) => name.startsWith(".data-backup-"));
     assert.ok(backups.length <= 3, `expected <=3 backups, got ${backups.length}`);
-    const newest = backups.sort().pop();
+    const timestamped = backups.filter((name) => /^\.data-backup-\d/.test(name));
+    assert.ok(timestamped.length >= 1, "expected at least one timestamped backup");
+    const newest = timestamped.sort().pop();
     const mode = fs.statSync(path.join(parent, newest)).mode & 0o777;
-    assert.ok(mode === 0o700 || newest.startsWith(".data-backup-seed-"), `backup dir mode ${mode.toString(8)}`);
+    assert.equal(mode, 0o700, `backup dir mode ${mode.toString(8)}, expected 700`);
     fs.rmSync(parent, { recursive: true, force: true });
   });
 
@@ -249,6 +251,20 @@ try {
     if (response.status !== 200) assert.fail(`expected 200, got ${response.status}: ${await response.text()}`);
     response = await fetch(base + `/api/controller/state?token=${encodeURIComponent(token)}`);
     assert.equal(response.status, 401, "closed presentation token should be rejected");
+  });
+
+  await test("reopening keeps slides and the controller token", async () => {
+    let response = await hostFetch(base, cookie, "/api/host/presentation/reopen", {
+      method: "POST",
+      body: "{}",
+    });
+    if (response.status !== 200) assert.fail(`reopen failed: ${await response.text()}`);
+    const reopened = await response.json();
+    assert.equal(reopened.presentation.status, "ready");
+    assert.ok(reopened.token && reopened.token.length >= 24, "expected the token to survive reopen");
+
+    response = await fetch(base + `/api/controller/state?token=${encodeURIComponent(reopened.token)}`);
+    if (response.status !== 200) assert.fail(`controller state failed: ${await response.text()}`);
   });
 
   console.log(`\nunit: ${passed} passed.`);

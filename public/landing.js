@@ -54,9 +54,8 @@ async function endSession() {
   }
 
   endSessionButton.disabled = true;
-  const endpoint = presentationLive ? "/api/presentation/end" : "/api/host/end";
   try {
-    const response = await fetch(endpoint, {
+    const response = await fetch("/api/host/end", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },

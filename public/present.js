@@ -394,6 +394,8 @@ async function handleFiles(files) {
 }
 
 async function removeSlide(slideId) {
+  const slide = presentation?.slides?.find((entry) => entry.id === slideId);
+  if (slide && !window.confirm(`Remove "${slide.name || "this slide"}" from the deck?`)) return;
   try {
     const payload = await request(`/api/host/presentation/slides/${encodeURIComponent(slideId)}`, {
       method: "DELETE",
@@ -483,7 +485,8 @@ async function refreshDisplayState() {
     }
     updateHeaderActions();
     renderDisplay();
-  } catch {
+  } catch (error) {
+    if (error?.status === 401) return;
     setProjectorConnection("offline", "Reconnecting");
     // Keep the last slide visible if the network blips.
   }
@@ -741,7 +744,14 @@ async function endPresentationSession() {
 
 async function endSession() {
   if (endSessionButton.hidden) return;
-  if (!window.confirm("End the current session? The audience will see the thank-you screen.")) {
+  const liveInteraction = presentation?.status === "live" && Boolean(round || survey);
+  if (
+    !window.confirm(
+      liveInteraction
+        ? "End the interaction? Voting closes and the audience sees the thank-you screen."
+        : "End the current session? The audience will see the thank-you screen.",
+    )
+  ) {
     return;
   }
   try {
@@ -901,8 +911,8 @@ async function init() {
       authView.hidden = false;
       return;
     }
-    setupView.hidden = false;
     await refreshPresentation();
+    setupView.hidden = false;
   } catch {
     authView.hidden = false;
   }
