@@ -23,15 +23,17 @@ try {
     fail(`No data directory found at ${dataDir}.`);
   } else {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const destination = path.join(path.dirname(dataDir), `.data-backup-${stamp}`);
+    let destination = path.join(path.dirname(dataDir), `.data-backup-${stamp}`);
+    if (fs.existsSync(destination)) {
+      destination += `-${process.pid}`;
+    }
 
-    fs.mkdirSync(destination, { recursive: true, mode: 0o700 });
+    fs.cpSync(dataDir, destination, { recursive: true, force: false, errorOnExist: true });
     try {
       fs.chmodSync(destination, 0o700);
     } catch {
       // Some filesystems do not support chmod.
     }
-    fs.cpSync(dataDir, destination, { recursive: true, force: false, errorOnExist: true });
     console.log(`Backed up ${dataDir} to ${destination}`);
 
     const parsed = Number.parseInt(process.env.BACKUP_KEEP || "10", 10);
