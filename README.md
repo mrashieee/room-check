@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-d8ff57?style=for-the-badge&amp;labelColor=101210" /></a>
-  <img alt="Version 3.0.0" src="https://img.shields.io/badge/version-3.0.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
+  <img alt="Version 3.1.0" src="https://img.shields.io/badge/version-3.1.0-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Node.js 22.9 or newer" src="https://img.shields.io/badge/node-%E2%89%A522.9-d8ff57?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Realtime WebSocket updates" src="https://img.shields.io/badge/realtime-WebSocket-ff6e4a?style=for-the-badge&amp;labelColor=101210" />
   <img alt="Tunnel ready" src="https://img.shields.io/badge/audience-tunnel--ready-72dff2?style=for-the-badge&amp;labelColor=101210" />
