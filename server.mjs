@@ -876,6 +876,16 @@ function persistState() {
         await fd.close();
       }
       await fs.promises.rename(temp, STATE_FILE);
+      try {
+        const dirFd = await fs.promises.open(DATA_DIR, "r");
+        try {
+          await dirFd.sync();
+        } finally {
+          await dirFd.close();
+        }
+      } catch {
+        // Not all platforms support directory fsync.
+      }
     })
     .catch((error) => {
       console.error("Could not save poll state:", error.message);
@@ -909,7 +919,27 @@ function persistStateSync() {
     } catch {
       // Some filesystems do not support chmod.
     }
+    try {
+      const fd = fs.openSync(temp, "r");
+      try {
+        fs.fsyncSync(fd);
+      } finally {
+        fs.closeSync(fd);
+      }
+    } catch {
+      // Best effort; the rename still applies.
+    }
     fs.renameSync(temp, STATE_FILE);
+    try {
+      const dirFd = fs.openSync(DATA_DIR, "r");
+      try {
+        fs.fsyncSync(dirFd);
+      } finally {
+        fs.closeSync(dirFd);
+      }
+    } catch {
+      // Not all platforms support directory fsync.
+    }
   } catch (error) {
     console.error("Could not save poll state:", error.message);
   }
@@ -1370,6 +1400,21 @@ function loadState() {
       state.round.tieBreak.completedAt = Date.now();
       persistState();
     }
+
+    if (
+      (raw?.round || raw?.survey || raw?.presentation) &&
+      !state.round &&
+      !state.survey &&
+      !state.presentation
+    ) {
+      try {
+        const backup = `${STATE_FILE}.invalid-${Date.now()}`;
+        fs.copyFileSync(STATE_FILE, backup);
+        console.error(`State file had no usable session data. Backed up to ${backup}.`);
+      } catch (error) {
+        console.error("Could not back up the invalid state file:", error.message);
+      }
+    }
   } catch (error) {
     console.error("Could not restore the last poll:", error.message);
   }
@@ -1433,7 +1478,7 @@ function revealRound(reason) {
 
 function openRound(details) {
   if (state.round?.status === "open") {
-    throw new HttpError(409, "A round is already open. Finish it before starting another.");
+    throw new HttpError(409, "A round is already open. Finish it before starting another.", "round_active");
   }
   if (revealTimer) {
     clearTimeout(revealTimer);
@@ -1462,7 +1507,7 @@ function openRound(details) {
 
 function startSession(details) {
   if (state.round?.status === "open") {
-    throw new HttpError(409, "A round is already open. Finish it before starting another.");
+    throw new HttpError(409, "A round is already open. Finish it before starting another.", "round_active");
   }
   if (tieBreakTimer) {
     clearTimeout(tieBreakTimer);
@@ -1512,7 +1557,7 @@ function armSurveyTimer() {
 
 function startSurvey(details) {
   if (state.round?.status === "open") {
-    throw new HttpError(409, "A round is already open. Finish it before starting another.");
+    throw new HttpError(409, "A round is already open. Finish it before starting another.", "round_active");
   }
   if (revealTimer) {
     clearTimeout(revealTimer);
@@ -1571,7 +1616,7 @@ function closeSurvey(reason = "host") {
 function submitSurveyAnswer(playerId, questionId, optionId, customLabel = "") {
   const survey = state.survey;
   if (!survey || survey.status !== "open") {
-    throw new HttpError(409, "The survey is closed.");
+    throw new HttpError(409, "The survey is closed.", "survey_closed");
   }
   if (survey.endsAt && Date.now() >= survey.endsAt) {
     closeSurvey("timer");
@@ -1743,7 +1788,7 @@ function addPresentationSlide(buffer, mime, name) {
 
 function deletePresentationSlide(slideId) {
   const presentation = state.presentation;
-  if (!presentation) throw new HttpError(404, "Presentation not found.");
+  if (!presentation) throw new HttpError(404, "Presentation not found.", "presentation_missing");
   if (presentation.status === "live") {
     throw new HttpError(409, "End the presentation before changing the deck.");
   }
@@ -1797,8 +1842,8 @@ function startPresentation() {
 
 function controlPresentation(action, index, fitMode, scroll) {
   const presentation = state.presentation;
-  if (!presentation) throw new HttpError(404, "Presentation not found.");
-  if (presentation.status !== "live") throw new HttpError(409, "The presentation is not live.");
+  if (!presentation) throw new HttpError(404, "Presentation not found.", "presentation_missing");
+  if (presentation.status !== "live") throw new HttpError(409, "The presentation is not live.", "presentation_not_live");
   if (action === "close") {
     presentation.status = "closed";
     presentation.closedAt = Date.now();
@@ -1867,7 +1912,7 @@ function prunePresentationFiles() {
 
 function discardPresentationDeck() {
   const presentation = state.presentation;
-  if (!presentation) throw new HttpError(404, "Presentation not found.");
+  if (!presentation) throw new HttpError(404, "Presentation not found.", "presentation_missing");
   if (presentation.status === "live") {
     throw new HttpError(409, "End the presentation before discarding the deck.");
   }
@@ -1904,13 +1949,13 @@ function controllerAuthorized(req) {
 function startPresentationInteraction(mode, details) {
   const presentation = state.presentation;
   if (!presentation || presentation.status !== "live") {
-    throw new HttpError(409, "Start the presentation first.");
+    throw new HttpError(409, "Start the presentation first.", "presentation_not_live");
   }
   if (state.round?.status === "open") {
-    throw new HttpError(409, "Finish the current interaction first.");
+    throw new HttpError(409, "Finish the current interaction first.", "round_active");
   }
   if (state.survey?.status === "open") {
-    throw new HttpError(409, "Finish the current survey first.");
+    throw new HttpError(409, "Finish the current survey first.", "survey_active");
   }
   if (revealTimer) {
     clearTimeout(revealTimer);
@@ -1931,7 +1976,7 @@ function startPresentationInteraction(mode, details) {
 
 function endPresentationInteraction() {
   const presentation = state.presentation;
-  if (!presentation) throw new HttpError(404, "Presentation not found.");
+  if (!presentation) throw new HttpError(404, "Presentation not found.", "presentation_missing");
   if (revealTimer) {
     clearTimeout(revealTimer);
     revealTimer = null;
@@ -1991,9 +2036,10 @@ function endSession() {
 }
 
 class HttpError extends Error {
-  constructor(status, message) {
+  constructor(status, message, code = "") {
     super(message);
     this.status = status;
+    if (code) this.code = code;
   }
 }
 
@@ -2066,6 +2112,7 @@ function requestIsSecure(req) {
   } catch {
     // Fall through to header checks.
   }
+  if (!directPeerIsLoopback(req)) return false;
   const forwarded = String(req.headers["x-forwarded-proto"] || "")
     .split(",")[0]
     .trim();
@@ -2278,6 +2325,11 @@ function voteAllowed(ip, playerId) {
       if (now > entry.resetAt) voteAttempts.delete(key);
       if (voteAttempts.size <= 4000) break;
     }
+    while (voteAttempts.size > 8000) {
+      const oldest = voteAttempts.keys().next();
+      if (oldest.done) break;
+      voteAttempts.delete(oldest.value);
+    }
   }
   const key = `${ip}|${playerId || "anonymous"}`;
   const entry = voteAttempts.get(key);
@@ -2289,11 +2341,13 @@ function voteAllowed(ip, playerId) {
   return entry.count <= VOTE_LIMIT;
 }
 
+function directPeerIsLoopback(req) {
+  const peer = req.socket?.remoteAddress || "";
+  return peer === "127.0.0.1" || peer === "::1" || peer === "::ffff:127.0.0.1";
+}
+
 function clientIp(req) {
-  const forwarded = String(req.headers["x-forwarded-for"] || "")
-    .split(",")[0]
-    .trim();
-  return forwarded || req.socket?.remoteAddress || "unknown";
+  return req.ip || req.socket?.remoteAddress || "unknown";
 }
 
 function requireHost(req, res, next) {
@@ -2355,16 +2409,6 @@ async function getUpdateStatus({ force = false } = {}) {
     return { ...base, error: "Update checks are disabled." };
   }
 
-  const cacheAge = updateCacheAt ? now - updateCacheAt : Infinity;
-  const cacheLimit = updateCache?.error ? UPDATE_ERROR_CACHE_MS : UPDATE_CACHE_MS;
-  if (!force && updateCache && cacheAge < cacheLimit) {
-    return updateCache;
-  }
-  if (force && updateCache && now - updateLastForceAt < UPDATE_FORCE_COOLDOWN_MS) {
-    return updateCache;
-  }
-  if (updateCheckPromise) return updateCheckPromise;
-
   try {
     const updateUrl = new URL(UPDATE_API_URL);
     if (updateUrl.protocol !== "https:") {
@@ -2380,6 +2424,16 @@ async function getUpdateStatus({ force = false } = {}) {
     updateCacheAt = Date.now();
     return failed;
   }
+
+  const cacheAge = updateCacheAt ? now - updateCacheAt : Infinity;
+  const cacheLimit = updateCache?.error ? UPDATE_ERROR_CACHE_MS : UPDATE_CACHE_MS;
+  if (!force && updateCache && cacheAge < cacheLimit) {
+    return updateCache;
+  }
+  if (force && updateCache && now - updateLastForceAt < UPDATE_FORCE_COOLDOWN_MS) {
+    return updateCache;
+  }
+  if (updateCheckPromise) return updateCheckPromise;
 
   if (force) updateLastForceAt = now;
   updateCheckPromise = (async () => {
@@ -2715,14 +2769,15 @@ app.post("/api/host/setup", async (req, res, next) => {
     return res.status(401).json({ error: "That setup code is not right. Check the terminal." });
   }
 
-  const passwordIssue = validPassword(req.body?.password);
+  const setupPassword = typeof req.body?.password === "string" ? req.body.password.trim() : "";
+  const passwordIssue = validPassword(setupPassword);
   if (passwordIssue) {
     return res.status(400).json({ error: passwordIssue });
   }
 
   setupInFlight = true;
   try {
-    const record = await createAuthRecord(req.body.password);
+    const record = await createAuthRecord(setupPassword);
     await saveAuthRecord(record);
     authRecord = record;
     setupCode = null;
@@ -2752,7 +2807,8 @@ app.post("/api/host/login", async (req, res, next) => {
   }
 
   try {
-    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    const rawPassword = typeof req.body?.password === "string" ? req.body.password : "";
+    const password = rawPassword.trim();
     const valid = await verifyPassword(password);
     if (!valid) {
       recordLoginFailure(ip);
@@ -2767,7 +2823,6 @@ app.post("/api/host/login", async (req, res, next) => {
 });
 
 function closeHostSockets() {
-  if (typeof wss === "undefined") return;
   for (const client of wss.clients) {
     if (client.role !== "host") continue;
     try {
@@ -2842,7 +2897,7 @@ app.get("/api/host/presentation/state", requireHost, (req, res) => {
 app.post("/api/host/presentation/reopen", requireHost, (req, res, next) => {
   try {
     const presentation = state.presentation;
-    if (!presentation) throw new HttpError(404, "Presentation not found.");
+    if (!presentation) throw new HttpError(404, "Presentation not found.", "presentation_missing");
     if (presentation.status === "live") {
       throw new HttpError(409, "End the live presentation before editing the deck.");
     }
@@ -2862,7 +2917,7 @@ app.post("/api/host/presentation/reopen", requireHost, (req, res, next) => {
 
 app.post("/api/host/presentation/title", requireHost, (req, res, next) => {
   try {
-    if (!state.presentation) throw new HttpError(404, "Presentation not found.");
+    if (!state.presentation) throw new HttpError(404, "Presentation not found.", "presentation_missing");
     if (state.presentation.status !== "ready") {
       throw new HttpError(409, "The title can only be changed before the presentation starts.");
     }
@@ -2942,7 +2997,7 @@ app.post("/api/host/presentation/start", requireHost, (req, res, next) => {
 
 app.post("/api/host/presentation/token", requireHost, (req, res, next) => {
   try {
-    if (!state.presentation) throw new HttpError(404, "Presentation not found.");
+    if (!state.presentation) throw new HttpError(404, "Presentation not found.", "presentation_missing");
     state.presentation.controllerToken = crypto.randomBytes(24).toString("base64url");
     scheduleSave();
     broadcastState();
@@ -2957,7 +3012,7 @@ app.post("/api/host/presentation/token", requireHost, (req, res, next) => {
 
 app.post("/api/host/presentation/close", requireHost, (req, res, next) => {
   try {
-    if (!state.presentation) throw new HttpError(404, "Presentation not found.");
+    if (!state.presentation) throw new HttpError(404, "Presentation not found.", "presentation_missing");
     if (state.presentation.status === "live") controlPresentation("close");
     res.json({
       presentation: publicPresentation(state.presentation),
@@ -3072,7 +3127,7 @@ app.post("/api/presentation/interaction/end", requireController, (req, res, next
 
 app.post("/api/presentation/end", requireController, (req, res, next) => {
   try {
-    if (!state.presentation) throw new HttpError(404, "Presentation not found.");
+    if (!state.presentation) throw new HttpError(404, "Presentation not found.", "presentation_missing");
     if (state.presentation.status === "live") controlPresentation("close");
     const slideToken = String(req.headers["x-controller-token"] || req.query?.token || "");
     res.json({
@@ -3336,7 +3391,7 @@ app.post("/api/hands", (req, res, next) => {
   try {
     const round = state.round;
     if (!round || round.mode !== "hands") {
-      throw new HttpError(409, "There is no live-hands round open.");
+      throw new HttpError(409, "There is no live-hands round open.", "no_hands_round");
     }
     if (round.status !== "open") {
       throw new HttpError(409, "The host has closed the hands.");
@@ -3383,7 +3438,7 @@ app.post("/api/vote", (req, res, next) => {
   try {
     const round = state.round;
     if (!round || round.status !== "open") {
-      throw new HttpError(409, "Voting is closed.");
+      throw new HttpError(409, "Voting is closed.", "voting_closed");
     }
     if (round.mode !== "poll") {
       throw new HttpError(409, "This round does not use votes.");
@@ -3445,7 +3500,12 @@ app.use((error, req, res, next) => {
   }
   if (status >= 500) console.error(error);
   const message = status >= 500 ? "Something went wrong." : error.message || "Bad request.";
-  res.status(status).json({ error: message });
+  const body = { error: message };
+  if (error instanceof HttpError && error.code) body.code = error.code;
+  else if (!(error instanceof HttpError) && typeof error?.code === "string" && error.code) {
+    body.code = error.code;
+  }
+  res.status(status).json(body);
 });
 
 const server = http.createServer(app);
@@ -3456,7 +3516,8 @@ function allowedWebSocketOrigin(req) {
   if (!origin) return true;
   try {
     const originUrl = new URL(origin);
-    const host = req.headers["x-forwarded-host"] || req.headers.host;
+    const forwarded = directPeerIsLoopback(req) ? req.headers["x-forwarded-host"] : "";
+    const host = forwarded || req.headers.host;
     if (host && originUrl.host === host) return true;
     if (PUBLIC_URL && originUrl.origin === new URL(PUBLIC_URL).origin) return true;
     return false;
