@@ -778,6 +778,10 @@ Tested targets: Chromium desktop (projector, host console), iPhone Safari and An
 - More presenter views and a run sheet.
 - PWA and connection resilience.
 
+## AI disclosure
+
+Parts of Room Check (code, docs, and tests) were drafted with AI coding assistance and reviewed, tested, and approved by the maintainer. The app itself sends no user data to AI services at runtime; it runs locally, offline-first.
+
 ## License
 
 <p align="center">
