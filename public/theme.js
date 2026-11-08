@@ -15,6 +15,7 @@ import {
 const DEFAULT_MARK = `<svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="1" fill="currentColor"></rect><path d="M9.5 12.5v7M16 9v14M22.5 13.5v5" fill="none" stroke="#101210" stroke-width="3" stroke-linecap="round"></path></svg>`;
 const RADIUS_BY_CORNER = { sharp: "2px", soft: "8px", round: "18px" };
 let currentTheme = normalizeTheme(DEFAULT_THEME);
+let lastAppliedTheme = "";
 
 export function getCurrentTheme() {
   return normalizeTheme(currentTheme);
@@ -22,6 +23,12 @@ export function getCurrentTheme() {
 
 export function applyTheme(theme, { logoUrl } = {}) {
   const next = normalizeTheme(theme);
+  const themeKey = JSON.stringify(next) + "|" + (logoUrl === undefined ? "" : String(logoUrl));
+  if (themeKey === lastAppliedTheme) {
+    currentTheme = next;
+    return;
+  }
+  lastAppliedTheme = themeKey;
   currentTheme = next;
   const root = document.documentElement;
   const variables = themeCssVariables(next);

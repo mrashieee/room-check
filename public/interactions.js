@@ -33,7 +33,14 @@ const DEFAULT_OPTIONS = ["Electric", "Warming up", "Need coffee", "Send help"];
 const TIMER_CIRCUMFERENCE = 2 * Math.PI * 52;
 const nextPath = (() => {
   const value = new URLSearchParams(location.search).get("next") || "";
-  return value.startsWith("/") && !value.startsWith("//") ? value : "";
+  if (!value) return "";
+  try {
+    const next = new URL(value, location.origin);
+    if (next.origin !== location.origin) return "";
+    return next.pathname + next.search + next.hash;
+  } catch {
+    return "";
+  }
 })();
 
 const loginView = $("#login-view");
@@ -143,6 +150,7 @@ const nextQuestionButton = $("#next-question-button");
 const againButton = $("#again-button");
 const newQuestionButton = $("#new-question-button");
 const wheelOverlay = $("#wheel-overlay");
+const wheelPanel = $(".wheel-panel");
 const wheelDisc = $("#wheel-disc");
 const wheelLegend = $("#wheel-legend");
 const wheelTitle = $("#wheel-title");
@@ -269,7 +277,7 @@ function normalizeQuestionDraft(raw) {
     options: normalizeOptions(raw?.options).map((option) => option.label),
     durationSec: Number.isFinite(Number(raw?.durationSec)) ? Number(raw.durationSec) : 60,
     spinOnTie: raw?.spinOnTie !== false,
-    allowCustom: raw?.allowCustom !== false,
+    allowCustom: raw?.allowCustom !== false && raw?.allowCustom !== "false",
   };
 }
 
@@ -298,6 +306,8 @@ function currentDraft() {
     multi: multiQuestionToggle.checked,
     surveyDurationSec: readSurveyDuration(),
     title: titleInput.value.trim(),
+    joinUrl,
+    joinUrlConfig: config?.joinUrl || "",
     allowCustom: allowCustomInput.checked,
     questions: draftQuestions.map((question) => ({
       question: question.question,
@@ -450,6 +460,9 @@ function parseImportedQuestions(payload) {
   if (list.length > MAX_QUESTIONS) {
     throw new Error(`Keep the import to ${MAX_QUESTIONS} questions or fewer.`);
   }
+  const topLevelAllowCustom = Array.isArray(payload)
+    ? undefined
+    : (payload?.allowCustom ?? payload?.writeIns);
 
   return list.map((item, index) => {
     const label = `Question ${index + 1}`;
@@ -474,12 +487,14 @@ function parseImportedQuestions(payload) {
       throw new Error(`${label}: use a duration of 0, 30, 60, 90 or 120 seconds.`);
     }
 
+    const rawAllowCustom =
+      item?.allowCustom ?? item?.writeIns ?? topLevelAllowCustom ?? true;
     return {
       question,
       options: answers,
       durationSec,
       spinOnTie: item?.spinOnTie !== false && item?.tieBreaker !== false,
-      allowCustom: item?.allowCustom ?? item?.writeIns ?? true,
+      allowCustom: rawAllowCustom !== false && rawAllowCustom !== "false",
     };
   });
 }
@@ -500,6 +515,10 @@ async function importQuestionsFile(file) {
     ) {
       return;
     }
+    const importedTitle = Array.isArray(payload)
+      ? ""
+      : String(payload?.title || "").trim().slice(0, 52);
+    if (importedTitle) titleInput.value = importedTitle;
     setMode("poll");
     draftQuestions = imported;
     activeQuestionIndex = 0;
@@ -732,7 +751,12 @@ function populateSetup(draft) {
   setSurveyTimerChoice(Number(chosen?.surveyDurationSec) || 0);
   setMode(chosen?.mode === "hands" ? "hands" : "poll");
   loadActiveQuestion();
-  applyJoinUrl(joinUrl, { silent: true });
+  const draftJoinUrl = typeof chosen?.joinUrl === "string" ? chosen.joinUrl.trim() : "";
+  const configJoinUrl = config?.joinUrl || "";
+  const canRestoreJoinUrl = Boolean(
+    draftJoinUrl && configJoinUrl && chosen?.joinUrlConfig === configJoinUrl,
+  );
+  applyJoinUrl(canRestoreJoinUrl ? draftJoinUrl : (configJoinUrl || joinUrl), { silent: true });
   saveDraft();
 }
 
@@ -1100,8 +1124,29 @@ function revealWheelWinner(winnerId) {
   });
 }
 
+let wheelInerted = [];
+let wheelReturnFocus = null;
+
+function setWheelBackgroundInert(inert) {
+  if (inert) {
+    if (wheelInerted.length) return;
+    for (const child of document.body.children) {
+      if (child === wheelOverlay || child.inert) continue;
+      child.inert = true;
+      wheelInerted.push(child);
+    }
+    return;
+  }
+  for (const child of wheelInerted) child.inert = false;
+  wheelInerted = [];
+}
+
 function hideWheel() {
+  const returnFocus = wheelReturnFocus;
+  const focusWasInside = wheelOverlay.contains(document.activeElement);
+  wheelReturnFocus = null;
   clearWheelTimers();
+  setWheelBackgroundInert(false);
   wheelOverlay.hidden = true;
   wheelIsOpen = false;
   wheelRoundId = null;
@@ -1116,6 +1161,7 @@ function hideWheel() {
   wheelDisc.replaceChildren();
   wheelDisc.style.transition = "none";
   wheelDisc.style.transform = "rotate(0deg)";
+  if (focusWasInside && returnFocus && returnFocus.isConnected) returnFocus.focus();
 }
 
 function showWheel(round) {
@@ -1151,6 +1197,9 @@ function showWheel(round) {
     wheelDisc.style.transition = "none";
     wheelDisc.style.transform = "rotate(0deg)";
     wheelOverlay.hidden = false;
+    wheelReturnFocus = document.activeElement;
+    setWheelBackgroundInert(true);
+    wheelPanel?.focus();
     if (round.tieBreak.status === "ready") {
       wheelStatus.textContent = "Starting the wheel…";
       wheelAutoTimer = setTimeout(() => {
@@ -1298,7 +1347,7 @@ function showSurvey(survey) {
   surveyResultsButton.hidden = !closed || !survey.results;
   surveyBackButton.textContent = closed ? "Back to setup" : "Start over";
   surveyFootnote.textContent = closed
-    ? "Final response counts. The audience is on the thank-you screen."
+    ? "Final response counts. The audience sees the results on /join."
     : "Counts update as people answer. No answer breakdown is shown here.";
   surveyStage.classList.toggle("is-closed", closed);
   surveyQrPanel.hidden = closed;
@@ -1402,15 +1451,17 @@ function showSurveyResults(index = surveyResultsIndex) {
 let lastStateRev = 0;
 
 function applyState(state, rev = 0) {
-  if (!document.body.classList.contains("customizer-open")) applyTheme(state?.theme);
-  const presentationLive = state?.presentation?.status === "live";
-  const interactionVisible = Boolean(state?.round || state?.survey);
-  endPresentationButton.hidden = !presentationLive;
-  endSessionButton.hidden = false;
-  endSessionButton.textContent = presentationLive && interactionVisible ? "End interaction" : "End session";
   const incomingRev = Number(rev) || 0;
   if (incomingRev && incomingRev <= lastStateRev) return;
   if (incomingRev) lastStateRev = incomingRev;
+  if (!document.body.classList.contains("customizer-open")) applyTheme(state?.theme);
+  const presentationLive = state?.presentation?.status === "live";
+  const interactionVisible = Boolean(
+    state?.round?.status === "open" || state?.survey?.status === "open",
+  );
+  endPresentationButton.hidden = !presentationLive;
+  endSessionButton.hidden = false;
+  endSessionButton.textContent = presentationLive && interactionVisible ? "End interaction" : "End session";
   const incomingNow = Number(state?.now) || 0;
   lastStateNow = Math.max(lastStateNow, incomingNow);
   if (connection) connection.syncServerTime(state);
@@ -1630,6 +1681,7 @@ function prepareQuestionForStart(index) {
     options: labels,
     durationSec: Number(question.durationSec) || 0,
     spinOnTie: question.spinOnTie !== false,
+    allowCustom: question.allowCustom !== false,
   };
 }
 
@@ -1801,7 +1853,7 @@ async function startNewSession() {
 
 async function finishSurvey() {
   if (actionInFlight || !roundState?.survey || roundState.survey.status !== "open") return;
-  if (!window.confirm("Finish the survey? The audience will see the thank-you screen.")) return;
+  if (!window.confirm("Finish the survey? The audience will see the results on /join.")) return;
   actionInFlight = true;
   setActionBusy(surveyFinishButton, true, "Finishing…");
   try {
@@ -1818,10 +1870,11 @@ async function finishSurvey() {
 
 async function surveyBackToSetup() {
   if (actionInFlight) return;
-  if (
-    roundState?.survey?.status === "open" &&
-    !window.confirm("Close this survey and discard the responses?")
-  ) {
+  const survey = roundState?.survey;
+  if (survey?.status === "open" && !window.confirm("Close this survey and discard the responses?")) {
+    return;
+  }
+  if (survey?.status === "closed" && !window.confirm("Leave these results? They will be cleared.")) {
     return;
   }
   await resetToSetup();
@@ -1994,7 +2047,11 @@ initCustomizer();
 
 updateDismiss?.addEventListener("click", () => {
   if (updateNotice?.dataset.version) {
-    localStorage.setItem(UPDATE_DISMISSED_KEY, updateNotice.dataset.version);
+    try {
+      localStorage.setItem(UPDATE_DISMISSED_KEY, updateNotice.dataset.version);
+    } catch {
+      // Dismissal is a convenience; storage may be unavailable.
+    }
   }
   if (updateNotice) updateNotice.hidden = true;
 });
@@ -2267,21 +2324,39 @@ endPresentationButton.addEventListener("click", endPresentationFromHost);
 
 endSessionButton.addEventListener("click", async () => {
   const liveInteraction =
-    roundState?.presentation?.status === "live" && Boolean(roundState?.round || roundState?.survey);
+    roundState?.presentation?.status === "live" &&
+    Boolean(roundState?.round?.status === "open" || roundState?.survey?.status === "open");
+  const liveSurvey =
+    roundState?.presentation?.status === "live" && roundState?.survey?.status === "open";
   if (
     !window.confirm(
-      liveInteraction
-        ? "End the interaction? Voting closes and the audience sees the thank-you screen."
-        : "End the session? The audience will see a thank-you screen with the GitHub link.",
+      liveSurvey
+        ? "End the interaction? The survey closes and the audience sees the results on /join."
+        : liveInteraction
+          ? "End the interaction? The audience will return to the presentation screen."
+          : "End the session? The audience will see a thank-you screen with the GitHub link.",
     )
   ) {
     return;
   }
   endSessionButton.disabled = true;
   try {
-    await api("/api/host/end", { method: "POST", body: {} });
-    allowUnload = true;
-    location.href = "/thanks-host";
+    if (liveSurvey) {
+      const result = await api("/api/host/end", { method: "POST", body: {} });
+      applyState(result.state, result.rev);
+      showToast(toast, "Survey closed. Results are ready.", 3200);
+    } else if (liveInteraction) {
+      const result = await api("/api/presentation/interaction/end", {
+        method: "POST",
+        body: {},
+      });
+      applyState(result.state, result.rev);
+      showToast(toast, "Interaction ended. The presentation is still live.", 3200);
+    } else {
+      await api("/api/host/end", { method: "POST", body: {} });
+      allowUnload = true;
+      location.href = "/thanks-host";
+    }
   } catch (error) {
     handleActionError(error);
   } finally {

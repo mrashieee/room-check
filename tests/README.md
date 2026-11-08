@@ -15,6 +15,12 @@ Fast HTTP-level tests against a temporary server with a throwaway `DATA_DIR`:
 - vote rate limiting trips after a burst (429)
 - logo responses are not immutably cached
 - closing a presentation invalidates the controller token
+- reopening keeps slides and the controller token
+- empty-deck navigation stays in range
+- controller interactions honor the write-in toggle
+- survey questions keep their own write-in flags
+- resuming a live deck reopens the room
+- host logout requires an authenticated session
 
 ## Smoke test (browser)
 
@@ -30,10 +36,12 @@ The test starts a temporary Room Check server on a free local port with a throwa
 - protected landing and host setup
 - landing and host theme customiser open/save/close
 - image and PDF slide upload
-- projector next/previous, fit, rotate, deck/resume, Stop presentation and display-bar end
+- projector next/previous, fit, rotate, deck/resume, End presentation and display-bar end
 - controller token pairing, password pairing, fit, rotate, slide jump and slide controls
 - poll add/remove, vote, vote change, write-in and write-in disable toggle
+- per-question write-in flags through the host survey builder
 - reveal, Live Hands, survey back/next and results
+- End interaction from the host console and projector, with the audience returning to the presentation screen
 - share-card copy, PNG export and routes
 - public slide access restrictions
 - fullscreen toggles on landing, host and projector

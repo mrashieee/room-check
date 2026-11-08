@@ -214,5 +214,4 @@ async function loadShare() {
   }
 }
 
-loadTheme();
-loadShare();
+loadTheme().then(() => loadShare());

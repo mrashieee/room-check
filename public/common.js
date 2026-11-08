@@ -53,10 +53,18 @@ export async function api(path, options = {}) {
   }
 
   let response;
+  const timeoutMs = Number(options.timeout) || 15_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    response = await fetch(path, init);
+    response = await fetch(path, {
+      ...init,
+      signal: options.signal || controller.signal,
+    });
   } catch {
     throw new ApiError("Could not reach the server. Check your connection.", { status: 0 });
+  } finally {
+    clearTimeout(timer);
   }
 
   const contentType = response.headers.get("content-type") || "";
@@ -261,10 +269,15 @@ export async function copyText(text) {
 
 const CONFETTI_COLORS = ["#e6b422", "#9b2c2c", "#6f9b95", "#d4a95f", "#c98b8b", "#2b1713"];
 let confettiFrame = 0;
+let confettiResize = null;
 
 export function launchConfetti(canvas, { duration = 4800 } = {}) {
   if (!canvas || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   cancelAnimationFrame(confettiFrame);
+  if (confettiResize) {
+    window.removeEventListener("resize", confettiResize);
+    confettiResize = null;
+  }
 
   const context = canvas.getContext("2d");
   if (!context) return;
@@ -347,10 +360,12 @@ export function launchConfetti(canvas, { duration = 4800 } = {}) {
     } else {
       context.clearRect(0, 0, width, height);
       window.removeEventListener("resize", resize);
+      if (confettiResize === resize) confettiResize = null;
     }
   };
 
   confettiFrame = requestAnimationFrame(draw);
+  confettiResize = resize;
   window.addEventListener("resize", resize);
 }
 

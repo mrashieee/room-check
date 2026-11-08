@@ -308,11 +308,13 @@ async function main() {
     await waitVisible(hostPage.locator("#present-setup"));
     assert.equal(await hostPage.locator("#present-end-session").isHidden(), false);
     assert.equal(await text(hostPage.locator("#present-end-session")), "End interaction");
-    const headerEnd = await hostPage.evaluate(async () => {
-      const response = await fetch("/api/host/reset", { method: "POST", credentials: "same-origin" });
-      return response.status;
-    });
-    assert.equal(headerEnd, 200);
+    hostPage.once("dialog", (dialog) => dialog.accept());
+    await hostPage.click("#present-end-session");
+    await hostPage.waitForFunction(
+      () => document.querySelector("#present-end-session")?.textContent === "End session",
+      null,
+      { timeout: 10_000 },
+    );
     await hostPage.reload({ waitUntil: "domcontentloaded" });
     await waitVisible(hostPage.locator("#present-setup"));
     assert.equal(await hostPage.locator("#present-end-session").isHidden(), false);
@@ -481,6 +483,7 @@ async function main() {
     );
     await controllerPage.click("#controller-interaction-action");
     await waitVisible(audiencePage.locator("#screen-results"));
+    controllerPage.once("dialog", (dialog) => dialog.accept());
     await controllerPage.click("#controller-interaction-back");
     await waitVisible(audiencePage.locator("#screen-presentation"));
 
@@ -497,6 +500,7 @@ async function main() {
       { timeout: 15_000 },
     );
     await controllerPage.click("#controller-interaction-action");
+    controllerPage.once("dialog", (dialog) => dialog.accept());
     await controllerPage.click("#controller-interaction-back");
     await waitVisible(audiencePage.locator("#screen-presentation"));
 
@@ -666,6 +670,8 @@ async function main() {
     await waitVisible(hostPage.locator("#present-setup"));
     await hostPage.click("#present-start");
     await waitVisible(hostPage.locator("#present-display"));
+    await audiencePage.waitForURL((url) => url.pathname === "/join", { timeout: 15_000 });
+    await waitVisible(audiencePage.locator("#screen-presentation"));
     const hostControlPage = await hostContext.newPage();
     trackPage(hostControlPage, "host-control");
     await hostControlPage.goto(server.base + "/interactions", { waitUntil: "domcontentloaded" });
@@ -673,6 +679,39 @@ async function main() {
     await waitVisible(hostControlPage.locator("#host-end-presentation"));
     assert.equal(await hostControlPage.locator("#end-session-button").isHidden(), false);
     assert.equal(await text(hostControlPage.locator("#end-session-button")), "End session");
+
+    const interactionStatus = await hostControlPage.evaluate(async () => {
+      const response = await fetch("/api/host/open", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "poll",
+          question: "End interaction check?",
+          options: ["Yes", "No"],
+          durationSec: 0,
+          allowCustom: false,
+        }),
+      });
+      return response.status;
+    });
+    assert.equal(interactionStatus, 200);
+    await waitVisible(audiencePage.locator("#screen-vote"));
+    await hostControlPage.waitForFunction(
+      () => document.querySelector("#end-session-button")?.textContent === "End interaction",
+      null,
+      { timeout: 10_000 },
+    );
+    hostControlPage.once("dialog", (dialog) => dialog.accept());
+    await hostControlPage.click("#end-session-button");
+    await waitVisible(audiencePage.locator("#screen-presentation"), 15_000);
+    await waitVisible(hostControlPage.locator("#host-app"));
+    await hostControlPage.waitForFunction(
+      () => document.querySelector("#end-session-button")?.textContent === "End session",
+      null,
+      { timeout: 10_000 },
+    );
+
     hostControlPage.once("dialog", (dialog) => dialog.accept());
     await hostControlPage.click("#host-end-presentation");
     await hostControlPage.waitForURL((url) => url.pathname === "/thanks-host", { timeout: 15_000 });
@@ -719,6 +758,44 @@ async function main() {
     await waitVisible(noSlidePage.locator("#controller-live"));
     assert.match(await text(noSlidePage.locator("#controller-note")), /No slides yet/);
     await noSlideController.close();
+
+    await hostPage.goto(server.base + "/interactions", { waitUntil: "domcontentloaded" });
+    await waitVisible(hostPage.locator("#host-app"));
+    hostPage.once("dialog", (dialog) => dialog.accept());
+    await hostPage.setInputFiles("#import-questions-input", {
+      name: "write-in-flags.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(
+        JSON.stringify({
+          title: "Write-in flag check",
+          questions: [
+            { question: "First?", options: ["A", "B"], durationSec: 0, allowCustom: false },
+            { question: "Second?", options: ["C", "D"], durationSec: 0, allowCustom: true },
+          ],
+        }),
+      ),
+    });
+    await hostPage.waitForFunction(
+      () => document.querySelector("#session-count")?.textContent?.includes("2"),
+      null,
+      { timeout: 10_000 },
+    );
+    await hostPage.click("#start-button");
+    await waitVisible(hostPage.locator("#survey-stage"), 15_000);
+    const surveyFlags = await hostPage.evaluate(async () => {
+      const response = await fetch("/api/state");
+      const state = (await response.json()).state;
+      return state.survey?.questions?.map((question) => question.allowCustom);
+    });
+    assert.deepEqual(surveyFlags, [false, true]);
+    await hostPage.evaluate(async () => {
+      await fetch("/api/host/reset", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+    });
 
     assert.deepEqual(pageErrors, [], `Browser page errors: ${pageErrors.join("; ")}`);
     console.log("15/15 done");

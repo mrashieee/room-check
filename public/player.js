@@ -862,10 +862,10 @@ function renderScreen() {
 let lastStateRev = 0;
 
 function handleState(state, you, rev = 0) {
-  applyTheme(state?.theme);
   const incomingRev = Number(rev) || 0;
   if (incomingRev && incomingRev <= lastStateRev) return;
   if (incomingRev) lastStateRev = incomingRev;
+  applyTheme(state?.theme);
   const incomingNow = Number(state?.now) || 0;
   lastStateNow = Math.max(lastStateNow, incomingNow);
   if (connection) connection.syncServerTime(state);

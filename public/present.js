@@ -70,6 +70,10 @@ let stateTimer = null;
 let uploading = false;
 let displayDismissed = false;
 let fitMode = "width";
+let displayRefreshBusy = false;
+let lastDisplayRev = 0;
+let serverOffset = 0;
+let controlBusy = false;
 const DISPLAY_RESUME_KEY = "roomcheck.present.display";
 
 function rememberDisplay(showing) {
@@ -122,14 +126,26 @@ function applyAudienceConfig(config) {
 }
 
 async function request(path, options = {}) {
-  const response = await fetch(path, {
-    credentials: "same-origin",
-    ...options,
-    headers: {
-      ...(options.body && !(options.body instanceof Blob) ? { "Content-Type": "application/json" } : {}),
-      ...(options.headers || {}),
-    },
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  let response;
+  try {
+    response = await fetch(path, {
+      credentials: "same-origin",
+      ...options,
+      signal: options.signal || controller.signal,
+      headers: {
+        ...(options.body && !(options.body instanceof Blob) ? { "Content-Type": "application/json" } : {}),
+        ...(options.headers || {}),
+      },
+    });
+  } catch {
+    const error = new Error("Could not reach the server. Check the connection.");
+    error.status = 0;
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
   let payload = null;
   try {
     payload = await response.json();
@@ -137,6 +153,7 @@ async function request(path, options = {}) {
     // Some endpoints return no body.
   }
   if (response.status === 401) {
+    allowUnload = true;
     location.href = "/interactions?next=/present";
     const error = new Error(payload?.error || "Host sign-in required.");
     error.status = 401;
@@ -181,13 +198,14 @@ function applyPresentation(next) {
     const url = `${controllerBase}/controller?token=${encodeURIComponent(controllerToken)}`;
     qrUrl.textContent = url.replace(/^https?:\/\//, "");
     qrUrl.dataset.url = url;
-    qrImage.src = `/api/qr?data=${encodeURIComponent(url)}`;
+    const qrSrc = `/api/qr?data=${encodeURIComponent(url)}`;
+    if (qrImage.getAttribute("src") !== qrSrc) qrImage.src = qrSrc;
   }
 }
 
 function updateHeaderActions() {
   const live = presentation?.status === "live";
-  const interactionVisible = Boolean(round || survey);
+  const interactionVisible = Boolean(round?.status === "open" || survey?.status === "open");
   endPresentationButton.hidden = !live;
   endSessionButton.hidden = false;
   endSessionButton.textContent = live && interactionVisible ? "End interaction" : "End session";
@@ -222,6 +240,10 @@ function renderSlides() {
 
 async function refreshPresentation() {
   const payload = await request("/api/host/state");
+  const incomingRev = Number(payload.rev) || 0;
+  if (incomingRev) lastDisplayRev = Math.max(lastDisplayRev, incomingRev);
+  const now = Number(payload.state?.now);
+  if (Number.isFinite(now)) serverOffset = now - Date.now();
   controllerToken = payload.presentationToken || "";
   presentation = payload.state?.presentation || null;
   round = payload.state?.round || null;
@@ -232,7 +254,7 @@ async function refreshPresentation() {
   }
   applyPresentation(presentation);
   if (presentation?.status === "live" && shouldResumeDisplay()) {
-    showDisplay();
+    await showDisplay();
   } else if (presentation?.status === "live") {
     setStatus("Presentation is live. Press Show presentation to return to the projector view.");
   }
@@ -429,7 +451,18 @@ function applyRemoteScroll() {
   }
 }
 
-function showDisplay() {
+async function showDisplay() {
+  if (presentation?.status === "live") {
+    try {
+      const payload = await request("/api/host/presentation/start", { method: "POST" });
+      presentation = payload.presentation || presentation;
+      controllerToken = payload.token || controllerToken;
+      applyPresentation(presentation);
+    } catch (error) {
+      if (error?.status === 401) return;
+      // Keep showing the local deck if the refresh fails transiently.
+    }
+  }
   displayDismissed = false;
   rememberDisplay(true);
   setupView.hidden = true;
@@ -456,8 +489,15 @@ function hideDisplayLocally() {
 }
 
 async function refreshDisplayState() {
+  if (displayRefreshBusy) return;
+  displayRefreshBusy = true;
   try {
     const payload = await request("/api/host/state");
+    const incomingRev = Number(payload.rev) || 0;
+    if (incomingRev && incomingRev < lastDisplayRev) return;
+    if (incomingRev) lastDisplayRev = incomingRev;
+    const now = Number(payload.state?.now);
+    if (Number.isFinite(now)) serverOffset = now - Date.now();
     setProjectorConnection("online", "Projector");
     presentation = payload.state?.presentation || null;
     round = payload.state?.round || null;
@@ -489,6 +529,8 @@ async function refreshDisplayState() {
     if (error?.status === 401) return;
     setProjectorConnection("offline", "Reconnecting");
     // Keep the last slide visible if the network blips.
+  } finally {
+    displayRefreshBusy = false;
   }
 }
 
@@ -605,7 +647,7 @@ function renderRound(activeRound) {
   interactionResults.hidden = isHands || !revealed;
   interactionCustom.hidden = true;
   if (!isHands && !revealed && activeRound.endsAt) {
-    const remaining = Math.max(0, activeRound.endsAt - Date.now());
+    const remaining = Math.max(0, activeRound.endsAt - (Date.now() + serverOffset));
     const total = Math.ceil(remaining / 1000);
     interactionTimer.hidden = false;
     interactionTimer.textContent = remaining
@@ -695,11 +737,15 @@ function stopDisplayPolling() {
 }
 
 async function control(action, index, nextFitMode) {
+  if (controlBusy) return;
+  controlBusy = true;
   try {
     const payload = await request("/api/presentation/control", {
       method: "POST",
       body: JSON.stringify({ action, index, fitMode: nextFitMode }),
     });
+    const incomingRev = Number(payload.rev) || 0;
+    if (incomingRev) lastDisplayRev = Math.max(lastDisplayRev, incomingRev);
     presentation = payload.presentation;
     if (presentation?.fitMode) {
       fitMode = presentation.fitMode === "page" ? "page" : "width";
@@ -708,6 +754,8 @@ async function control(action, index, nextFitMode) {
     renderDisplay();
   } catch (error) {
     setStatus(error?.message || "Could not control the presentation.");
+  } finally {
+    controlBusy = false;
   }
 }
 
@@ -719,7 +767,7 @@ async function startPresentation() {
     presentation = payload.presentation;
     controllerToken = payload.token || controllerToken;
     applyPresentation(presentation);
-    showDisplay();
+    await showDisplay();
   } catch (error) {
     setStatus(error?.message || "Could not start the presentation.", { error: true });
   }
@@ -744,17 +792,34 @@ async function endPresentationSession() {
 
 async function endSession() {
   if (endSessionButton.hidden) return;
-  const liveInteraction = presentation?.status === "live" && Boolean(round || survey);
+  const liveInteraction =
+    presentation?.status === "live" &&
+    Boolean(round?.status === "open" || survey?.status === "open");
+  const liveSurvey = presentation?.status === "live" && survey?.status === "open";
   if (
     !window.confirm(
-      liveInteraction
-        ? "End the interaction? Voting closes and the audience sees the thank-you screen."
-        : "End the current session? The audience will see the thank-you screen.",
+      liveSurvey
+        ? "End the interaction? The survey closes and the audience sees the results on /join."
+        : liveInteraction
+          ? "End the interaction? The audience will return to the presentation screen."
+          : "End the current session? The audience will see the thank-you screen.",
     )
   ) {
     return;
   }
   try {
+    if (liveSurvey) {
+      await request("/api/host/end", { method: "POST" });
+      await refreshDisplayState();
+      setStatus("Survey closed. Results are on the audience screens.");
+      return;
+    }
+    if (liveInteraction) {
+      await request("/api/presentation/interaction/end", { method: "POST" });
+      await refreshDisplayState();
+      setStatus("Interaction ended. The presentation is still live.");
+      return;
+    }
     await request("/api/host/end", { method: "POST" });
   } catch (error) {
     setStatus(error?.message || "Could not end the session.", { error: true });
@@ -766,6 +831,7 @@ async function endSession() {
 async function stopPresentation() {
   try {
     await request("/api/host/presentation/close", { method: "POST" });
+    rememberDisplay(false);
     stopDisplayPolling();
     displayView.hidden = true;
     setupView.hidden = false;
@@ -912,7 +978,7 @@ async function init() {
       return;
     }
     await refreshPresentation();
-    setupView.hidden = false;
+    if (displayView.hidden) setupView.hidden = false;
   } catch {
     authView.hidden = false;
   }

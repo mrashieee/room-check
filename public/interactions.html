@@ -249,7 +249,7 @@
                     <span class="session-builder-io">
                       <label class="button button--secondary import-questions">
                         <span>Import JSON</span>
-                        <input id="import-questions-input" type="file" accept=".json,application/json" hidden />
+                        <input id="import-questions-input" class="sr-only" type="file" accept=".json,application/json" />
                       </label>
                       <button class="button button--secondary" id="export-questions" type="button">Export JSON</button>
                     </span>
@@ -288,9 +288,9 @@
                 <textarea class="text-input question-input" id="question-input" name="question" maxlength="160" rows="3" placeholder="What does the room think?" required>How’s the energy in the room right now?</textarea>
               </div>
 
-              <fieldset class="field field--options poll-only">
+              <fieldset class="field field--options poll-only" aria-label="The answers">
                 <div class="field-label-row">
-                  <legend class="field-label">The answers</legend>
+                  <span class="field-label">The answers</span>
                   <span class="field-hint">2–10 answers</span>
                 </div>
                 <div class="option-editor" id="option-editor"></div>
@@ -664,7 +664,7 @@
     </div>
 
     <div class="wheel-overlay" id="wheel-overlay" hidden>
-      <div class="wheel-panel" role="dialog" aria-modal="true" aria-labelledby="wheel-title">
+      <div class="wheel-panel" role="dialog" aria-modal="true" aria-labelledby="wheel-title" tabindex="-1">
         <div class="wheel-copy">
           <p class="eyebrow">Tie breaker</p>
           <h2 id="wheel-title">The room is split.</h2>

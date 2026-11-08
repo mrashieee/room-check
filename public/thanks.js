@@ -11,20 +11,35 @@ const qr = document.querySelector("#thanks-qr");
 const startButton = document.querySelector("#thanks-start");
 const audienceThanks = location.pathname === "/thanks";
 let standbyTimer = null;
+let watchBusy = false;
+let lastStateRev = 0;
 if (qr) qr.src = `/api/qr?data=${encodeURIComponent(githubUrl)}`;
 
 async function watchForStandby() {
-  if (!audienceThanks) return;
+  if (!audienceThanks || watchBusy) return;
+  watchBusy = true;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
   try {
-    const response = await fetch("/api/state", { credentials: "same-origin" });
+    const response = await fetch("/api/state", {
+      credentials: "same-origin",
+      signal: controller.signal,
+    });
     if (!response.ok) return;
     const payload = await response.json();
+    const incomingRev = Number(payload?.rev) || 0;
+    if (incomingRev && incomingRev < lastStateRev) return;
+    if (incomingRev) lastStateRev = incomingRev;
     if (payload?.state?.closed === false) {
       clearInterval(standbyTimer);
+      standbyTimer = null;
       location.replace("/join");
     }
   } catch {
     // Keep the thanks page visible if the network blips.
+  } finally {
+    clearTimeout(timer);
+    watchBusy = false;
   }
 }
 

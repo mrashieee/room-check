@@ -11,7 +11,10 @@ const fullscreenButton = document.querySelector("#landing-fullscreen");
 const endSessionButton = document.querySelector("#landing-end-session");
 
 let presentationLive = false;
+let surveyLive = false;
 let stateTimer = null;
+let refreshBusy = false;
+let lastStateRev = 0;
 
 function toggleFullscreen() {
   if (document.fullscreenElement) {
@@ -27,29 +30,47 @@ function setEndState(active) {
 }
 
 async function refreshState() {
+  if (refreshBusy) return;
+  refreshBusy = true;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
   try {
-    const response = await fetch("/api/host/state", { credentials: "same-origin" });
+    const response = await fetch("/api/host/state", {
+      credentials: "same-origin",
+      signal: controller.signal,
+    });
     if (response.status === 401) {
       presentationLive = false;
+      surveyLive = false;
       setEndState(false);
       return;
     }
     if (!response.ok) return;
     const payload = await response.json();
+    const incomingRev = Number(payload.rev) || 0;
+    if (incomingRev && incomingRev < lastStateRev) return;
+    if (incomingRev) lastStateRev = incomingRev;
     const state = payload.state;
     presentationLive = state?.presentation?.status === "live";
+    surveyLive = state?.survey?.status === "open";
     const interactionLive =
       state?.round?.status === "open" ||
       state?.survey?.status === "open";
     setEndState(presentationLive || interactionLive);
   } catch {
     // Keep the last known state if the network blips.
+  } finally {
+    clearTimeout(timer);
+    refreshBusy = false;
   }
 }
 
 async function endSession() {
   if (endSessionButton.disabled) return;
-  if (!window.confirm("End the current session? The audience will see the thank-you screen.")) {
+  const message = surveyLive
+    ? "End the current session? The survey closes and the audience sees the results on /join."
+    : "End the current session? The audience will see the thank-you screen.";
+  if (!window.confirm(message)) {
     return;
   }
 
@@ -84,8 +105,7 @@ document.addEventListener("fullscreenchange", () => {
   fullscreenButton.title = active ? "Exit full screen" : "Full screen";
 });
 
-loadTheme();
-initCustomizer();
+loadTheme().then(() => initCustomizer());
 refreshState();
 stateTimer = setInterval(refreshState, 5000);
 window.addEventListener("beforeunload", () => clearInterval(stateTimer));

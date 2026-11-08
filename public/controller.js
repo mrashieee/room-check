@@ -59,17 +59,31 @@ let pendingScroll = null;
 let lastScrollRatio = 0;
 let renderedScrollSlideKey = "";
 let controlBusy = false;
+let refreshBusy = false;
+let serverOffset = 0;
 
 async function request(path, options = {}) {
-  const response = await fetch(path, {
-    credentials: "same-origin",
-    ...options,
-    headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { "X-Controller-Token": token } : {}),
-      ...(options.headers || {}),
-    },
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  let response;
+  try {
+    response = await fetch(path, {
+      credentials: "same-origin",
+      ...options,
+      signal: options.signal || controller.signal,
+      headers: {
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...(token ? { "X-Controller-Token": token } : {}),
+        ...(options.headers || {}),
+      },
+    });
+  } catch {
+    const error = new Error("Could not reach the projector. Check the connection.");
+    error.status = 0;
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
   let payload = null;
   try {
     payload = await response.json();
@@ -132,7 +146,7 @@ function updateRoundTimer(round) {
     clearRoundTimer();
     return;
   }
-  const remaining = Math.max(0, round.endsAt - Date.now());
+  const remaining = Math.max(0, round.endsAt - (Date.now() + serverOffset));
   if (!remaining) {
     clearRoundTimer();
     return;
@@ -318,7 +332,9 @@ function queueScroll() {
 }
 
 function renderSlideList(currentIndex) {
-  if (slideList.childElementCount !== (presentation?.slides?.length || 0)) {
+  const signature = (presentation?.slides || []).map((slide) => slide.id).join("|");
+  if (slideList.dataset.signature !== signature) {
+    slideList.dataset.signature = signature;
     slideList.replaceChildren();
     for (const [index, slide] of presentation.slides.entries()) {
       const button = document.createElement("button");
@@ -414,17 +430,30 @@ function renderInteraction() {
 let lastStateRev = 0;
 
 async function refresh() {
+  if (refreshBusy) return;
+  refreshBusy = true;
   try {
     const payload = await request("/api/controller/state");
     const incomingRev = Number(payload?.rev) || 0;
     if (incomingRev && incomingRev <= lastStateRev) return;
     if (incomingRev) lastStateRev = incomingRev;
+    const now = Number(payload?.state?.now);
+    if (Number.isFinite(now)) serverOffset = now - Date.now();
     presentation = payload.state?.presentation || null;
     round = payload.state?.round || null;
     survey = payload.state?.survey || null;
     render();
-  } catch {
-    note.textContent = "Could not reach the projector. Keep this page open.";
+  } catch (error) {
+    if (error?.status === 401) {
+      note.textContent = token
+        ? "This controller pairing expired. Scan the projector QR again or use the host password."
+        : "Enter the host password to pair this controller.";
+      loginPanel.hidden = false;
+    } else {
+      note.textContent = "Could not reach the projector. Keep this page open.";
+    }
+  } finally {
+    refreshBusy = false;
   }
 }
 
@@ -559,6 +588,12 @@ async function handleInteractionAction() {
 
 async function endInteraction() {
   if (controlBusy) return;
+  if (
+    (round || survey) &&
+    !window.confirm("Return to slides? This clears the current interaction.")
+  ) {
+    return;
+  }
   controlBusy = true;
   try {
     await request("/api/presentation/interaction/end", { method: "POST" });

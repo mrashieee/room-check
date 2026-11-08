@@ -104,7 +104,7 @@
             <button class="button button--secondary present-start" id="present-resume" type="button" hidden>
               Show presentation
             </button>
-            <button class="text-button" id="present-stop-presentation" type="button" hidden>Stop presentation</button>
+            <button class="text-button" id="present-stop-presentation" type="button" hidden>End presentation</button>
             <p class="present-status" id="present-host-controls"><a href="/interactions">Open host controls for polls, surveys and hands →</a></p>
             <button class="text-button" id="present-discard" type="button">Discard deck</button>
           </div>
@@ -128,7 +128,7 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="1.8"></path></svg>
               </button>
             </div>
-            <p class="present-status" id="present-qr-note">The controller becomes active when the presentation starts.</p>
+            <p class="present-status" id="present-qr-note">Scan any time while this deck is ready or live.</p>
             <button class="text-button" id="present-new-controller" type="button">New controller link</button>
             <p class="present-status"><a href="/share" target="_blank" rel="noreferrer">Open the audience share card →</a></p>
           </aside>
@@ -182,5 +182,8 @@
         </div>
       </section>
     </main>
+    <noscript>
+      <div class="noscript">Room Check needs JavaScript to show the presentation.</div>
+    </noscript>
   </body>
 </html>
