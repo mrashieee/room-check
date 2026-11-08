@@ -230,7 +230,12 @@ try {
   });
 
   await test("closed presentation invalidates the controller token", async () => {
-    let response = await hostFetch(base, cookie, "/api/host/presentation/create", {
+    let response = await hostFetch(base, cookie, "/api/host/reset", {
+      method: "POST",
+      body: "{}",
+    });
+    if (response.status !== 200) assert.fail(`reset failed: ${await response.text()}`);
+    response = await hostFetch(base, cookie, "/api/host/presentation/create", {
       method: "POST",
       body: JSON.stringify({ title: "Unit deck" }),
     });
@@ -265,6 +270,125 @@ try {
 
     response = await fetch(base + `/api/controller/state?token=${encodeURIComponent(reopened.token)}`);
     if (response.status !== 200) assert.fail(`controller state failed: ${await response.text()}`);
+  });
+
+  await test("empty deck navigation stays in range", async () => {
+    let response = await hostFetch(base, cookie, "/api/host/presentation/start", {
+      method: "POST",
+      body: "{}",
+    });
+    if (response.status !== 200) assert.fail(`start failed: ${await response.text()}`);
+    response = await hostFetch(base, cookie, "/api/presentation/control", {
+      method: "POST",
+      body: JSON.stringify({ action: "next" }),
+    });
+    if (response.status !== 200) assert.fail(`next failed: ${await response.text()}`);
+    assert.equal((await response.json()).presentation.currentIndex, 0);
+    response = await hostFetch(base, cookie, "/api/presentation/control", {
+      method: "POST",
+      body: JSON.stringify({ action: "prev" }),
+    });
+    if (response.status !== 200) assert.fail(`prev failed: ${await response.text()}`);
+    assert.equal((await response.json()).presentation.currentIndex, 0);
+  });
+
+  await test("controller interactions honor the write-in toggle", async () => {
+    let response = await hostFetch(base, cookie, "/api/presentation/interaction", {
+      method: "POST",
+      body: JSON.stringify({
+        mode: "poll",
+        title: "Controller write-in test",
+        question: "Write-ins?",
+        options: ["A", "B"],
+        durationSec: 0,
+        allowCustom: false,
+      }),
+    });
+    if (response.status !== 200) assert.fail(`interaction failed: ${await response.text()}`);
+    response = await fetch(base + "/api/state");
+    const state = (await response.json()).state;
+    assert.equal(state.round.allowCustom, false);
+    await hostFetch(base, cookie, "/api/presentation/interaction/end", {
+      method: "POST",
+      body: "{}",
+    });
+  });
+
+  await test("survey questions keep their own write-in flags", async () => {
+    let response = await hostFetch(base, cookie, "/api/host/survey/start", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Write-in flags",
+        durationSec: 0,
+        questions: [
+          { question: "One?", options: ["A", "B"], allowCustom: false },
+          { question: "Two?", options: ["C", "D"], allowCustom: true },
+        ],
+      }),
+    });
+    if (response.status !== 200) assert.fail(`survey failed: ${await response.text()}`);
+    response = await fetch(base + "/api/state");
+    const survey = (await response.json()).state.survey;
+    assert.deepEqual(
+      survey.questions.map((question) => question.allowCustom),
+      [false, true],
+    );
+    await hostFetch(base, cookie, "/api/host/reset", { method: "POST", body: "{}" });
+  });
+
+  await test("resuming a live deck reopens the room", async () => {
+    let response = await hostFetch(base, cookie, "/api/host/end", {
+      method: "POST",
+      body: "{}",
+    });
+    if (response.status !== 200) assert.fail(`end failed: ${await response.text()}`);
+    assert.equal((await response.json()).state.closed, true);
+
+    response = await hostFetch(base, cookie, "/api/host/presentation/start", {
+      method: "POST",
+      body: "{}",
+    });
+    if (response.status !== 200) assert.fail(`resume failed: ${await response.text()}`);
+    response = await fetch(base + "/api/state");
+    let state = (await response.json()).state;
+    assert.equal(state.presentation.status, "live");
+    assert.equal(state.closed, false);
+
+    await hostFetch(base, cookie, "/api/host/end", { method: "POST", body: "{}" });
+    response = await hostFetch(base, cookie, "/api/presentation/interaction", {
+      method: "POST",
+      body: JSON.stringify({
+        mode: "poll",
+        question: "Still open?",
+        options: ["Yes", "No"],
+        durationSec: 0,
+      }),
+    });
+    if (response.status !== 200) assert.fail(`interaction failed: ${await response.text()}`);
+    response = await fetch(base + "/api/state");
+    state = (await response.json()).state;
+    assert.equal(state.closed, false);
+    assert.equal(Boolean(state.round), true);
+
+    response = await hostFetch(base, cookie, "/api/presentation/interaction/end", {
+      method: "POST",
+      body: "{}",
+    });
+    if (response.status !== 200) assert.fail(`back to slides failed: ${await response.text()}`);
+    response = await fetch(base + "/api/state");
+    state = (await response.json()).state;
+    assert.equal(state.closed, false);
+    assert.equal(Boolean(state.round), false);
+    assert.equal(state.presentation.status, "live");
+  });
+
+  await test("logout requires host auth", async () => {
+    const response = await fetch(base + "/api/host/logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    assert.equal(response.status, 401);
   });
 
   console.log(`\nunit: ${passed} passed.`);

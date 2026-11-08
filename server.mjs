@@ -5,6 +5,7 @@
  */
 
 import http from "node:http";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
@@ -40,10 +41,42 @@ if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
   throw new Error(`Invalid PORT "${process.env.PORT}". Use a number between 1 and 65535.`);
 }
 const HOST_BIND = process.env.BIND_ADDRESS || "0.0.0.0";
-const TRUST_PROXY = String(process.env.TRUST_PROXY || "loopback")
-  .split(",")
-  .map((entry) => entry.trim())
-  .filter(Boolean);
+const TRUST_PROXY = (() => {
+  const entries = String(process.env.TRUST_PROXY ?? "loopback")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const list = entries.length ? entries : ["loopback"];
+  const presets = {
+    loopback: ["127.0.0.1/8", "::1/128"],
+    linklocal: ["169.254.0.0/16", "fe80::/10"],
+    uniquelocal: ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"],
+  };
+  const expanded = [];
+  for (const entry of list) {
+    const preset = presets[entry.toLowerCase()];
+    if (preset) {
+      expanded.push(...preset);
+      continue;
+    }
+    const [address, prefix, ...rest] = entry.split("/");
+    const family = net.isIP(address);
+    if (rest.length || !family) {
+      throw new Error(
+        `Invalid TRUST_PROXY entry "${entry}". Use loopback, linklocal, uniquelocal, an IP address or a CIDR range.`,
+      );
+    }
+    if (prefix !== undefined) {
+      const bits = Number(prefix);
+      const max = family === 6 ? 128 : 32;
+      if (!Number.isInteger(bits) || bits < 0 || bits > max) {
+        throw new Error(`Invalid TRUST_PROXY prefix in "${entry}".`);
+      }
+    }
+    expanded.push(entry);
+  }
+  return expanded;
+})();
 const SESSION_MAX_AGE_SEC = 60 * 60 * 12;
 const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_MAX_LENGTH = 200;
@@ -56,7 +89,29 @@ const SCRYPT = {
 };
 const SETUP_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const TIEBREAK_MS = 9000;
-const PUBLIC_URL = String(process.env.PUBLIC_URL || "").trim().replace(/\/+$/, "");
+const PUBLIC_URL = (() => {
+  const raw = String(process.env.PUBLIC_URL || "").trim().replace(/\/+$/, "");
+  if (!raw) return "";
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error("PUBLIC_URL must be a full http:// or https:// origin.");
+  }
+  if (
+    !["http:", "https:"].includes(parsed.protocol) ||
+    parsed.pathname !== "/" ||
+    parsed.search ||
+    parsed.hash ||
+    parsed.username ||
+    parsed.password
+  ) {
+    throw new Error(
+      "PUBLIC_URL must be a full http:// or https:// origin with no path, query or credentials.",
+    );
+  }
+  return parsed.origin;
+})();
 const THEME_LOGO_MAX_BYTES = 256 * 1024;
 const THEME_LOGO_TYPES = {
   "image/png": "png",
@@ -153,7 +208,9 @@ let revealTimer = null;
 let tieBreakTimer = null;
 let surveyTimer = null;
 let saveTimer = null;
+let broadcastTimer = null;
 let saveChain = Promise.resolve();
+let shuttingDown = false;
 
 function cleanString(value, maxLength) {
   if (typeof value !== "string") return "";
@@ -823,18 +880,22 @@ let stateRev = Date.now();
 
 function broadcastState() {
   stateRev += 1;
-  for (const client of wss.clients) {
-    if (client.readyState !== WebSocket.OPEN) continue;
-    try {
-      client.send(JSON.stringify(statePayloadFor(client)));
-    } catch {
+  if (broadcastTimer) return;
+  broadcastTimer = setTimeout(() => {
+    broadcastTimer = null;
+    for (const client of wss.clients) {
+      if (client.readyState !== WebSocket.OPEN) continue;
       try {
-        client.terminate();
+        client.send(JSON.stringify(statePayloadFor(client)));
       } catch {
-        // Already closed.
+        try {
+          client.terminate();
+        } catch {
+          // Already closed.
+        }
       }
     }
-  }
+  }, 30);
 }
 
 function scheduleSave() {
@@ -945,6 +1006,32 @@ function persistStateSync() {
   }
 }
 
+function fsyncFileSync(target) {
+  try {
+    const fd = fs.openSync(target, "r");
+    try {
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    // Best effort; the rename still applies.
+  }
+}
+
+function fsyncDirectorySync(directory) {
+  try {
+    const fd = fs.openSync(directory, "r");
+    try {
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    // Not all platforms support directory fsync.
+  }
+}
+
 function normalizeCustomPalette(raw) {
   const name = cleanString(raw?.name, 32);
   if (!name) return null;
@@ -997,7 +1084,9 @@ function persistCustomPalettes() {
     } catch {
       // Some filesystems do not support chmod.
     }
+    fsyncFileSync(temp);
     fs.renameSync(temp, PALETTES_FILE);
+    fsyncDirectorySync(DATA_DIR);
   } catch (error) {
     console.error("Could not save custom palettes:", error.message);
   }
@@ -1022,6 +1111,7 @@ function normalizeStoredSession(raw, round) {
             : [],
           durationSec: question?.durationSec,
           spinOnTie: question?.spinOnTie,
+          allowCustom: question?.allowCustom,
         }),
       );
     } catch {
@@ -1088,17 +1178,22 @@ function normalizeStoredPresentation(raw) {
     if (!PRESENTATION_SLIDE_TYPES.has(slide.type) && !["png", "jpg", "webp"].includes(ext)) continue;
     const fileExt = ext || PRESENTATION_SLIDE_TYPES.get(slide.type);
     if (!fs.existsSync(presentationSlidePath(raw.id, slide.id, fileExt))) continue;
+    const type = PRESENTATION_SLIDE_TYPES.has(slide.type)
+      ? slide.type
+      : `image/${fileExt === "jpg" ? "jpeg" : fileExt}`;
     slides.push({
       id: slide.id,
       name: cleanString(slide.name, 80) || "Slide",
-      type: slide.type || `image/${fileExt === "jpg" ? "jpeg" : fileExt}`,
+      type,
       ext: fileExt,
       rotation: [0, 90, 180, 270].includes(Number(slide.rotation)) ? Number(slide.rotation) : 0,
     });
   }
-  const currentIndex = Math.min(
-    Math.max(Number(raw.currentIndex) || 0, 0),
-    Math.max(0, slides.length - 1),
+  const currentIndex = Math.floor(
+    Math.min(
+      Math.max(Number(raw.currentIndex) || 0, 0),
+      Math.max(0, slides.length - 1),
+    ),
   );
   return {
     id: raw.id,
@@ -1246,6 +1341,7 @@ function loadState() {
     }
     return;
   }
+  const hadData = Boolean(raw?.round || raw?.survey || raw?.presentation);
   try {
     state.session = null;
     state.sessionClosedAt = Number(raw?.sessionClosedAt) || null;
@@ -1400,13 +1496,10 @@ function loadState() {
       state.round.tieBreak.completedAt = Date.now();
       persistState();
     }
-
-    if (
-      (raw?.round || raw?.survey || raw?.presentation) &&
-      !state.round &&
-      !state.survey &&
-      !state.presentation
-    ) {
+  } catch (error) {
+    console.error("Could not restore the last poll:", error.message);
+  } finally {
+    if (hadData && !state.round && !state.survey && !state.presentation) {
       try {
         const backup = `${STATE_FILE}.invalid-${Date.now()}`;
         fs.copyFileSync(STATE_FILE, backup);
@@ -1415,8 +1508,6 @@ function loadState() {
         console.error("Could not back up the invalid state file:", error.message);
       }
     }
-  } catch (error) {
-    console.error("Could not restore the last poll:", error.message);
   }
 }
 
@@ -1480,6 +1571,9 @@ function openRound(details) {
   if (state.round?.status === "open") {
     throw new HttpError(409, "A round is already open. Finish it before starting another.", "round_active");
   }
+  if (state.survey?.status === "open") {
+    throw new HttpError(409, "Finish the current survey first.", "survey_active");
+  }
   if (revealTimer) {
     clearTimeout(revealTimer);
     revealTimer = null;
@@ -1508,6 +1602,9 @@ function openRound(details) {
 function startSession(details) {
   if (state.round?.status === "open") {
     throw new HttpError(409, "A round is already open. Finish it before starting another.", "round_active");
+  }
+  if (state.survey?.status === "open") {
+    throw new HttpError(409, "Finish the current survey first.", "survey_active");
   }
   if (tieBreakTimer) {
     clearTimeout(tieBreakTimer);
@@ -1558,6 +1655,9 @@ function armSurveyTimer() {
 function startSurvey(details) {
   if (state.round?.status === "open") {
     throw new HttpError(409, "A round is already open. Finish it before starting another.", "round_active");
+  }
+  if (state.survey?.status === "open") {
+    throw new HttpError(409, "Finish the current survey first.", "survey_active");
   }
   if (revealTimer) {
     clearTimeout(revealTimer);
@@ -1817,7 +1917,20 @@ function deletePresentationSlide(slideId) {
 function startPresentation() {
   const presentation = state.presentation;
   if (!presentation) throw new HttpError(409, "Create a presentation first.");
-  if (presentation.status === "live") return presentation;
+  if (presentation.status === "live") {
+    if (state.sessionClosedAt) {
+      state.sessionClosedAt = null;
+      scheduleSave();
+      broadcastState();
+    }
+    return presentation;
+  }
+  if (state.round?.status === "open") {
+    throw new HttpError(409, "End the current interaction before starting the deck.", "round_active");
+  }
+  if (state.survey?.status === "open") {
+    throw new HttpError(409, "End the current survey before starting the deck.", "survey_active");
+  }
   if (revealTimer) {
     clearTimeout(revealTimer);
     revealTimer = null;
@@ -1826,8 +1939,13 @@ function startPresentation() {
     clearTimeout(tieBreakTimer);
     tieBreakTimer = null;
   }
+  if (surveyTimer) {
+    clearTimeout(surveyTimer);
+    surveyTimer = null;
+  }
   state.round = null;
   state.survey = null;
+  state.session = null;
   presentation.status = "live";
   presentation.activeView = "slides";
   presentation.currentIndex = 0;
@@ -1849,10 +1967,25 @@ function controlPresentation(action, index, fitMode, scroll) {
     presentation.closedAt = Date.now();
     state.round = null;
     state.survey = null;
+    state.session = null;
     state.sessionClosedAt = Date.now();
+    if (revealTimer) {
+      clearTimeout(revealTimer);
+      revealTimer = null;
+    }
+    if (tieBreakTimer) {
+      clearTimeout(tieBreakTimer);
+      tieBreakTimer = null;
+    }
+    if (surveyTimer) {
+      clearTimeout(surveyTimer);
+      surveyTimer = null;
+    }
   } else if (action === "slides") {
     state.round = null;
     state.survey = null;
+    state.session = null;
+    state.sessionClosedAt = null;
     presentation.activeView = "slides";
   } else if (action === "fit") {
     if (fitMode !== "width" && fitMode !== "page") {
@@ -1873,10 +2006,17 @@ function controlPresentation(action, index, fitMode, scroll) {
     slide.rotation = ((Number(slide.rotation) || 0) + 90) % 360;
     presentation.scroll = 0;
   } else if (action === "next") {
-    presentation.currentIndex = Math.min(presentation.slides.length - 1, presentation.currentIndex + 1);
+    const last = Math.max(0, presentation.slides.length - 1);
+    presentation.currentIndex = Math.min(
+      last,
+      Math.max(0, (Number(presentation.currentIndex) || 0) + 1),
+    );
     presentation.scroll = 0;
   } else if (action === "prev") {
-    presentation.currentIndex = Math.max(0, presentation.currentIndex - 1);
+    presentation.currentIndex = Math.max(
+      0,
+      (Number(presentation.currentIndex) || 0) - 1,
+    );
     presentation.scroll = 0;
   } else if (action === "goto") {
     const next = Number(index);
@@ -1928,6 +2068,18 @@ function discardPresentationDeck() {
   state.survey = null;
   state.session = null;
   state.sessionClosedAt = null;
+  if (revealTimer) {
+    clearTimeout(revealTimer);
+    revealTimer = null;
+  }
+  if (tieBreakTimer) {
+    clearTimeout(tieBreakTimer);
+    tieBreakTimer = null;
+  }
+  if (surveyTimer) {
+    clearTimeout(surveyTimer);
+    surveyTimer = null;
+  }
   scheduleSave();
   broadcastState();
   return presentation;
@@ -1965,7 +2117,13 @@ function startPresentationInteraction(mode, details) {
     clearTimeout(tieBreakTimer);
     tieBreakTimer = null;
   }
+  if (surveyTimer) {
+    clearTimeout(surveyTimer);
+    surveyTimer = null;
+  }
+  state.session = null;
   state.survey = null;
+  state.sessionClosedAt = null;
   state.round = createRound(details);
   presentation.activeView = mode === "hands" ? "hands" : "poll";
   armRevealTimer();
@@ -1985,8 +2143,14 @@ function endPresentationInteraction() {
     clearTimeout(tieBreakTimer);
     tieBreakTimer = null;
   }
+  if (surveyTimer) {
+    clearTimeout(surveyTimer);
+    surveyTimer = null;
+  }
   state.round = null;
   state.survey = null;
+  state.session = null;
+  if (presentation.status === "live") state.sessionClosedAt = null;
   presentation.activeView = "slides";
   scheduleSave();
   broadcastState();
@@ -2169,12 +2333,16 @@ function ensureSessionSecret() {
     }
 
     const generated = crypto.randomBytes(32).toString("hex");
-    fs.writeFileSync(SESSION_SECRET_FILE, generated + "\n", { mode: 0o600 });
+    const temp = SESSION_SECRET_FILE + ".tmp";
+    fs.writeFileSync(temp, generated + "\n", { mode: 0o600 });
     try {
-      fs.chmodSync(SESSION_SECRET_FILE, 0o600);
+      fs.chmodSync(temp, 0o600);
     } catch {
       // Some filesystems do not support chmod.
     }
+    fsyncFileSync(temp);
+    fs.renameSync(temp, SESSION_SECRET_FILE);
+    fsyncDirectorySync(DATA_DIR);
     SESSION_SECRET = generated;
     return SESSION_SECRET;
   } catch (error) {
@@ -2274,7 +2442,27 @@ async function saveAuthRecord(record) {
   } catch {
     // Some filesystems do not support chmod.
   }
+  try {
+    const fd = await fs.promises.open(temp, "r");
+    try {
+      await fd.sync();
+    } finally {
+      await fd.close();
+    }
+  } catch {
+    // Best effort; the rename still applies.
+  }
   await fs.promises.rename(temp, AUTH_FILE);
+  try {
+    const dirFd = await fs.promises.open(DATA_DIR, "r");
+    try {
+      await dirFd.sync();
+    } finally {
+      await dirFd.close();
+    }
+  } catch {
+    // Not all platforms support directory fsync.
+  }
 }
 
 const loginAttempts = new Map();
@@ -2833,7 +3021,7 @@ function closeHostSockets() {
   }
 }
 
-app.post("/api/host/logout", (req, res) => {
+app.post("/api/host/logout", requireHost, (req, res) => {
   clearHostCookie(req, res);
   closeHostSockets();
   res.json({ ok: true });
@@ -2873,10 +3061,17 @@ app.get("/api/presentation/slide/:id", requireController, (req, res) => {
     return res.status(404).end();
   }
   try {
-    const buffer = fs.readFileSync(file);
     res.setHeader("Cache-Control", "private, max-age=300");
     res.type(slide.type || "image/png");
-    res.send(buffer);
+    res.sendFile(file, (error) => {
+      if (error && !res.headersSent) {
+        console.error("Could not read presentation slide", {
+          file,
+          message: error.message,
+        });
+        res.status(404).end();
+      }
+    });
   } catch (error) {
     console.error("Could not read presentation slide", {
       file,
@@ -3046,6 +3241,7 @@ app.post("/api/presentation/interaction", requireController, (req, res, next) =>
       options: req.body?.options,
       durationSec: req.body?.durationSec,
       spinOnTie: req.body?.spinOnTie,
+      allowCustom: req.body?.allowCustom,
     });
     const round = startPresentationInteraction(mode, details);
     res.json({ ok: true, roundId: round.id, state: publicState() });
@@ -3149,7 +3345,10 @@ app.post("/api/presentation/control", requireController, (req, res, next) => {
       req.body?.scroll,
     );
     const slideToken = String(req.headers["x-controller-token"] || req.query?.token || "");
-    res.json({ presentation: publicPresentation(presentation, { slideToken }) });
+    res.json({
+      rev: stateRev,
+      presentation: publicPresentation(presentation, { slideToken }),
+    });
   } catch (error) {
     next(error);
   }
@@ -3642,21 +3841,28 @@ server.listen(PORT, HOST_BIND, () => {
 });
 
 function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
   clearInterval(heartbeat);
   if (revealTimer) clearTimeout(revealTimer);
   if (tieBreakTimer) clearTimeout(tieBreakTimer);
   if (surveyTimer) clearTimeout(surveyTimer);
   if (saveTimer) clearTimeout(saveTimer);
-  persistStateSync();
-  for (const ws of wss.clients) {
-    try {
-      ws.close(1001, "Server shutting down");
-    } catch {
-      // Ignore already-closed sockets.
-    }
-  }
-  server.close(() => process.exit(0));
-  setTimeout(() => process.exit(0), 1500).unref();
+  if (broadcastTimer) clearTimeout(broadcastTimer);
+  Promise.resolve(saveChain)
+    .catch(() => {})
+    .finally(() => {
+      persistStateSync();
+      for (const ws of wss.clients) {
+        try {
+          ws.close(1001, "Server shutting down");
+        } catch {
+          // Ignore already-closed sockets.
+        }
+      }
+      server.close(() => process.exit(0));
+      setTimeout(() => process.exit(0), 1500).unref();
+    });
 }
 
 process.on("SIGINT", shutdown);
