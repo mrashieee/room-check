@@ -68,8 +68,10 @@ await check("disk space", () => {
   }
   const line = output.trim().split("\n").pop();
   const availableKb = Number(line.split(/\s+/)[3]);
-  if (Number.isFinite(availableKb) && availableKb < 512 * 1024) {
-    throw new Error(`only ${Math.round(availableKb / 1024)} MB free`);
+  if (Number.isFinite(availableKb) && availableKb < 2048 * 1024) {
+    throw new Error(
+      `only ${Math.round(availableKb / 1024)} MB free; allow room for an 80-slide deck (up to 2 GB)`,
+    );
   }
 });
 
@@ -81,6 +83,7 @@ await check("qr generation", async () => {
 
 await check("pdf parser present", () => {
   fs.accessSync(path.join(root, "node_modules", "pdfjs-dist", "build", "pdf.mjs"));
+  fs.accessSync(path.join(root, "node_modules", "pdfjs-dist", "build", "pdf.worker.mjs"));
 });
 
 try {

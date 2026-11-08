@@ -25,6 +25,16 @@ if (!changelog.includes(`## ${version}`)) {
   failures.push(`CHANGELOG.md has no "## ${version}" section.`);
 }
 
+for (const name of fs.readdirSync(path.join(root, "public"))) {
+  if (!/\.(html|css)$/.test(name)) continue;
+  const text = fs.readFileSync(path.join(root, "public", name), "utf8");
+  for (const match of text.matchAll(/\bv(\d+\.\d+\.\d+)\b/g)) {
+    if (match[1] !== version) {
+      failures.push(`public/${name} references v${match[1]}, expected v${version}.`);
+    }
+  }
+}
+
 const server = fs.readFileSync(path.join(root, "server.mjs"), "utf8");
 if (!server.includes("PACKAGE_JSON")) {
   failures.push("server.mjs no longer reads its version from package.json.");

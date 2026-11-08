@@ -13,7 +13,9 @@ import { Tunnel, bin, install } from "cloudflared";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const port = Number(process.env.PORT || 3000);
-const localUrl = `http://localhost:${port}`;
+const bind = process.env.BIND_ADDRESS || "0.0.0.0";
+const tunnelHost = bind === "0.0.0.0" ? "127.0.0.1" : bind === "::" ? "::1" : bind;
+const localUrl = `http://${tunnelHost.includes(":") ? `[${tunnelHost}]` : tunnelHost}:${port}`;
 const startedAt = Date.now();
 
 let tunnel = null;
