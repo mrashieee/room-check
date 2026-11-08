@@ -33,8 +33,8 @@ It is **offline-first**: the presenter laptop owns the slides and the presentati
 - **No-slide sessions:** start a controller session without a deck for polls, hands and surveys. The controller QR appears before the session starts.
 - **Phone controller:** pair a phone by QR or host password, then change slides, fit the projector, scroll tall slides, run quick polls and raise Live Hands. It also works without slides.
 - **Silent audience screen:** `/join` shows a calm attention screen, then switches to voting, hand raising or survey questions when the host starts them.
-- **Interactions page:** create polls and multi-question surveys, reveal results, run the wheel, customise the theme and manage backups. **End session** becomes **End interaction** while a presentation is live.
-- **Works without a controller:** a live presentation can be ended from the host header or from **Stop presentation** in `/present` setup. `/present` also links to host controls for polls, surveys and hands.
+- **Interactions page:** create polls and multi-question surveys, reveal results, run the wheel, customise the theme and manage backups. **End session** becomes **End interaction** while a poll, hands round or survey is open on a live deck.
+- **Works without a controller:** a live presentation can be ended from the host header or from **End presentation** in `/present` setup. `/present` also links to host controls for polls, surveys and hands.
 - **Tunnel-ready audience link:** run `npm run share` and the QR/link automatically use a temporary public HTTPS address.
 - **Share card:** `/share` shows the audience QR and link, with a downloadable 1920×1080 PNG for a slide.
 - **Thanks pages:** `/thanks` is the audience version with no host links; `/thanks-host` adds **Start another session** for host-side screens and returns to `/`. Both carry the support message, accented GitHub icon and GitHub QR.
@@ -176,7 +176,7 @@ Important:
 - **Keep the terminal open.** It is the app log and can show errors or the setup code.
 - The setup code is only printed while no password is configured. If you miss it, restart the process to generate a new one.
 - Host sessions last 12 hours.
-- The controller can pair by QR token without asking for the password again. The token is short-lived and tied to the presentation.
+- The controller can pair by QR token without asking for the password again. The token is tied to the presentation and stays valid while the deck is ready or live. Closing the deck makes it invalid, reopening restores it, and rotating the controller link replaces it permanently.
 
 ### Stop and restart
 
@@ -216,7 +216,7 @@ The first run may download a small tunnel helper. Cloudflare can take a minute o
 
 Keep the process running for the whole event. The public URL is temporary and generally changes every time you restart `npm run share`.
 
-The tunnel carries the website, API and WebSocket updates. It does **not** relay slides, camera video or screen video. Audience phones receive the silent audience screen, not the projector.
+The tunnel carries the website, API, WebSocket updates and—when a phone controller is paired—the slide preview images that controller requests. It does **not** send slides or video to audience phones. Audience phones receive the silent audience screen, not the projector.
 
 ### Custom domain or permanent URL
 
@@ -234,17 +234,16 @@ For a stable URL, run Room Check behind a reverse proxy with HTTPS and set `PUBL
 8. Put the projector in full-screen mode. The presentation display hides its controls and shows the deck.
 9. The audience scans the audience QR from `/share` or opens `/join`. Their phone stays silent and shows the current prompt.
 
-The controller and projector stay in sync over the same WebSocket connection. Scrolling the controller preview scrolls the projector to the matching position when the projector is in **Fit width** mode.
+The controller and projector read the same server state; the controller polls once a second and the projector polls several times a second, while audience screens use WebSocket updates. Scrolling the controller preview scrolls the projector to the matching position when the projector is in **Fit width** mode.
 
 ### End the session
 
-Press **End session** on the controller, the projector header or the full-screen display bar.
+The header exposes two live actions:
 
-- The room closes.
-- The projector opens the host thank-you page.
-- Ending from the projector, host, home or phone controller opens `/thanks-host`.
-- The host header exposes **End presentation** while a presentation is live, so a separate phone controller is optional.
-- The audience is sent to `/thanks` when the session closes; survey results still render in `/join` after a survey closes.
+- **End interaction** appears while a poll, Live Hands round or survey is open. Polls and hands clear and the audience returns to the silent presentation screen; a survey closes and leaves its results on `/join`.
+- **End presentation** closes the deck and sends host screens to `/thanks-host` and the audience to `/thanks`.
+
+**End session** is for ending the audience room when no interaction is open. With a live deck the deck stays ready on the projector; **Show presentation** reopens the room. The controller’s **End session** closes the deck as well. A closed survey keeps its results on `/join`.
 
 ### Slide files
 
@@ -277,7 +276,7 @@ Open `/interactions` for:
 
 - Single-question polls with 30/60/90/120-second or manual timers.
 - Multi-question surveys with audience-driven **Next question**, **Back** and review screens.
-- JSON question import.
+- JSON question import and export.
 - Survey QR joining and live respondent counts.
 - Post-survey answer graphs.
 - The tie-breaker wheel.
@@ -504,6 +503,7 @@ location / {
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
     proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
 }
 ```
@@ -533,8 +533,8 @@ Render, Railway, Fly.io, and VPS providers can all run the app. On free tiers, c
 | Public link shows a Cloudflare 530 error right after startup | Wait for **Public link verified and ready**. If it persists, restart `npm run share`. |
 | Public link stopped working | The `npm run share` process was stopped or lost connectivity. Run it again; the URL will change. |
 | Audience cannot see the slides | That is by design. Slides stay on the projector. Audience phones show the silent prompt, poll, hands or survey screen. |
-| Controller QR does not pair | Make sure the presentation has started, the phone and host are on the same app URL, and the controller token has not expired. Use the host password fallback. |
-| PDF pages look blurry | Re-upload the PDF; pages are rendered at the server’s configured resolution. Large decks take longer to process. |
+| Controller QR does not pair | Make sure the presentation is ready or live, the phone and host are on the same app URL, and the controller link has not been rotated or closed. Use the host password fallback. |
+| PDF pages look blurry | Re-upload the PDF; pages are rendered in the browser at 1.5× scale and stored as images. Large decks take longer to process. |
 | Votes or results do not update | A proxy may be blocking WebSockets. The app falls back to polling every 3 seconds; check the reverse proxy’s WebSocket support. |
 | Host login expired | Host sessions last 12 hours. Log in again. |
 | `npm run share` cannot download the tunnel helper | The network blocks GitHub or Cloudflare. Use the LAN mode or deploy behind a domain. |
@@ -598,7 +598,7 @@ Check the [CHANGELOG](./CHANGELOG.md) for release notes.
 - No names, emails, camera, microphone, GPS, analytics or payment data are collected.
 - Audience screens do not display the slide deck or live video. The deck stays on the projector.
 - Slide images require the host cookie or a valid controller token. Public state omits slide URLs.
-- The controller token is only valid while the presentation is live.
+- The controller token is valid while the presentation is ready or live, and is invalid after the deck is closed.
 - A new controller link can be generated from the presenter QR panel, invalidating older controller links.
 - WebSocket upgrades reject cross-origin browser connections.
 - QR generation is rate-limited per client.
@@ -614,7 +614,7 @@ npm run preflight      # event-day machine readiness
 npm run version:check  # package.json vs README badge vs CHANGELOG
 ```
 
-A GitHub Actions workflow runs syntax checks and the Chromium smoke test on pushes and pull requests.
+A GitHub Actions workflow runs syntax checks, the version check, the unit tests and the Chromium smoke test on pushes and pull requests.
 
 ### Accessibility
 
@@ -739,7 +739,9 @@ Stack: Node.js, Express, `ws`, `qrcode`, `pdfjs-dist`, and vanilla browser JavaS
 
 - **Reopen** returns a closed presentation to `ready`; slides and token are kept.
 - **Discard deck** deletes slide files and interactions but keeps the presentation record, title and controller pairing; status returns to `ready`.
-- **End presentation / End session** clears the interaction, marks the room closed and sends host screens to `/thanks-host`, the audience to `/thanks`.
+- **End interaction** clears a poll or hands round and returns the audience to the silent presentation; a survey closes and keeps its results on `/join`.
+- **End presentation** closes the deck and sends host screens to `/thanks-host` and the audience to `/thanks`.
+- **End session** ends the audience room when no interaction is open. A live deck stays ready on the projector; **Show presentation** reopens the room.
 - **Start another session** clears the closed state; the audience returns to `/join` standby automatically.
 - A closed survey keeps its results on `/join` instead of showing `/thanks`.
 
@@ -755,9 +757,13 @@ Errors are JSON `{ error, code? }`; auth failures are `401`, bad input `400`, co
 
 ## Browser and projector support
 
-Tested targets: Chromium desktop (projector, host console), iPhone Safari and Android Chrome (audience, controller), 1920×1080 projector with a 1366×768 fallback, and 390px phones. Real-device rehearsal notes live in `.github/ISSUE_TEMPLATE/event-rehearsal.md`.
+Target setup: Chromium desktop for the projector and host console (covered by the smoke suite), iPhone Safari and Android Chrome for the audience and controller, 1920×1080 projector with a 1366×768 fallback, and 390px phones. Real-device and physical-projector rehearsal is still pending; the checklist lives in `.github/ISSUE_TEMPLATE/event-rehearsal.md`.
 
 ## Roadmap
+
+### Shipped in 3.1.0
+
+- `/interactions` console, JSON question export/import, shared live headers, ended-session restart, and the server hardening described in the CHANGELOG.
 
 ### Shipped in 3.0.0
 

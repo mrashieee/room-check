@@ -5,7 +5,7 @@ Print this. Keep it with the laptop.
 ## Start
 
 ```bash
-cd /home/rashocean/Work/room-check
+cd /path/to/room-check
 npm run preflight
 npm run share   # remote audience, or: npm start (same Wi-Fi)
 ```
@@ -33,7 +33,7 @@ npm run share   # remote audience, or: npm start (same Wi-Fi)
 
 - One action per screen; reveal before moving on.
 - End presentation from `/interactions`, `/present` setup, or the display bar — no phone needed.
-- **End interaction** ends the poll/survey. **End presentation** closes the deck.
+- **End interaction** clears the open poll/hands round and returns the audience to the presentation screen; a survey closes with results on `/join`. **End presentation** closes the deck.
 - Start another session from `/thanks-host` returns the audience to `/join`.
 
 ## If it breaks

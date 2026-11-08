@@ -2,6 +2,34 @@
 
 All notable changes to Room Check are documented here.
 
+## Unreleased
+
+### Fixed
+
+- Controller quick polls now honor the write-in toggle
+- Multi-question surveys keep each question's write-in setting
+- Ending a poll or hands round no longer leaves the room marked closed or strands the audience on `/thanks`; survey endings keep results on `/join`
+- Resuming a live deck reopens the audience room
+- Empty decks no longer navigate to slide index `-1`
+- Login `next` redirects cannot leave the app origin
+- Host logout now requires an authenticated host session
+- Session write-in flags survive a restart
+- JSON import restores the title and top-level write-in setting
+- Survey counts and confirmations describe the results screen accurately
+- State saves wait for the pending write queue before the final snapshot
+
+### Changed
+
+- `TRUST_PROXY` and `PUBLIC_URL` are validated at startup
+- Starting a poll, survey or deck cannot silently replace an open interaction
+- Controller and projector timers use server time
+- Controller and projector polling is serialized and ignores stale responses
+- Slide images stream from disk; auth and palette writes fsync before rename; live broadcasts coalesce bursts
+- The tie-breaker wheel traps focus, restores it on close and makes the background inert
+- Import JSON is keyboard reachable; invalid fieldset markup was corrected
+- Version checks cover public page footers; preflight expects room for a full deck
+- `npm run share` uses a loopback IP instead of `localhost`
+
 ## 3.1.0 — 2026-11-03
 
 ### Fixed
